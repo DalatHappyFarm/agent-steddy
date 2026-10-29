@@ -107,19 +107,6 @@ class GuardBash(unittest.TestCase):
         self.assertEqual(run("cat <<EOF\ngit stash\nEOF"), "allow")
         self.assertEqual(run("echo x # git stash"), "allow")
 
-    def test_looks_through_assignments_wrappers_and_keywords(self):
-        wrapped = [
-            "FOO=1 {}", 'A=1 B="x y" {}', "env {}", "env FOO=1 {}", "env -i FOO=1 {}", "env -u FOO {}", "env -- {}", "/usr/bin/env {}",
-            "sudo {}", "sudo -E {}", "sudo -u root {}", "sudo --user=root {}", "sudo -- {}", "command {}", "nohup {}", "time {}", "time -p {}",
-            "nice {}", "nice -n 10 {}", "nice -10 {}", "exec {}", "sudo env FOO=1 nohup {}", "FOO=1 sudo -u me nice -n 5 {}",
-            "if true; then {}; fi", "while true; do {}; done", "! {}", "{{ {}; }}",
-        ]
-        for template in wrapped:
-            for inner, config in [("git stash", None), ("supabase config push", DENY_PUSH)]:
-                command = template.format(inner)
-                self.assertEqual(run(command, config), "deny", command)
-                self.assertEqual(run(template.format("git status"), config), "allow", template)
-
     def test_a_wrapper_word_only_counts_at_the_start_of_a_command(self):
         for command in ["echo sudo git stash", "echo env FOO=1 git stash", "git log nohup stash", "ls time git stash", "echo FOO=1 git stash"]:
             self.assertEqual(run(command, DENY_PUSH), "allow", command)

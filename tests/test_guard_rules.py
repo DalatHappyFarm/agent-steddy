@@ -3,6 +3,7 @@
 Every rule id has commands it must block ("hit") and lookalikes it must allow ("miss").
 """
 import pathlib
+import shlex
 import sys
 import unittest
 
@@ -108,6 +109,18 @@ RULE_CASES = {
 }
 
 
+# `{}` takes the command as it is, `{q}` takes it as one quoted word.
+WRAPPERS = [
+    "FOO=1 {}", 'A=1 B="x y" {}', "env {}", "env FOO=1 {}", "env -i FOO=1 {}", "env -u FOO {}", "env -- {}", "/usr/bin/env {}",
+    "sudo {}", "sudo -E {}", "sudo -u root {}", "sudo --user=root {}", "sudo -- {}", "command {}", "nohup {}", "time {}", "time -p {}",
+    "nice {}", "nice -n 10 {}", "nice -10 {}", "exec {}", "sudo env FOO=1 nohup {}", "FOO=1 sudo -u me nice -n 5 {}",
+    "if true; then {}; fi", "while true; do {}; done", "! {}", "{{ {}; }}",
+    "bash -c {q}", "sh -c {q}", "zsh -c {q}", "bash -lc {q}", "sudo bash -c {q}", "env A=1 sh -c {q}",
+]
+DENY_PUSH = {"commands": {"deny": [{"match": "supabase config push", "reason": "No config push."}]}}
+ASKS = {"commands": {"alwaysAsk": ["npm publish"], "askFromSubagent": ["make deploy"]}}
+
+
 def rule_ids():
     return [rule_id for rule_id, _, _ in guard_bash.DENY_RULES + guard_bash.ASK_RULES]
 
@@ -147,6 +160,25 @@ class BuiltInRules(unittest.TestCase):
             for other_id, other in RULE_CASES.items():
                 if other_id != rule_id:
                     self.assertEqual(verdict(other["hit"][0], off)[0], kind_of(other_id), f"{rule_id} off, {other_id}")
+
+
+class Wrappers(unittest.TestCase):
+    """Every rule, built-in or from the config, sees through every wrapper, and a harmless command stays allowed."""
+
+    def test_each_built_in_rule_sees_through_each_wrapper(self):
+        for template in WRAPPERS:
+            for rule_id, cases in RULE_CASES.items():
+                hit, miss = cases["hit"][0], cases["miss"][0]
+                self.assertEqual(verdict(template.format(hit, q=shlex.quote(hit)))[0], kind_of(rule_id), f"{rule_id}: {template}")
+                self.assertEqual(verdict(template.format(miss, q=shlex.quote(miss)))[0], "allow", f"{rule_id}: {template}")
+
+    def test_each_config_rule_sees_through_each_wrapper(self):
+        for template in WRAPPERS:
+            for command, config, agent, expected in [("supabase config push", DENY_PUSH, None, "deny"), ("npm publish", ASKS, None, "ask"),
+                                                     ("make deploy", ASKS, "acme-web", "ask"), ("make deploy", ASKS, None, "allow")]:
+                self.assertEqual(verdict(template.format(command, q=shlex.quote(command)), config, agent)[0], expected, f"{command}: {template}")
+            harmless = "supabase config list"
+            self.assertEqual(verdict(template.format(harmless, q=shlex.quote(harmless)), DENY_PUSH)[0], "allow", template)
 
 
 class AskRules(unittest.TestCase):
