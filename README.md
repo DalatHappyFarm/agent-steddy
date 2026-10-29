@@ -29,6 +29,33 @@ A project adjusts the kit with one file, `.claude/agent-steddy.json` in its root
 Every key is optional; a missing file gives the defaults.
 See [docs/config.md](docs/config.md) for every key and [examples/agent-steddy.json](examples/agent-steddy.json) for a full example.
 
+## Built-in Bash rules
+
+A hook on the Bash tool checks every command before it runs.
+Each built-in rule has an id, and the id leads the reason the agent sees, for example `[git-stash] Never git stash ...`.
+A deny stops the command; an ask makes the owner confirm it, in the main session and in a subagent.
+
+| Rule id | Decision | What it stops |
+| --- | --- | --- |
+| `git-stash` | deny | `git stash`, which hides the changes other agents are working on. |
+| `git-reset-hard` | deny | `git reset --hard`, which discards uncommitted work. |
+| `git-checkout-all` | deny | `git checkout .` and `git checkout -- .`, which overwrite every uncommitted change. |
+| `git-restore-all` | deny | `git restore .` and `git restore --staged .`, which discard or unstage everything. |
+| `git-clean-force` | deny | `git clean -f`, `-fd`, `-fdx` and `--force`, which delete untracked files. |
+| `git-add-all` | deny | `git add -A`, `--all` and `.`, which stage files other agents are editing. |
+| `git-commit-all` | deny | `git commit -a`, `-am` and `--all`, which commit other agents' changes. |
+| `git-branch-force-delete` | deny | `git branch -D`, and `-d` together with `-f`, which can lose commits. |
+| `git-push-force` | ask | `git push` with `--force`, `-f`, `--force-with-lease` or a `+refspec`. |
+| `grep-recursive` | deny | `grep -r`, `-R` and `--recursive` (also `egrep` and `fgrep`); use `rg` instead. |
+| `sed-in-place` | deny | `sed -i` without a suffix argument, and `--in-place`; they behave differently on macOS and Linux. |
+| `secret-read` | deny | Reading `.env`, `.env.*` (not `.env.example`), `*.env.local` or a glob such as `.env*` with `cat`, `grep`, `sed`, `head` and similar, and `source .env` followed by an echo of a variable. |
+| `env-dump` | deny | `printenv` and a bare `env`, which print every environment variable. |
+
+Every rule looks through `NAME=value` prefixes, `env`, `sudo`, `command`, `nohup`, `time`, `nice` and `exec`, and reads the script of `bash -c`, `sh -c` and `zsh -c`.
+The project config can add its own rules (`commands.deny`, `commands.alwaysAsk`, `commands.askFromSubagent`) and turn a built-in rule off by id (`guards.disable`).
+A deny beats an ask, and a built-in rule beats a config rule.
+See [docs/config.md](docs/config.md) for the details and the limits of the matching.
+
 ## Try it locally
 
 ```bash

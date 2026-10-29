@@ -3,6 +3,7 @@
 Every rule id has commands it must block ("hit") and lookalikes it must allow ("miss").
 """
 import pathlib
+import re
 import shlex
 import sys
 import unittest
@@ -151,6 +152,11 @@ class BuiltInRules(unittest.TestCase):
         for rule_id, cases in RULE_CASES.items():
             for command in cases["miss"]:
                 self.assertEqual(verdict(command)[0], "allow", f"{rule_id}: {command}")
+
+    def test_the_readme_lists_every_rule_id_with_its_decision(self):
+        readme = (ROOT / "README.md").read_text()
+        listed = re.findall(r"^\| `([a-z-]+)` \| (deny|ask) \|", readme, re.MULTILINE)
+        self.assertEqual(sorted(listed), sorted((rule_id, kind_of(rule_id)) for rule_id in rule_ids()))
 
     def test_disabling_a_rule_allows_its_commands_and_keeps_the_other_rules(self):
         for rule_id, cases in RULE_CASES.items():
