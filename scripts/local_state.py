@@ -4,7 +4,9 @@ The state is the pending task clock and the tool timing log; it is never committ
 It lives in the git common dir (`<repo>/.git/agent-steddy/`), which every worktree of a repo shares.
 Outside a git repo it falls back to `CLAUDE_PLUGIN_DATA`, which Claude Code gives to hook processes and not to the commands the Bash tool runs.
 """
+import datetime as dt
 import hashlib
+import json
 import os
 from pathlib import Path
 
@@ -12,6 +14,7 @@ NAME = "agent-steddy"
 PENDING = "pending-task.json"  # the task clock: {"task", "start", "prompt_start"}
 TIMES = "tool-times.jsonl"  # one line per Bash command
 MARKS = "tool-marks"  # start times of Bash commands that have not finished
+STALE_AUTO_HOURS = 12
 
 
 def project_dir():
@@ -50,3 +53,28 @@ def state_dir(project):
     data = os.environ.get("CLAUDE_PLUGIN_DATA")
     # one plugin data folder serves every project, so each project outside a repo gets its own subfolder
     return Path(data) / hashlib.sha256(str(project).encode()).hexdigest()[:12] if data else None
+
+
+def read_pending(state):
+    """The pending task clock as a dict; {} when there is none or it cannot be read."""
+    try:
+        data = json.loads((state / PENDING).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def auto_start(pending, now):
+    """The start (a datetime) of an auto task that still counts as the prompt time, else None.
+
+    An auto task is one the prompt hook named `auto <time>` when the owner's prompt came and no task was pending.
+    One older than STALE_AUTO_HOURS is a prompt that never reached `metrics log` (a question, a session that ended), not the prompt of the task being logged now.
+    """
+    start = pending.get("start")
+    if not (str(pending.get("task", "")).startswith("auto ") and isinstance(start, str)):
+        return None
+    try:
+        when = dt.datetime.fromisoformat(start)
+        return when if now - when <= dt.timedelta(hours=STALE_AUTO_HOURS) else None
+    except (ValueError, TypeError):  # not a time, or one with a time zone
+        return None

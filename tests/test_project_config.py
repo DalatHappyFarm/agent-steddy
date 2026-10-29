@@ -54,6 +54,7 @@ class LoadConfig(unittest.TestCase):
         self.assertEqual(config["commands"]["alwaysAsk"], [])
         self.assertEqual(config["guards"], {"disable": []})
         self.assertEqual(config["records"], project_config.DEFAULTS["records"])
+        self.assertEqual(config["reminder"], {"enabled": True, "text": project_config.DEFAULT_REMINDER})
         self.assertEqual(config["extra"], {"kept": True})
 
     def test_project_dir_comes_from_the_argument_then_the_env_then_the_cwd(self):
@@ -70,6 +71,9 @@ class LoadConfig(unittest.TestCase):
         self.assertEqual(project_config.get(config, "agents", "models"), {})
         self.assertEqual(project_config.get(config, "agents", "writeFences"), {})
         self.assertEqual(project_config.get(config, "guards", "disable"), [])
+        self.assertEqual(project_config.get({"reminder": {"enabled": "no", "text": 5}}, "reminder", "enabled"), True)
+        self.assertEqual(project_config.get({"reminder": {"enabled": False}}, "reminder", "enabled"), False)
+        self.assertEqual(project_config.get({"reminder": {"enabled": "no", "text": 5}}, "reminder", "text"), project_config.DEFAULT_REMINDER)
         self.assertEqual(project_config.get({}, "agents", "allowed"), ["*"])
         project_config.get({}, "agents", "allowed").append("x")
         self.assertEqual(project_config.DEFAULTS["agents"]["allowed"], ["*"])

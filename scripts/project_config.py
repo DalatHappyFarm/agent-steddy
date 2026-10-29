@@ -9,6 +9,15 @@ import os
 import sys
 from pathlib import Path
 
+DEFAULT_REMINDER = (
+    "Seven gates for this request: 1 Intake (the goal, the scope and the size; ask when it is unclear) -> "
+    "2 Recall (the rules, the role notes and the lessons so far) -> "
+    "3 Shape (the role, the split, what done means) -> 4 Act -> "
+    "5 Prove (evidence you looked at; re-check what sub-agents report) -> "
+    "6 Record (decisions with `agent-steddy record decision`, a retro with `agent-steddy record lesson`, a metrics line with `agent-steddy metrics log`) -> "
+    "7 Deliver (an honest report; commit or merge only when asked)."
+)
+
 DEFAULTS = {
     "workingBranch": "main",
     "verifyCommand": None,
@@ -22,6 +31,7 @@ DEFAULTS = {
         ],
     },
     "commands": {"deny": [], "askFromSubagent": [], "alwaysAsk": []},
+    "reminder": {"enabled": True, "text": DEFAULT_REMINDER},
     "records": {
         "lessons": "docs/agents/lessons.md",
         "metrics": "docs/agents/metrics.jsonl",

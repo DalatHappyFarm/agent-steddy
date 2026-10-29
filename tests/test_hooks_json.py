@@ -15,6 +15,7 @@ WIRING = [
     ("PostToolUse", "Bash", "tool_timing.py", "post", ["Bash"], ["Write", "Read"]),
     ("PostToolUseFailure", "Bash", "secret_output_scan.py", "", ["Bash"], ["Write", "Read"]),
     ("PostToolUseFailure", "Bash", "tool_timing.py", "fail", ["Bash"], ["Write", "Read"]),
+    ("UserPromptSubmit", None, "gate_reminder.py", "", [], []),
     ("SubagentStop", None, "stop_check.py", "", [], []),
 ]
 

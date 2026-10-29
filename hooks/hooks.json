@@ -39,6 +39,13 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_reminder.py\"", "timeout": 5 }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "hooks": [

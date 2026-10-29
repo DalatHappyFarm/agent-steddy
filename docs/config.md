@@ -31,6 +31,8 @@ Unknown keys are kept and are not an error.
 | `commands.deny` | `[]` | `scripts/guard_bash.py` |
 | `commands.askFromSubagent` | `[]` | `scripts/guard_bash.py` |
 | `commands.alwaysAsk` | `[]` | `scripts/guard_bash.py` |
+| `reminder.enabled` | `true` | `scripts/gate_reminder.py` |
+| `reminder.text` | the seven gates | `scripts/gate_reminder.py` |
 | `records.lessons` | `"docs/agents/lessons.md"` | planned: step 5 |
 | `records.metrics` | `"docs/agents/metrics.jsonl"` | planned: step 5 |
 | `records.decisions` | `"docs/agents/decisions.md"` | planned: step 5 |
@@ -56,6 +58,9 @@ Unknown keys are kept and are not an error.
   The main session runs the same command without asking.
   A subagent is a hook input with a non-empty `agent_type`.
 - `commands.alwaysAsk` is a list of `"<words>"` patterns; a matching command makes the owner confirm it, whoever runs it.
+- `reminder.enabled` turns the per-prompt reminder off when it is `false`; the task clock still starts.
+- `reminder.text` is the text added to the context of every prompt; the default lists the seven gates.
+  An empty text adds nothing.
 - `records.*` are the paths, relative to the project root, of the lessons file, the metrics file and the decisions file.
 
 ## Decisions
@@ -150,10 +155,11 @@ The same fail-open rule applies: any internal error prints nothing and the outpu
 
 ## Local state
 
-The kit keeps a little state per project, and none of it is committed: the tool timing log and, from the prompt hook, the pending task clock.
+The kit keeps a little state per project, and none of it is committed: the pending task clock and the tool timing log.
 It lives in the `agent-steddy` folder inside the git common dir, for example `.git/agent-steddy/`, so every worktree of a repo shares it.
 The files:
 
+- `pending-task.json` is the task clock, written by the prompt hook and read by `agent-steddy metrics`.
 - `tool-times.jsonl` is the tool timing log, one line per Bash command.
 - `tool-marks/` holds the start time of each Bash command that has not finished.
 
@@ -180,6 +186,23 @@ It runs three times per command: `pre` before it (`PreToolUse`), and `post` afte
   Secrets are replaced by `[REDACTED:<pattern>]` with the patterns of the [secret output scan](#secret-output-scan), and the text is cut to 400 characters after that.
 - A command that was denied or interrupted leaves a mark and no line; `metrics slow` deletes marks older than a day.
 - The hook prints nothing, never blocks and exits 0 whatever happens.
+
+## Gate reminder
+
+`scripts/gate_reminder.py` runs when a prompt is submitted (`UserPromptSubmit`).
+It does two things, and neither can block the prompt.
+
+1. It adds `reminder.text` to the context of the prompt, so the gates stay in front of the agent in a long session.
+   The default text lists seven gates: intake, recall, shape, act, prove, record and deliver.
+   A project writes its own text, for example one that names its own gates document, or sets `reminder.enabled` to `false`.
+2. It starts the task clock.
+   When no task is pending, the time of the prompt becomes the start of an auto task named `auto <time>` in `pending-task.json` (see [Local state](#local-state)).
+   `agent-steddy metrics start` names that task and keeps the prompt time as `prompt_start`; `metrics log` closes it and deletes the file.
+   A pending task is never replaced, so a second prompt of the same task keeps the first start.
+   The one exception is an auto task older than 12 hours, which was a prompt that never reached `metrics log`; the new prompt replaces it.
+
+Claude Code discards the context of a `UserPromptSubmit` hook that reaches its timeout, so the hook does almost nothing: it reads the config and one small file.
+The same fail-open rules apply: a value of the wrong type is read as the default and any error leaves the prompt as it was.
 
 ## Command matching
 
