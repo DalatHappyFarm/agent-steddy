@@ -40,6 +40,13 @@ RULE_CASES = {
                 "git -C app clean -fd", "cd app && git clean -f", "sudo git clean -f", "bash -c 'git clean -fd'"],
         "miss": ["git clean -n", "git clean -nd", "git clean --dry-run", "git clean", "git clean -i", "git clean -d", "echo 'git clean -f'", "git status -f"],
     },
+    "git-add-all": {
+        "hit": ["git add -A", "git add --all", "git add .", "git add -- .", "git add -Av", "git add -vA", "git -C apps add -A", "cd apps && git add -A && echo done",
+                "git add . && git commit -m x", "echo hi\ngit add -A", "FOO=1 git add .", "bash -c 'git add -A'"],
+        "miss": ["git add apps/web/a.ts docs/b.md", "git add -- docs/x.md", "git add ./a.md", "git add -n a.md", "git add -p a.ts", "git add -u a.md",
+                 "git commit -m 'git add -A is banned' -- a.md", "echo 'git add .'", "cat <<EOF\ngit add -A\nEOF",
+                 "git commit -m \"$(cat <<'EOF'\nfeat: x\n\ngit add -A and git add . mentioned\nEOF\n)\" -- a.md"],
+    },
 }
 
 

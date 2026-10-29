@@ -180,6 +180,8 @@ DENY_RULES = [
      "Restoring . discards every uncommitted change in the tree, including other agents' work. Restore single files by path."),
     ("git-clean-force", git_rule("clean", lambda args: "--force" in args or any(short(arg, "f") for arg in args)),
      "git clean -f deletes untracked files that other agents may own. Remove your own files by path."),
+    ("git-add-all", git_rule("add", lambda args: any(arg in (".", "--all") or short(arg, "A") for arg in args)),
+     "Staging everything sweeps in files other agents are editing. Stage your own files by path, then commit by path."),
 ]
 
 
