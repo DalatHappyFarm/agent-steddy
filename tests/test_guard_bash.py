@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import guard_bash  # noqa: E402
 
 DENY_PUSH = {"commands": {"deny": [{"match": "supabase config push", "reason": "Ask the owner to run config push."}]}}
+ASKS = {"commands": {"askFromSubagent": ["make deploy", "git push"], "alwaysAsk": ["npm publish"]}}
 
 
 def decide(command, config=None, agent_type=None):
@@ -178,6 +179,64 @@ class GuardBash(unittest.TestCase):
             decision = decide(command, DENY_PUSH)
             self.assertEqual(decision["permissionDecision"], "deny", command)
             self.assertEqual(decision["permissionDecisionReason"], "Ask the owner to run config push.")
+
+    def test_always_ask_asks_in_the_main_session_and_in_a_subagent(self):
+        for command in ["npm publish", "npm publish --access public", "cd pkg && npm publish", "sudo -u me npm publish", "bash -c 'npm publish'",
+                        "/usr/bin/npm --prefix pkg publish"]:
+            for agent in [None, "", "acme-web"]:
+                self.assertEqual(run(command, ASKS, agent), "ask", f"{command} {agent!r}")
+        for command in ["npm run build", "npm test", "echo 'npm publish'", "echo npm publish", "git status"]:
+            self.assertEqual(run(command, ASKS, "acme-web"), "allow", command)
+
+    def test_ask_from_subagent_asks_a_subagent_and_allows_the_main_session(self):
+        for command in ["make deploy", "make -C app deploy", "git push", "git -C x push origin main", "cd app && make deploy", "env CI=1 make deploy",
+                        "sh -c 'git push'"]:
+            self.assertEqual(run(command, ASKS, "acme-web"), "ask", command)
+            for main_session in [None, ""]:
+                self.assertEqual(run(command, ASKS, main_session), "allow", f"{command} {main_session!r}")
+        for command in ["make test", "git status", "git pull", "echo make deploy"]:
+            self.assertEqual(run(command, ASKS, "acme-web"), "allow", command)
+
+    def test_an_ask_gives_a_reason_that_names_the_pattern_and_the_key(self):
+        always = decide("npm publish", ASKS)
+        self.assertEqual(always["permissionDecision"], "ask")
+        self.assertIn("`npm publish`", always["permissionDecisionReason"])
+        self.assertIn("alwaysAsk", always["permissionDecisionReason"])
+        sub = decide("make deploy", ASKS, "acme-web")
+        self.assertEqual(sub["permissionDecision"], "ask")
+        self.assertIn("`make deploy`", sub["permissionDecisionReason"])
+        self.assertIn("askFromSubagent", sub["permissionDecisionReason"])
+        self.assertIsNone(decide("make deploy", ASKS))
+
+    def test_a_deny_beats_an_ask(self):
+        both = {"commands": {**DENY_PUSH["commands"], "alwaysAsk": ["supabase config push", "make deploy"], "askFromSubagent": ["supabase config push"]}}
+        for agent in [None, "acme-web"]:
+            decision = guard_bash.judge("supabase config push", agent, both)
+            self.assertEqual(decision, ("deny", "Ask the owner to run config push."))
+            self.assertEqual(run("make deploy && supabase config push", both, agent), "deny")
+            self.assertEqual(run("supabase config push; make deploy", both, agent), "deny")
+        self.assertEqual(run("make deploy", both), "ask")
+
+    def test_a_built_in_deny_beats_a_config_deny_and_a_config_ask(self):
+        config = {"commands": {"deny": [{"match": "git stash", "reason": "config reason"}], "alwaysAsk": ["git stash"], "askFromSubagent": ["git stash"]}}
+        for agent in [None, "acme-web"]:
+            kind, reason = guard_bash.judge("git stash", agent, config)
+            self.assertEqual(kind, "deny")
+            self.assertTrue(reason.startswith("[git-stash] "), reason)
+        off = {**config, "guards": {"disable": ["git-stash"]}}
+        self.assertEqual(guard_bash.judge("git stash", None, off), ("deny", "config reason"))
+
+    def test_broken_ask_entries_are_skipped_and_do_not_hide_a_valid_one(self):
+        config = {"commands": {"alwaysAsk": [42, None, ["x"], {"match": "a"}, "", "npm publish"], "askFromSubagent": "make deploy"}}
+        self.assertEqual(run("npm publish", config), "ask")
+        self.assertEqual(run("make deploy", config, "acme-web"), "allow")
+        self.assertEqual(run("git status", config, "acme-web"), "allow")
+
+    def test_ask_lists_work_from_the_config_file_through_the_hook(self):
+        for agent, expected in [(None, None), ("acme-web", "ask")]:
+            decision = decide("git push", ASKS, agent)
+            self.assertEqual(decision and decision["permissionDecision"], expected)
+        self.assertEqual(decide("npm publish", ASKS)["hookEventName"], "PreToolUse")
 
     def test_allows_other_commands_with_a_config(self):
         for command in ["supabase config list", "supabase db push", "echo 'supabase config push'", "git status"]:

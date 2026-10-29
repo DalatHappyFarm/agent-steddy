@@ -178,20 +178,36 @@ def listed(config, section, key):
 
 
 def judge(line, agent_type, config):
-    """("deny", reason) for a shell line the rules block, None to allow it.
+    """("deny" | "ask", reason) for a shell line the rules stop, None to allow it.
 
-    Built-in rules come first, then `commands.deny` of the project config; `guards.disable` turns built-in rules off by id.
+    A deny beats an ask, and built-in rules come before the project config.
+    Order: built-in deny, `commands.deny`, `commands.alwaysAsk`, then `commands.askFromSubagent` when `agent_type` is non-empty (a subagent).
+    `guards.disable` turns built-in rules off by id.
     """
     commands = list(parse(line))
     off = {rule_id for rule_id in listed(config, "guards", "disable") if isinstance(rule_id, str)}
-    for rule_id, test, why in DENY_RULES:
-        if rule_id not in off and test(commands):
-            return "deny", f"[{rule_id}] {why}"
+
+    def hit(pattern):
+        return any(matches(words, pattern) for words in commands)
+
+    def patterns(key):
+        return [pattern for pattern in listed(config, "commands", key) if isinstance(pattern, str) and hit(pattern)]
+
+    def built_in(rules):
+        return [f"[{rule_id}] {why}" for rule_id, test, why in rules if rule_id not in off and test(commands)]
+
+    deny = built_in(DENY_RULES)
     for rule in listed(config, "commands", "deny"):
-        if isinstance(rule, dict) and isinstance(rule.get("match"), str) and any(matches(words, rule["match"]) for words in commands):
+        if isinstance(rule, dict) and isinstance(rule.get("match"), str) and hit(rule["match"]):
             why = rule.get("reason")
-            return "deny", why if isinstance(why, str) and why else f"Denied by this project's agent-steddy config: {rule['match']}."
-    return None
+            deny.append(why if isinstance(why, str) and why else f"Denied by this project's agent-steddy config: {rule['match']}.")
+    if deny:
+        return "deny", deny[0]
+    ask = [f"`{pattern}` needs the owner's confirmation (commands.alwaysAsk in the project config)." for pattern in patterns("alwaysAsk")]
+    if agent_type:
+        ask += [f"A subagent needs the owner's confirmation to run `{pattern}` (commands.askFromSubagent in the project config)."
+                for pattern in patterns("askFromSubagent")]
+    return ("ask", ask[0]) if ask else None
 
 
 def main():

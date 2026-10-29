@@ -27,8 +27,8 @@ Unknown keys are kept and are not an error.
 | `agents.writeFences` | `{}` | planned: step 4 |
 | `guards.disable` | `[]` | `scripts/guard_bash.py` |
 | `commands.deny` | `[]` | `scripts/guard_bash.py` |
-| `commands.askFromSubagent` | `[]` | planned: step 3 |
-| `commands.alwaysAsk` | `[]` | planned: step 3 |
+| `commands.askFromSubagent` | `[]` | `scripts/guard_bash.py` |
+| `commands.alwaysAsk` | `[]` | `scripts/guard_bash.py` |
 | `records.lessons` | `"docs/agents/lessons.md"` | planned: step 5 |
 | `records.metrics` | `"docs/agents/metrics.jsonl"` | planned: step 5 |
 | `records.decisions` | `"docs/agents/decisions.md"` | planned: step 5 |
@@ -44,8 +44,24 @@ Unknown keys are kept and are not an error.
 - `commands.deny` is a list of `{"match": "<words>", "reason": "<text>"}` objects; a matching command is always blocked and the agent sees the reason.
   A rule without a `reason` still blocks and says which rule matched.
 - `commands.askFromSubagent` is a list of `"<words>"` patterns; a subagent that runs a matching command makes the owner confirm it.
+  The main session runs the same command without asking.
+  A subagent is a hook input with a non-empty `agent_type`.
 - `commands.alwaysAsk` is a list of `"<words>"` patterns; a matching command makes the owner confirm it, whoever runs it.
 - `records.*` are the paths, relative to the project root, of the lessons file, the metrics file and the decisions file.
+
+## Decisions
+
+A command gets one of three decisions: allow (the hook prints nothing), ask (the owner confirms in the permission prompt) or deny (the agent sees the reason and the command does not run).
+When several rules match, the strictest decision wins and, within it, the first rule in this order:
+
+1. built-in deny rules;
+2. `commands.deny`;
+3. `commands.alwaysAsk`;
+4. `commands.askFromSubagent`, for a subagent only.
+
+So a deny beats an ask, and a built-in rule beats a config rule.
+This holds for a whole line: in `make deploy && supabase config push` the denied half blocks the line even though the other half only asks.
+An ask is not a deny: the owner can approve it.
 
 ## Patterns
 
