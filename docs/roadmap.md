@@ -4,7 +4,7 @@ Built step by step; each step ends with tests and a check by the owner before th
 A new session picks up at the first unticked step.
 
 - [x] 1. Minimal plugin: manifest, one Bash guard (`git stash`), unit tests, `claude plugin validate`, and one live session that shows the hook firing.
-- [ ] 2. Project config file read by the hooks: working branch, verify command, agent allowlist and models, deploy commands to ask about or deny, write fences per agent.
+- [x] 2. Project config file read by the hooks: working branch, verify command, agent allowlist and models, deploy commands to ask about or deny, write fences per agent.
 - [ ] 3. The remaining Bash guard rules (destructive git, recursive grep, `sed -i` without a backup suffix, reading secret files, deploys from a subagent), each with tests.
 - [ ] 4. Agent guard (allowlist and model), a write fence per agent type, and a stop check for the hand-back format.
 - [ ] 5. Tool timing, secret output scan, the per-prompt gate reminder, and the metrics and record scripts.

@@ -18,8 +18,16 @@ agent-steddy/
 ├── .claude-plugin/plugin.json   plugin manifest
 ├── hooks/hooks.json             which script runs on which Claude Code event
 ├── scripts/                     the hook scripts (Python, standard library only)
+├── examples/                    an example project config
+├── docs/                        config reference and roadmap
 └── tests/                       unit tests for the scripts
 ```
+
+## Configure
+
+A project adjusts the kit with one file, `.claude/agent-steddy.json` in its root.
+Every key is optional; a missing file gives the defaults.
+See [docs/config.md](docs/config.md) for every key and [examples/agent-steddy.json](examples/agent-steddy.json) for a full example.
 
 ## Try it locally
 
