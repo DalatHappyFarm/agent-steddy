@@ -9,6 +9,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 WIRING = [
     ("PreToolUse", "Bash", "guard_bash.py", ["Bash"], ["Write", "Agent"]),
     ("PreToolUse", "Agent|Task", "guard_agent.py", ["Agent", "Task"], ["Bash", "TaskStop", "Write"]),
+    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit", "guard_write.py", ["Write", "Edit", "MultiEdit", "NotebookEdit"], ["Read", "Bash", "WriteFile"]),
 ]
 
 

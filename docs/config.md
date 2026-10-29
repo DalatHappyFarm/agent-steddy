@@ -24,7 +24,7 @@ Unknown keys are kept and are not an error.
 | `verifyCommand` | `null` | planned: step 5 |
 | `agents.allowed` | `["*"]` | `scripts/guard_agent.py` |
 | `agents.models` | `{}` | `scripts/guard_agent.py` |
-| `agents.writeFences` | `{}` | planned: step 4 |
+| `agents.writeFences` | `{}` | `scripts/guard_write.py` |
 | `guards.disable` | `[]` | `scripts/guard_bash.py` |
 | `commands.deny` | `[]` | `scripts/guard_bash.py` |
 | `commands.askFromSubagent` | `[]` | `scripts/guard_bash.py` |
@@ -40,7 +40,7 @@ Unknown keys are kept and are not an error.
 - `agents.models` maps an agent type pattern to the model that agent must run on, for example `"acme-docs": "haiku"`.
   The model name is matched as a substring of the model the call passes, ignoring case, so `haiku` accepts `claude-haiku-4-5`.
 - `agents.writeFences` maps an agent type pattern to the list of path prefixes that agent may write, for example `"acme-auditor": ["docs/reviews/"]`.
-  An agent type that matches no pattern is not fenced.
+  An agent type that matches no pattern is not fenced, and an empty list fences an agent out of every write.
 - `guards.disable` is a list of built-in rule ids (see [Built-in rules](#built-in-rules)) that this project turns off.
   An id that no rule has is ignored, so a typo leaves the rule on.
 - `commands.deny` is a list of `{"match": "<words>", "reason": "<text>"}` objects; a matching command is always blocked and the agent sees the reason.
@@ -86,6 +86,24 @@ It checks the call against the project config and denies it with a reason the ag
 
 Everything fails open.
 A value of the wrong type is read as the default (`allowed` as a string allows every type), a pattern whose model is not a string allows the call, an entry of the wrong type inside a list is skipped, and any error inside the hook allows the call.
+
+## Write fence
+
+`scripts/guard_write.py` runs before the file-writing tools (`Write`, `Edit`, `MultiEdit` and `NotebookEdit`).
+It reads `agent_type` from the hook input and looks for the first pattern of `agents.writeFences`, in the order of the file, that matches it.
+A match fences the agent: the file it writes (`file_path`, or `notebook_path` for a notebook) must be one of that pattern's prefixes or sit below one.
+Anything else is denied, and the reason lists the allowed prefixes and the refused path.
+
+- A prefix is relative to the project root and matches whole path parts, so `docs/reviews` allows `docs/reviews/a.md` and not `docs/reviews-old/a.md`.
+  A trailing slash makes no difference, and a prefix can also be one file.
+- The target is resolved before the check: `..` is applied and symlinks are followed, so a link inside a fenced folder cannot lead out of it.
+  A relative target is taken from the hook input's `cwd`, as the tool does, and from the project root when there is none.
+- The main session and an agent type that matches no pattern are never fenced.
+  The hook input has `agent_type` inside a subagent, and in a main session started with `--agent`, which a fence then covers too.
+- The fence guards the file-writing tools only.
+  A write through the Bash tool (`echo > file`, `tee`, `sed -i`, a script) is not fenced by this hook, so give a fenced agent no way to write through Bash, or deny those commands with `commands.deny`.
+
+The same fail-open rules as the agent guard apply: a fence that is not a list is ignored, a prefix that is not a string is skipped, and any error inside the hook allows the write.
 
 ## Command matching
 
