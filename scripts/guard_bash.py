@@ -171,6 +171,8 @@ DENY_RULES = [
      "git reset --hard discards uncommitted work that other agents may share. Undo with a new commit, or restore one file by path."),
     ("git-checkout-all", git_rule("checkout", lambda args: "." in args),
      "Checking out . overwrites every uncommitted change in the tree, including other agents' work. Restore single files by path."),
+    ("git-restore-all", git_rule("restore", lambda args: "." in args),
+     "Restoring . discards every uncommitted change in the tree, including other agents' work. Restore single files by path."),
 ]
 
 

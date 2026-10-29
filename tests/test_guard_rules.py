@@ -29,6 +29,12 @@ RULE_CASES = {
         "miss": ["git checkout feat/x", "git checkout -b feat/y", "git checkout -- apps/web/a.ts", "git checkout ./a.ts", "git checkout HEAD~1 -- a.ts",
                  "git checkout main", "echo 'git checkout .'", "git status ."],
     },
+    "git-restore-all": {
+        "hit": ["git restore .", "git restore --staged .", "git restore -- .", "git restore --source HEAD~1 .", "git -C app restore .", "ls && git restore .",
+                "nohup git restore . &"],
+        "miss": ["git restore apps/web/a.ts", "git restore --staged a.md", "git restore ./a.md", "git restore --source HEAD~1 a.ts", "echo 'git restore .'",
+                 "git status ."],
+    },
 }
 
 
