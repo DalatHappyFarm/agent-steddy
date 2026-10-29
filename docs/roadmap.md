@@ -30,3 +30,4 @@ A new session picks up at the first unticked step.
   Step 5 is verified by unit tests and `claude plugin validate` only.
 - Checked in a live Claude Code session on 2026-10-29 (Haiku, a throwaway git repo): the gate reminder reached the agent as prompt context; `agent-steddy` from the plugin's `bin/` ran from the Bash tool; a fake AWS key printed by `echo` reached the agent only as `[REDACTED:aws-access-key-id]`, and the timing log stored the redacted command; the prompt hook started the task clock.
 - Decided 2026-10-29: task clocks need a git repo; outside one, `metrics log --task --minutes` still works, and no state folder is added to the project.
+- Checked in a live Claude Code session on 2026-10-29 (Haiku): the plugin skills load as `agent-steddy:gates` and `agent-steddy:finish`, and the gates description is enough for the agent to say what the skill covers.
