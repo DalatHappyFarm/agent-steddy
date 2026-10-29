@@ -148,6 +148,39 @@ When a pattern matches, the agent gets a note that names the pattern and never t
 
 The same fail-open rule applies: any internal error prints nothing and the output stays as it was.
 
+## Local state
+
+The kit keeps a little state per project, and none of it is committed: the tool timing log and, from the prompt hook, the pending task clock.
+It lives in the `agent-steddy` folder inside the git common dir, for example `.git/agent-steddy/`, so every worktree of a repo shares it.
+The files:
+
+- `tool-times.jsonl` is the tool timing log, one line per Bash command.
+- `tool-marks/` holds the start time of each Bash command that has not finished.
+
+Outside a git repo the hooks use a folder per project under `CLAUDE_PLUGIN_DATA`, and with neither they keep no state.
+Claude Code gives `CLAUDE_PLUGIN_DATA` to hook processes and not to commands that the Bash tool runs.
+So in a project that is not a git repo the hooks can write the state and the `agent-steddy` command cannot find it.
+
+## Tool timing
+
+`scripts/tool_timing.py` times every Bash command.
+It runs three times per command: `pre` before it (`PreToolUse`), and `post` after a success (`PostToolUse`) or `fail` after a failure (`PostToolUseFailure`).
+`pre` stores the start time under the tool call id; `post` and `fail` append one line to `tool-times.jsonl` and delete the mark:
+
+```json
+{"ts": "2026-10-29T17:40:02", "agent": "main", "ms": 2500, "status": "ok", "cmd": "make test"}
+```
+
+- `agent` is the agent type from the hook input, and `main` in the main session.
+- `ms` is the `duration_ms` that Claude Code reports with the result when it does; that leaves out the time the owner took to answer a permission prompt.
+  Otherwise it is the time from the mark to the `post` hook.
+  A result with neither a duration nor a mark is not logged.
+- `cmd` is normalized so that equal work groups together in `agent-steddy metrics slow`.
+  A leading `cd <path> &&` is dropped, the project root and the working directory become relative paths, temp paths become `<tmp>`, and heredoc bodies are removed.
+  Secrets are replaced by `[REDACTED:<pattern>]` with the patterns of the [secret output scan](#secret-output-scan), and the text is cut to 400 characters after that.
+- A command that was denied or interrupted leaves a mark and no line; `metrics slow` deletes marks older than a day.
+- The hook prints nothing, never blocks and exits 0 whatever happens.
+
 ## Command matching
 
 A command pattern is a few words, such as `"supabase config push"`.

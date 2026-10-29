@@ -10,8 +10,11 @@ WIRING = [
     ("PreToolUse", "Bash", "guard_bash.py", "", ["Bash"], ["Write", "Agent"]),
     ("PreToolUse", "Agent|Task", "guard_agent.py", "", ["Agent", "Task"], ["Bash", "TaskStop", "Write"]),
     ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit", "guard_write.py", "", ["Write", "Edit", "MultiEdit", "NotebookEdit"], ["Read", "Bash", "WriteFile"]),
+    ("PreToolUse", "Bash", "tool_timing.py", "pre", ["Bash"], ["Write", "Read"]),
     ("PostToolUse", "Bash", "secret_output_scan.py", "", ["Bash"], ["Write", "Read"]),
+    ("PostToolUse", "Bash", "tool_timing.py", "post", ["Bash"], ["Write", "Read"]),
     ("PostToolUseFailure", "Bash", "secret_output_scan.py", "", ["Bash"], ["Write", "Read"]),
+    ("PostToolUseFailure", "Bash", "tool_timing.py", "fail", ["Bash"], ["Write", "Read"]),
     ("SubagentStop", None, "stop_check.py", "", [], []),
 ]
 

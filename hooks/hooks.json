@@ -4,7 +4,8 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/guard_bash.py\"", "timeout": 5 }
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/guard_bash.py\"", "timeout": 5 },
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/tool_timing.py\" pre", "timeout": 5 }
         ]
       },
       {
@@ -24,7 +25,8 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/secret_output_scan.py\"", "timeout": 5 }
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/secret_output_scan.py\"", "timeout": 5 },
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/tool_timing.py\" post", "timeout": 5 }
         ]
       }
     ],
@@ -32,7 +34,8 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/secret_output_scan.py\"", "timeout": 5 }
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/secret_output_scan.py\"", "timeout": 5 },
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/tool_timing.py\" fail", "timeout": 5 }
         ]
       }
     ],
