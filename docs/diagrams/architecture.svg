@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 408" width="900" height="408" role="img" aria-label="agent-steddy: Claude Code fires its events at the plugin&#x27;s hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which keeps that clock and writes the project&#x27;s records under docs/agents; agents read the skills, and the templates are copied into the project&#x27;s agents and role cards.">
+<title>agent-steddy: Claude Code fires its events at the plugin&#x27;s hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which keeps that clock and writes the project&#x27;s records under docs/agents; agents read the skills, and the templates are copied into the project&#x27;s agents and role cards.</title>
+<style>
+  .t{font:600 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .s{font:13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .lbl{font:12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .cmd{font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+  .row{font:500 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;letter-spacing:.08em} .p{font:600 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .ln{stroke-width:1.5;fill:none}
+  .bg{fill:#F8F8F8} .node{fill:#FFFFFF;stroke:#E5E5E3} .hub{fill:#FFFFFF;stroke:#8C8F97} .t{fill:#1F1F21} .s{fill:#62656D} .lbl,.cmd{fill:#505258} .row{fill:#8C8F97} .ln{stroke:#9A9DA4} .hd{fill:#9A9DA4} .blue rect{fill:#CFE1FD;stroke:#357DE8} .blue text{fill:#123263} .green rect{fill:#D3F1A7;stroke:#5B7F24} .green text{fill:#37471F} .amber rect{fill:#FCE4A6;stroke:#C8894A} .amber text{fill:#693200} .grey rect{fill:#EBEBE9;stroke:#8C8F97} .grey text{fill:#292A2E} .red rect{fill:#FFD5D2;stroke:#E2483D} .red text{fill:#5D1F1A} .purple rect{fill:#EED7FC;stroke:#AF59E1} .purple text{fill:#48245D}
+  @media (prefers-color-scheme: dark) { .bg{fill:#1F1F21} .node{fill:#242528;stroke:#34363A} .hub{fill:#242528;stroke:#7E8188} .t{fill:#E4E5E8} .s{fill:#9FA2A8} .lbl,.cmd{fill:#B6B8BC} .row{fill:#7E8188} .ln{stroke:#7E8188} .hd{fill:#7E8188} .blue rect{fill:#123263;stroke:#4688EC} .blue text{fill:#CFE1FD} .green rect{fill:#37471F;stroke:#82B536} .green text{fill:#D3F1A7} .amber rect{fill:#693200;stroke:#C8894A} .amber text{fill:#FCE4A6} .grey rect{fill:#2F3033;stroke:#7E8188} .grey text{fill:#CECFD2} .red rect{fill:#5D1F1A;stroke:#F15B50} .red text{fill:#FFD5D2} .purple rect{fill:#48245D;stroke:#BF63F3} .purple text{fill:#EED7FC} }
+</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0 0L10 5L0 10z"/></marker></defs>
+<rect class="bg" width="900" height="408" rx="16"/>
+<text class="row" x="28" y="40">HOW IT FITS</text>
+<rect class="node" x="28.0" y="144.0" width="161.8" height="70" rx="12"/>
+<text class="t" x="108.9" y="176.0" text-anchor="middle">Claude Code</text>
+<text class="s" x="108.9" y="195.0" text-anchor="middle">prompts, tools, stops</text>
+<rect class="node" x="28.0" y="228.0" width="161.8" height="70" rx="12"/>
+<text class="t" x="108.9" y="260.0" text-anchor="middle">Agents</text>
+<text class="s" x="108.9" y="279.0" text-anchor="middle">main and subagents</text>
+<rect class="hub" x="337.3" y="102.0" width="200.0" height="70" rx="12" stroke-width="1.5"/>
+<text class="t" x="437.3" y="134.0" text-anchor="middle">Hooks</text>
+<text class="s" x="437.3" y="153.0" text-anchor="middle">plugin: hooks.json, scripts</text>
+<rect class="hub" x="337.3" y="186.0" width="200.0" height="70" rx="12" stroke-width="1.5"/>
+<text class="t" x="437.3" y="218.0" text-anchor="middle">agent-steddy</text>
+<text class="s" x="437.3" y="237.0" text-anchor="middle">plugin: the command</text>
+<rect class="hub" x="337.3" y="270.0" width="200.0" height="70" rx="12" stroke-width="1.5"/>
+<text class="t" x="437.3" y="302.0" text-anchor="middle">Skills, templates</text>
+<text class="s" x="437.3" y="321.0" text-anchor="middle">plugin: the method</text>
+<rect class="node" x="684.8" y="60.0" width="187.2" height="70" rx="12"/>
+<text class="t" x="778.4" y="92.0" text-anchor="middle">Project config</text>
+<text class="s" x="778.4" y="111.0" text-anchor="middle">.claude/agent-steddy.json</text>
+<rect class="node" x="684.8" y="144.0" width="187.2" height="70" rx="12"/>
+<text class="t" x="778.4" y="176.0" text-anchor="middle">Local state</text>
+<text class="s" x="778.4" y="195.0" text-anchor="middle">.git/agent-steddy/</text>
+<rect class="node" x="684.8" y="228.0" width="187.2" height="70" rx="12"/>
+<text class="t" x="778.4" y="260.0" text-anchor="middle">Records</text>
+<text class="s" x="778.4" y="279.0" text-anchor="middle">docs/agents/</text>
+<rect class="node" x="684.8" y="312.0" width="187.2" height="70" rx="12"/>
+<text class="t" x="778.4" y="344.0" text-anchor="middle">Agents, role cards</text>
+<text class="s" x="778.4" y="363.0" text-anchor="middle">yours, from the templates</text>
+<path class="ln" d="M195.8 158.0H331.3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text class="lbl" x="263.5" y="150.0" text-anchor="middle">events</text>
+<text class="lbl" x="263.5" y="177.0" text-anchor="middle">deny, ask, block</text>
+<path class="ln" d="M195.8 242.0H331.3" marker-end="url(#a)"/>
+<text class="lbl" x="263.5" y="234.0" text-anchor="middle">run</text>
+<path class="ln" d="M195.8 284.0H331.3" marker-end="url(#a)"/>
+<text class="lbl" x="263.5" y="276.0" text-anchor="middle">read</text>
+<path class="ln" d="M543.3 116.0H678.8" marker-end="url(#a)"/>
+<text class="lbl" x="611.0" y="108.0" text-anchor="middle">read</text>
+<path class="ln" d="M543.3 158.0H678.8" marker-end="url(#a)"/>
+<text class="lbl" x="611.0" y="150.0" text-anchor="middle">clock, timings</text>
+<path class="ln" d="M543.3 200.0H678.8" marker-end="url(#a)" marker-start="url(#a)"/>
+<text class="lbl" x="611.0" y="192.0" text-anchor="middle">clock</text>
+<path class="ln" d="M543.3 242.0H678.8" marker-end="url(#a)"/>
+<text class="lbl" x="611.0" y="234.0" text-anchor="middle">writes</text>
+<path class="ln" d="M543.3 326.0H678.8" marker-end="url(#a)"/>
+<text class="lbl" x="611.0" y="318.0" text-anchor="middle">templates copied</text>
+</svg>

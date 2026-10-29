@@ -1,0 +1,45 @@
+{
+  "title": "agent-steddy: one task passes seven gates, Intake, Recall, Shape, Act, Prove, Record and Deliver. The gate reminder fires on every prompt, adds the gates to it and starts the task clock. When the work is delegated, the agent guard checks a subagent when it starts, the write fence keeps a fenced agent inside its paths, the Bash guard checks every command while timing and the secret scan watch it, and the stop check blocks a hand-back that misses a required item, once. At gates 6 and 7 the finish skill records the decisions, a retro and a metrics line, the record files are committed by path, and record finish verifies the branch and merges it without pushing.",
+  "width": 900,
+  "sections": [
+    {
+      "label": "One task, seven gates",
+      "items": [
+        {"label": "1 Intake", "tone": "blue"}, {"label": "2 Recall", "tone": "blue"}, {"label": "3 Shape", "tone": "blue"},
+        {"label": "4 Act", "tone": "amber"}, {"label": "5 Prove", "tone": "green"},
+        {"label": "6 Record", "tone": "grey"}, {"label": "7 Deliver", "tone": "grey"}
+      ]
+    },
+    {
+      "label": "Gates 1 to 5: the hooks, when the work is delegated",
+      "columns": [
+        [{"id": "reminder", "title": "Gate reminder", "sub": "each prompt, clock"}],
+        [{"id": "agent", "title": "Agent guard", "sub": "a subagent starts"}],
+        [{"id": "fence", "title": "Write fence", "sub": "fenced agent writes"},
+         {"id": "bash", "title": "Bash guard", "sub": "timing, secret scan"}],
+        [{"id": "stop", "title": "Stop check", "sub": "on a hand-back"}]
+      ],
+      "edges": [
+        {"from": "reminder", "to": "agent", "label": "delegates"},
+        {"from": "agent", "to": "fence", "label": "works"},
+        {"from": "agent", "to": "bash", "label": "works"},
+        {"from": "fence", "to": "stop", "label": "hand-back"},
+        {"from": "bash", "to": "stop", "label": "hand-back"}
+      ]
+    },
+    {
+      "label": "Gates 6 and 7: record and deliver",
+      "columns": [
+        [{"id": "skill", "title": "Finish skill", "sub": "walks gates 6 and 7"}],
+        [{"id": "record", "title": "Record", "sub": "decisions, retro, metrics"}],
+        [{"id": "commit", "title": "Commit", "sub": "record files"}],
+        [{"id": "finish", "title": "record finish", "sub": "verify, merge, no push"}]
+      ],
+      "edges": [
+        {"from": "skill", "to": "record", "label": "runs"},
+        {"from": "record", "to": "commit"},
+        {"from": "commit", "to": "finish"}
+      ]
+    }
+  ]
+}

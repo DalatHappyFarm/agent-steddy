@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 476" width="900" height="476" role="img" aria-label="agent-steddy: one task passes seven gates, Intake, Recall, Shape, Act, Prove, Record and Deliver. The gate reminder fires on every prompt, adds the gates to it and starts the task clock. When the work is delegated, the agent guard checks a subagent when it starts, the write fence keeps a fenced agent inside its paths, the Bash guard checks every command while timing and the secret scan watch it, and the stop check blocks a hand-back that misses a required item, once. At gates 6 and 7 the finish skill records the decisions, a retro and a metrics line, the record files are committed by path, and record finish verifies the branch and merges it without pushing.">
+<title>agent-steddy: one task passes seven gates, Intake, Recall, Shape, Act, Prove, Record and Deliver. The gate reminder fires on every prompt, adds the gates to it and starts the task clock. When the work is delegated, the agent guard checks a subagent when it starts, the write fence keeps a fenced agent inside its paths, the Bash guard checks every command while timing and the secret scan watch it, and the stop check blocks a hand-back that misses a required item, once. At gates 6 and 7 the finish skill records the decisions, a retro and a metrics line, the record files are committed by path, and record finish verifies the branch and merges it without pushing.</title>
+<style>
+  .t{font:600 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .s{font:13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .lbl{font:12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .cmd{font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+  .row{font:500 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;letter-spacing:.08em} .p{font:600 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .ln{stroke-width:1.5;fill:none}
+  .bg{fill:#F8F8F8} .node{fill:#FFFFFF;stroke:#E5E5E3} .hub{fill:#FFFFFF;stroke:#C9CACD} .t{fill:#1F1F21} .s{fill:#62656D} .lbl,.cmd{fill:#505258} .row{fill:#8C8F97} .ln{stroke:#9A9DA4} .hd{fill:#9A9DA4} .blue rect{fill:#CFE1FD;stroke:#357DE8} .blue text{fill:#123263} .green rect{fill:#D3F1A7;stroke:#5B7F24} .green text{fill:#37471F} .amber rect{fill:#FCE4A6;stroke:#C8894A} .amber text{fill:#693200} .grey rect{fill:#EBEBE9;stroke:#8C8F97} .grey text{fill:#292A2E} .red rect{fill:#FFD5D2;stroke:#E2483D} .red text{fill:#5D1F1A} .purple rect{fill:#EED7FC;stroke:#AF59E1} .purple text{fill:#48245D}
+  @media (prefers-color-scheme: dark) { .bg{fill:#1F1F21} .node{fill:#242528;stroke:#34363A} .hub{fill:#242528;stroke:#5A5D63} .t{fill:#E4E5E8} .s{fill:#9FA2A8} .lbl,.cmd{fill:#B6B8BC} .row{fill:#7E8188} .ln{stroke:#7E8188} .hd{fill:#7E8188} .blue rect{fill:#123263;stroke:#4688EC} .blue text{fill:#CFE1FD} .green rect{fill:#37471F;stroke:#82B536} .green text{fill:#D3F1A7} .amber rect{fill:#693200;stroke:#C8894A} .amber text{fill:#FCE4A6} .grey rect{fill:#2F3033;stroke:#7E8188} .grey text{fill:#CECFD2} .red rect{fill:#5D1F1A;stroke:#F15B50} .red text{fill:#FFD5D2} .purple rect{fill:#48245D;stroke:#BF63F3} .purple text{fill:#EED7FC} }
+</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0 0L10 5L0 10z"/></marker></defs>
+<rect class="bg" width="900" height="476" rx="16"/>
+<text class="row" x="28" y="40">ONE TASK, SEVEN GATES</text>
+<g class="blue"><rect x="28.0" y="60" width="91.4" height="30" rx="15"/><text class="p" x="73.7" y="80" text-anchor="middle">1 Intake</text></g>
+<path class="ln" d="M129.4 75.0H148.6" marker-end="url(#a)"/>
+<g class="blue"><rect x="158.6" y="60" width="91.4" height="30" rx="15"/><text class="p" x="204.2" y="80" text-anchor="middle">2 Recall</text></g>
+<path class="ln" d="M259.9 75.0H279.1" marker-end="url(#a)"/>
+<g class="blue"><rect x="289.1" y="60" width="83.7" height="30" rx="15"/><text class="p" x="331.0" y="80" text-anchor="middle">3 Shape</text></g>
+<path class="ln" d="M382.8 75.0H402.0" marker-end="url(#a)"/>
+<g class="amber"><rect x="412.0" y="60" width="68.3" height="30" rx="15"/><text class="p" x="446.2" y="80" text-anchor="middle">4 Act</text></g>
+<path class="ln" d="M490.3 75.0H509.5" marker-end="url(#a)"/>
+<g class="green"><rect x="519.5" y="60" width="83.7" height="30" rx="15"/><text class="p" x="561.4" y="80" text-anchor="middle">5 Prove</text></g>
+<path class="ln" d="M613.2 75.0H632.4" marker-end="url(#a)"/>
+<g class="grey"><rect x="642.4" y="60" width="91.4" height="30" rx="15"/><text class="p" x="688.1" y="80" text-anchor="middle">6 Record</text></g>
+<path class="ln" d="M743.8 75.0H763.0" marker-end="url(#a)"/>
+<g class="grey"><rect x="773.0" y="60" width="99.0" height="30" rx="15"/><text class="p" x="822.5" y="80" text-anchor="middle">7 Deliver</text></g>
+<text class="row" x="28" y="138">GATES 1 TO 5: THE HOOKS, WHEN THE WORK IS DELEGATED</text>
+<rect class="node" x="28.0" y="200.0" width="150.0" height="70" rx="12"/>
+<text class="t" x="103.0" y="232.0" text-anchor="middle">Gate reminder</text>
+<text class="s" x="103.0" y="251.0" text-anchor="middle">each prompt, clock</text>
+<rect class="node" x="259.3" y="200.0" width="150.0" height="70" rx="12"/>
+<text class="t" x="334.3" y="232.0" text-anchor="middle">Agent guard</text>
+<text class="s" x="334.3" y="251.0" text-anchor="middle">a subagent starts</text>
+<rect class="node" x="490.7" y="158.0" width="150.0" height="70" rx="12"/>
+<text class="t" x="565.7" y="190.0" text-anchor="middle">Write fence</text>
+<text class="s" x="565.7" y="209.0" text-anchor="middle">fenced agent writes</text>
+<rect class="node" x="490.7" y="242.0" width="150.0" height="70" rx="12"/>
+<text class="t" x="565.7" y="274.0" text-anchor="middle">Bash guard</text>
+<text class="s" x="565.7" y="293.0" text-anchor="middle">timing, secret scan</text>
+<rect class="node" x="722.0" y="200.0" width="150.0" height="70" rx="12"/>
+<text class="t" x="797.0" y="232.0" text-anchor="middle">Stop check</text>
+<text class="s" x="797.0" y="251.0" text-anchor="middle">on a hand-back</text>
+<path class="ln" d="M184.0 235.0H253.3" marker-end="url(#a)"/>
+<text class="lbl" x="218.7" y="227.0" text-anchor="middle">delegates</text>
+<path class="ln" d="M415.3 214.0H484.7" marker-end="url(#a)"/>
+<text class="lbl" x="450.0" y="206.0" text-anchor="middle">works</text>
+<path class="ln" d="M415.3 256.0H484.7" marker-end="url(#a)"/>
+<text class="lbl" x="450.0" y="248.0" text-anchor="middle">works</text>
+<path class="ln" d="M646.7 214.0H716.0" marker-end="url(#a)"/>
+<text class="lbl" x="681.3" y="206.0" text-anchor="middle">hand-back</text>
+<path class="ln" d="M646.7 256.0H716.0" marker-end="url(#a)"/>
+<text class="lbl" x="681.3" y="248.0" text-anchor="middle">hand-back</text>
+<text class="row" x="28" y="360">GATES 6 AND 7: RECORD AND DELIVER</text>
+<rect class="node" x="28.0" y="380.0" width="150.0" height="70" rx="12"/>
+<text class="t" x="103.0" y="412.0" text-anchor="middle">Finish skill</text>
+<text class="s" x="103.0" y="431.0" text-anchor="middle">walks gates 6 and 7</text>
+<rect class="node" x="240.9" y="380.0" width="187.2" height="70" rx="12"/>
+<text class="t" x="334.5" y="412.0" text-anchor="middle">Record</text>
+<text class="s" x="334.5" y="431.0" text-anchor="middle">decisions, retro, metrics</text>
+<rect class="node" x="491.0" y="380.0" width="150.0" height="70" rx="12"/>
+<text class="t" x="566.0" y="412.0" text-anchor="middle">Commit</text>
+<text class="s" x="566.0" y="431.0" text-anchor="middle">record files</text>
+<rect class="node" x="703.9" y="380.0" width="168.1" height="70" rx="12"/>
+<text class="t" x="787.9" y="412.0" text-anchor="middle">record finish</text>
+<text class="s" x="787.9" y="431.0" text-anchor="middle">verify, merge, no push</text>
+<path class="ln" d="M184.0 415.0H234.9" marker-end="url(#a)"/>
+<text class="lbl" x="209.4" y="407.0" text-anchor="middle">runs</text>
+<path class="ln" d="M434.1 415.0H485.0" marker-end="url(#a)"/>
+<path class="ln" d="M647.0 415.0H697.9" marker-end="url(#a)"/>
+</svg>
