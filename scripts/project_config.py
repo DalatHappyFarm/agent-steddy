@@ -14,6 +14,13 @@ DEFAULTS = {
     "verifyCommand": None,
     "agents": {"allowed": ["*"], "models": {}, "writeFences": {}},
     "guards": {"disable": []},
+    "handback": {
+        "agents": [],
+        "required": [
+            {"id": "verification", "pattern": r"(?i:verif)|\bL[0-5]\b", "hint": "the verification level used"},
+            {"id": "retro", "pattern": r"(?i:retro)", "hint": "a one line retro (worked / exposed / rule)"},
+        ],
+    },
     "commands": {"deny": [], "askFromSubagent": [], "alwaysAsk": []},
     "records": {
         "lessons": "docs/agents/lessons.md",

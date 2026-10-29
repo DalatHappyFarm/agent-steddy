@@ -26,6 +26,8 @@ Unknown keys are kept and are not an error.
 | `agents.models` | `{}` | `scripts/guard_agent.py` |
 | `agents.writeFences` | `{}` | `scripts/guard_write.py` |
 | `guards.disable` | `[]` | `scripts/guard_bash.py` |
+| `handback.agents` | `[]` | `scripts/stop_check.py` |
+| `handback.required` | a verification level and a retro line | `scripts/stop_check.py` |
 | `commands.deny` | `[]` | `scripts/guard_bash.py` |
 | `commands.askFromSubagent` | `[]` | `scripts/guard_bash.py` |
 | `commands.alwaysAsk` | `[]` | `scripts/guard_bash.py` |
@@ -43,6 +45,11 @@ Unknown keys are kept and are not an error.
   An agent type that matches no pattern is not fenced, and an empty list fences an agent out of every write.
 - `guards.disable` is a list of built-in rule ids (see [Built-in rules](#built-in-rules)) that this project turns off.
   An id that no rule has is ignored, so a typo leaves the rule on.
+- `handback.agents` is a list of agent type patterns whose final message is checked when they stop.
+  The default `[]` checks no agent, so a project opts in.
+- `handback.required` is a list of `{"id": "<name>", "pattern": "<regular expression>", "hint": "<text>"}` objects: what the final message of a checked agent must contain.
+  The default asks for a verification level (the text `verif` in any case, or `L0` to `L5`) and a retro line (the text `retro` in any case).
+  A list in the config replaces the default list.
 - `commands.deny` is a list of `{"match": "<words>", "reason": "<text>"}` objects; a matching command is always blocked and the agent sees the reason.
   A rule without a `reason` still blocks and says which rule matched.
 - `commands.askFromSubagent` is a list of `"<words>"` patterns; a subagent that runs a matching command makes the owner confirm it.
@@ -70,7 +77,7 @@ An ask is not a deny: the owner can approve it.
 
 Agent type patterns are `fnmatch` patterns: `*` matches any run of characters, `?` one character, `[ab]` one of a set.
 So `"acme-*"` matches `acme-web` and `acme-docs`.
-The keys of `agents.models` and `agents.writeFences` are agent type patterns too.
+The keys of `agents.models` and `agents.writeFences` and the items of `handback.agents` are agent type patterns too.
 Matching is case-sensitive on every platform.
 
 ## Agent guard
@@ -104,6 +111,23 @@ Anything else is denied, and the reason lists the allowed prefixes and the refus
   A write through the Bash tool (`echo > file`, `tee`, `sed -i`, a script) is not fenced by this hook, so give a fenced agent no way to write through Bash, or deny those commands with `commands.deny`.
 
 The same fail-open rules as the agent guard apply: a fence that is not a list is ignored, a prefix that is not a string is skipped, and any error inside the hook allows the write.
+
+## Hand-back check
+
+`scripts/stop_check.py` runs when a subagent is about to stop (the `SubagentStop` event).
+It reads `agent_type` and `last_assistant_message`, the final text of the agent, from the hook input.
+When the agent type matches a pattern of `handback.agents` and the text lacks a `handback.required` item, it blocks the stop: the agent keeps working and reads one line that lists the `hint` of every missing item.
+A `hint` falls back to the `id`, then to the `pattern`.
+
+- A `pattern` is a Python regular expression, searched anywhere in the text and case-sensitive.
+  A pattern that ignores case starts with `(?i)`, for example `(?i)retro`; inside a pattern, `(?i:...)` limits the flag to a group.
+- The check blocks once.
+  When the agent stops again after the block, the hook input has `stop_hook_active` set to true and the hook lets it stop, whatever the text says.
+  So a hand-back that stays incomplete after one reminder ends the agent anyway; the check cannot trap a session.
+- A hook input with no `last_assistant_message` text is not judged, and the agent may stop.
+  An empty text lacks every item, so it is blocked.
+- An item that is not an object with a string `pattern`, or whose pattern is not a valid regular expression, is skipped.
+  A value of the wrong type is read as the default, and any error inside the hook lets the agent stop.
 
 ## Command matching
 

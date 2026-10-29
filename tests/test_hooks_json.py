@@ -5,11 +5,12 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-# (event, matcher or None) -> the script that runs, and tool names the matcher must and must not catch
+# (event, matcher or None) -> the script that runs, and tool names the matcher must and must not catch (a hook with no matcher runs for every call)
 WIRING = [
     ("PreToolUse", "Bash", "guard_bash.py", ["Bash"], ["Write", "Agent"]),
     ("PreToolUse", "Agent|Task", "guard_agent.py", ["Agent", "Task"], ["Bash", "TaskStop", "Write"]),
     ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit", "guard_write.py", ["Write", "Edit", "MultiEdit", "NotebookEdit"], ["Read", "Bash", "WriteFile"]),
+    ("SubagentStop", None, "stop_check.py", [], []),
 ]
 
 
@@ -29,6 +30,7 @@ class HooksJson(unittest.TestCase):
             self.assertEqual(hook["type"], "command")
             self.assertEqual(hook["command"], f'python3 -I "${{CLAUDE_PLUGIN_ROOT}}/scripts/{script}"')
             self.assertTrue((ROOT / "scripts" / script).is_file(), script)
+            self.assertTrue(matcher or not (catches or ignores), "a hook with no matcher has no names to check")
             for name in catches:
                 self.assertRegex(name, f"^(?:{matcher})$")
             for name in ignores:
