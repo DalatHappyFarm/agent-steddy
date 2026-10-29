@@ -1,11 +1,15 @@
 """PreToolUse hook (matcher Bash): deny shell commands that break work other agents share.
 
 Reads the hook input as JSON on stdin and prints a deny decision, or nothing to allow.
+The built-in rules always hold; the project config (`commands.deny`) adds its own.
 Any internal error allows the command (prints nothing, exits 0), so a bug here never blocks a session.
 """
 import json
+import os
 import shlex
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script directory off the path
 
 SEPARATORS = {";", "&&", "||", "|", "&", "(", ")"}
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree"}
@@ -37,11 +41,29 @@ def git_subcommand(words):
     return words[i] if i < len(words) else None
 
 
+def matches(words, pattern):
+    """True when a simple command runs the program named by the first pattern word, then the other pattern words.
+
+    The program is compared by basename; the command's words that do not start with `-` must begin with the rest of the pattern.
+    So `supabase --debug config push --yes` matches "supabase config push" and `supabase config list` does not.
+    """
+    want = pattern.split()
+    if not words or not want or words[0].rsplit("/", 1)[-1] != want[0]:
+        return False
+    positional = [word for word in words[1:] if not word.startswith("-")]
+    return positional[:len(want) - 1] == want[1:]
+
+
 def reason(line):
     """Why the command is denied, or None when it is allowed."""
-    for words in commands(line):
+    simple = list(commands(line))
+    for words in simple:
         if git_subcommand(words) == "stash":
             return "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."
+    import project_config  # here, not at the top: the built-in rules above hold even if the config cannot load
+    for rule in project_config.load()["commands"]["deny"]:
+        if any(matches(words, rule["match"]) for words in simple):
+            return rule.get("reason") or f"Denied by this project's agent-steddy config: {rule['match']}."
     return None
 
 
