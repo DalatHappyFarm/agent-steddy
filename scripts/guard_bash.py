@@ -167,6 +167,8 @@ def git_rule(subcommand, test=lambda args: True):
 # Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
+    ("git-reset-hard", git_rule("reset", lambda args: "--hard" in args),
+     "git reset --hard discards uncommitted work that other agents may share. Undo with a new commit, or restore one file by path."),
 ]
 
 

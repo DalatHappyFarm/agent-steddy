@@ -17,6 +17,12 @@ RULE_CASES = {
         "miss": ["git status", "git commit -m 'stash later' -- a.md", "echo 'git stash'", "rg stash", "git log --grep stash", "git stash-free-tool",
                  "git show HEAD:stash", "git diff stash"],
     },
+    "git-reset-hard": {
+        "hit": ["git reset --hard", "git reset --hard HEAD~1", "git reset HEAD~1 --hard", "git -C app reset --hard origin/main", "cd app && git reset --hard",
+                "sudo git reset --hard", "bash -c 'git reset --hard'"],
+        "miss": ["git reset HEAD apps/web/a.ts", "git reset --soft HEAD~1", "git reset --mixed", "git reset", "git status --hard", "echo 'git reset --hard'",
+                 "git log --oneline", "git revert HEAD"],
+    },
 }
 
 
