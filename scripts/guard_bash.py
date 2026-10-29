@@ -278,6 +278,11 @@ def secret_read(commands):
     return any(reads_secret(words) for words in commands) or prints_sourced_secret(commands)
 
 
+def env_dump(commands):
+    """True for `printenv` and for `env` with no command after it (the wrapper loop leaves a bare env as ["env"])."""
+    return any(basename(words[0]) in ("printenv", "env") for words in commands)
+
+
 # Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
@@ -301,6 +306,7 @@ DENY_RULES = [
      "sed -i takes a backup suffix argument on macOS and none on Linux, and --in-place does not exist on macOS. "
      "Pass the suffix explicitly (sed -i '' or sed -i.bak), or edit the file with a script."),
     ("secret-read", secret_read, "Never print a secret file. Read it only through the script that needs it, and leave its values out of the conversation."),
+    ("env-dump", env_dump, "printenv and a bare env print the environment, which can hold secrets. Read a variable inside the script that needs it."),
 ]
 
 # Ask rules make the owner confirm the command, in the main session too.

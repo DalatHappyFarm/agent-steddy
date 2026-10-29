@@ -99,6 +99,12 @@ RULE_CASES = {
                  "git status --short .env.example", "git add .env.example", "cat envfile.txt", "source scripts/lib.sh; echo $X", "source .env; make test",
                  "set -a; source config/.env.local; set +a; bash scripts/run.sh", "echo $KEY; source .env", "cat <<EOF\ncat .env\nEOF", "diff a.md b.md"],
     },
+    "env-dump": {
+        "hit": ["printenv", "printenv HOME", "/usr/bin/printenv", "env", "env | sort", "env -0", "env -i", "env -u FOO", "FOO=1 env", "sudo env", "nice env",
+                "bash -c env", "echo x; printenv", "ls\nenv", "cd app && env"],
+        "miss": ["echo env", 'printf "%s\\n" env', "env FOO=1 make test", "env -i FOO=1 bash x.sh", "env -u FOO make test", "sudo env FOO=1 make", "printenvironment",
+                 "echo $HOME", "git status", "ls env", "cat env.md", "rg printenv docs"],
+    },
 }
 
 
