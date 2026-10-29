@@ -10,7 +10,9 @@ from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import project_config  # noqa: E402
+from hook_runner import chdir  # noqa: E402
 
 
 @contextlib.contextmanager
@@ -62,7 +64,7 @@ class LoadConfig(unittest.TestCase):
             with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": env_dir}):
                 self.assertEqual(project_config.load()["workingBranch"], "env")
                 self.assertEqual(project_config.load(arg_dir)["workingBranch"], "arg")
-            with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}), contextlib.chdir(env_dir):
+            with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}), chdir(env_dir):
                 self.assertEqual(project_config.load()["workingBranch"], "env")
 
     def test_get_reads_a_value_of_the_right_type_and_falls_back_to_a_copy_of_the_default(self):

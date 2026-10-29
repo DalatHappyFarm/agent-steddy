@@ -1,4 +1,5 @@
 """Run a hook script the way Claude Code does: the hook input as JSON on stdin and `CLAUDE_PROJECT_DIR` set to the project."""
+import contextlib
 import json
 import os
 import pathlib
@@ -6,6 +7,17 @@ import subprocess
 import sys
 
 SCRIPTS = pathlib.Path(__file__).resolve().parent.parent / "scripts"
+
+
+@contextlib.contextmanager
+def chdir(folder):
+    """Work in `folder` for the block; `contextlib.chdir` needs Python 3.11 and the hooks run on older ones too."""
+    before = os.getcwd()
+    os.chdir(folder)
+    try:
+        yield
+    finally:
+        os.chdir(before)
 
 
 def write_config(project_dir, config):

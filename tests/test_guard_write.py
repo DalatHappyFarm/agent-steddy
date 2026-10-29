@@ -8,7 +8,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import guard_write  # noqa: E402
-from hook_runner import run_hook, write_config  # noqa: E402
+from hook_runner import chdir, run_hook, write_config  # noqa: E402
 
 FENCE = {"agents": {"writeFences": {"acme-auditor": ["docs/reviews/", "docs/research"]}}}
 
@@ -171,7 +171,7 @@ class Hook(unittest.TestCase):
                 self.assertIsNone(self.decide(root, "x", raw=raw), raw)
 
     def test_the_fence_prefixes_start_at_the_project_dir_whatever_the_process_cwd_is(self):
-        with project() as root, tempfile.TemporaryDirectory() as elsewhere, contextlib.chdir(elsewhere):
+        with project() as root, tempfile.TemporaryDirectory() as elsewhere, chdir(elsewhere):
             self.assertIsNone(self.decide(root, "docs/reviews/a.md"))
             self.assertEqual(self.decide(root, "apps/a.ts")["hookSpecificOutput"]["permissionDecision"], "deny")
 
