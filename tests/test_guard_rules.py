@@ -23,6 +23,12 @@ RULE_CASES = {
         "miss": ["git reset HEAD apps/web/a.ts", "git reset --soft HEAD~1", "git reset --mixed", "git reset", "git status --hard", "echo 'git reset --hard'",
                  "git log --oneline", "git revert HEAD"],
     },
+    "git-checkout-all": {
+        "hit": ["git checkout .", "git checkout -- .", "git checkout HEAD -- .", "git checkout -f .", "git -C app checkout .", "cd app && git checkout -- .",
+                "env A=1 git checkout .", "bash -c 'git checkout .'"],
+        "miss": ["git checkout feat/x", "git checkout -b feat/y", "git checkout -- apps/web/a.ts", "git checkout ./a.ts", "git checkout HEAD~1 -- a.ts",
+                 "git checkout main", "echo 'git checkout .'", "git status ."],
+    },
 }
 
 

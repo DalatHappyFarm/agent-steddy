@@ -169,6 +169,8 @@ DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
     ("git-reset-hard", git_rule("reset", lambda args: "--hard" in args),
      "git reset --hard discards uncommitted work that other agents may share. Undo with a new commit, or restore one file by path."),
+    ("git-checkout-all", git_rule("checkout", lambda args: "." in args),
+     "Checking out . overwrites every uncommitted change in the tree, including other agents' work. Restore single files by path."),
 ]
 
 
