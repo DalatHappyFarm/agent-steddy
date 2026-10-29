@@ -1,0 +1,68 @@
+import contextlib
+import io
+import json
+import os
+import pathlib
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+import project_config  # noqa: E402
+
+
+@contextlib.contextmanager
+def project(text=None):
+    """A temp project dir, with `.claude/agent-steddy.json` holding `text` when given."""
+    with tempfile.TemporaryDirectory() as tmp:
+        if text is not None:
+            (pathlib.Path(tmp) / ".claude").mkdir()
+            (pathlib.Path(tmp) / ".claude" / "agent-steddy.json").write_text(text)
+        yield tmp
+
+
+class LoadConfig(unittest.TestCase):
+    def test_missing_file_gives_defaults_and_a_fresh_copy(self):
+        with project() as tmp:
+            config = project_config.load(tmp)
+            self.assertEqual(config, project_config.DEFAULTS)
+            config["agents"]["allowed"].append("x")
+            self.assertEqual(project_config.load(tmp)["agents"]["allowed"], ["*"])
+
+    def test_invalid_json_or_non_object_gives_defaults_and_one_stderr_line(self):
+        for text in ["{not json", "[1, 2]", ""]:
+            with project(text) as tmp, contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(project_config.load(tmp), project_config.DEFAULTS, text)
+            self.assertEqual(len(err.getvalue().splitlines()), 1, text)
+            self.assertIn("agent-steddy.json", err.getvalue())
+
+    def test_objects_merge_one_level_down_and_lists_replace(self):
+        text = json.dumps({
+            "verifyCommand": "make verify",
+            "agents": {"allowed": ["acme-*"]},
+            "commands": {"deny": [{"match": "x y", "reason": "no"}]},
+            "extra": {"kept": True},
+        })
+        with project(text) as tmp:
+            config = project_config.load(tmp)
+        self.assertEqual(config["workingBranch"], "main")
+        self.assertEqual(config["verifyCommand"], "make verify")
+        self.assertEqual(config["agents"], {"allowed": ["acme-*"], "models": {}, "writeFences": {}})
+        self.assertEqual(config["commands"]["deny"], [{"match": "x y", "reason": "no"}])
+        self.assertEqual(config["commands"]["alwaysAsk"], [])
+        self.assertEqual(config["records"], project_config.DEFAULTS["records"])
+        self.assertEqual(config["extra"], {"kept": True})
+
+    def test_project_dir_comes_from_the_argument_then_the_env_then_the_cwd(self):
+        with project('{"workingBranch": "env"}') as env_dir, project('{"workingBranch": "arg"}') as arg_dir:
+            with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": env_dir}):
+                self.assertEqual(project_config.load()["workingBranch"], "env")
+                self.assertEqual(project_config.load(arg_dir)["workingBranch"], "arg")
+            with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}), contextlib.chdir(env_dir):
+                self.assertEqual(project_config.load()["workingBranch"], "env")
+
+
+if __name__ == "__main__":
+    unittest.main()
