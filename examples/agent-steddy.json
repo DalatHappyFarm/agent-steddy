@@ -19,8 +19,8 @@
     "deny": [
       { "match": "supabase config push", "reason": "A config push overwrites the settings of the live project. Ask the owner to run it." }
     ],
-    "askFromSubagent": ["make deploy", "make deploy-web"],
-    "alwaysAsk": ["npm publish"]
+    "askFromSubagent": ["git push", "make deploy", "make deploy-web"],
+    "alwaysAsk": ["npm publish", "pnpm publish"]
   },
   "records": {
     "lessons": "docs/agents/lessons.md",
