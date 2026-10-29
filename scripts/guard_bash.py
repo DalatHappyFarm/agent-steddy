@@ -6,29 +6,59 @@ Any internal error allows the command (prints nothing, exits 0), so a bug here n
 """
 import json
 import os
+import re
 import shlex
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script directory off the path
 
-SEPARATORS = {";", "&&", "||", "|", "&", "(", ")"}
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree"}
 
+# One shell token per match. A word keeps its quotes (unquoted later); `$(`, `;`, `|`, `&`, parentheses and backticks end a command.
+# `&` inside a redirection such as `2>&1` or `&>file` stays in the word; the last branch skips a stray character such as an unterminated quote.
+TOKEN = re.compile(r"""
+    (?P<blank>[ \t\r]+|\\\n)
+  | (?P<newline>\n)
+  | (?P<comment>\#[^\n]*)
+  | (?P<heredoc><<-?[ \t]*(?P<quote>['"]?)(?P<tag>\w+)(?P=quote))
+  | (?P<word>(?:[^\s;|&()`'"\\<$]|&(?=>)|(?<=>)&|\$(?!\()|\\.|'[^']*'|"(?:[^"\\]|\\.)*")+|<+)
+  | (?P<separator>\$\(|[;|&()`])
+  | .
+""", re.VERBOSE | re.DOTALL)
 
-def commands(line):
-    """Split a shell line into simple commands (lists of words), honoring quotes and ; && || |."""
-    lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
-    lexer.whitespace_split = True
-    current = []
-    for word in lexer:
-        if word in SEPARATORS:
-            if current:
-                yield current
-            current = []
-        else:
-            current.append(word)
-    if current:
-        yield current
+
+def split(line):
+    """Split a shell line into simple commands (lists of words).
+
+    Commands end at ; && || | & parentheses, backticks, `$(` and newlines.
+    Quoted text stays inside its word, so it is never a command.
+    Comments and heredoc bodies are skipped.
+    """
+    commands, words, heredocs = [], [], []
+    pos = 0
+    while pos < len(line):
+        token = TOKEN.match(line, pos)
+        pos = token.end()
+        kind = token.lastgroup
+        if kind == "word":
+            words.append(shlex.split(token.group())[0])
+        elif kind == "heredoc":
+            heredocs.append(token.group("tag"))
+        elif kind in ("newline", "separator"):
+            if words:
+                commands.append(words)
+            words = []
+            while kind == "newline" and heredocs:  # the bodies start on the next line
+                tag = heredocs.pop(0)
+                while pos < len(line):
+                    end = line.find("\n", pos)
+                    end = len(line) if end < 0 else end
+                    body, pos = line[pos:end], end + 1
+                    if body.strip() == tag:
+                        break
+    if words:
+        commands.append(words)
+    return commands
 
 
 def git_subcommand(words):
@@ -56,7 +86,7 @@ def matches(words, pattern):
 
 def reason(line):
     """Why the command is denied, or None when it is allowed."""
-    simple = list(commands(line))
+    simple = split(line)
     for words in simple:
         if git_subcommand(words) == "stash":
             return "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."

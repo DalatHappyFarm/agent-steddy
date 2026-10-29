@@ -42,6 +42,67 @@ class GuardBash(unittest.TestCase):
         for command in ["git status", "git commit -m 'stash later' -- a.md", "echo 'git stash'", "rg stash", "git log --grep stash"]:
             self.assertEqual(run(command), "allow", command)
 
+    def test_split_ends_a_command_at_operators_newlines_backticks_and_substitutions(self):
+        cases = {
+            "a b; c": [["a", "b"], ["c"]],
+            "a && b || c | d & e": [["a"], ["b"], ["c"], ["d"], ["e"]],
+            "ls\ngit stash": [["ls"], ["git", "stash"]],
+            "echo $(git stash)": [["echo"], ["git", "stash"]],
+            "echo `git stash`": [["echo"], ["git", "stash"]],
+            "(cd app; git stash)": [["cd", "app"], ["git", "stash"]],
+            "git \\\n  stash": [["git", "stash"]],
+            "": [],
+            "  \n ; ": [],
+        }
+        for line, expected in cases.items():
+            self.assertEqual(guard_bash.split(line), expected, line)
+
+    def test_split_keeps_quoted_text_inside_its_word_and_keeps_empty_words(self):
+        cases = {
+            "echo 'git stash; ls'": [["echo", "git stash; ls"]],
+            'echo "a && b"': [["echo", "a && b"]],
+            "sed -i '' s/a/b/ f": [["sed", "-i", "", "s/a/b/", "f"]],
+            'FOO="a b" cmd': [["FOO=a b", "cmd"]],
+            "echo it\\'s": [["echo", "it's"]],
+            "git commit -m 'it''s'": [["git", "commit", "-m", "its"]],
+            "echo 'unterminated": [["echo", "unterminated"]],
+        }
+        for line, expected in cases.items():
+            self.assertEqual(guard_bash.split(line), expected, line)
+
+    def test_split_skips_comments_and_heredoc_bodies(self):
+        cases = {
+            "echo grep # git stash": [["echo", "grep"]],
+            "echo http://x/#frag $# ${A}": [["echo", "http://x/#frag", "$#", "${A}"]],
+            "cat <<EOF\ngit stash\nEOF\nls": [["cat"], ["ls"]],
+            "cat <<'EOF' | grep x\ngit stash\nEOF": [["cat"], ["grep", "x"]],
+            "cat <<-X\n\tgit stash\n\tX\nls": [["cat"], ["ls"]],
+            "cat <<A <<B\none\nA\ntwo\nB\nls": [["cat"], ["ls"]],
+            "cat <<EOF\nnever closed": [["cat"]],
+            "cat <<< git": [["cat", "<<<", "git"]],
+            "git commit -m \"$(cat <<'EOF'\nfeat: x\n\ngit add -A\nEOF\n)\"": [["git", "commit", "-m", "$(cat <<'EOF'\nfeat: x\n\ngit add -A\nEOF\n)"]],
+        }
+        for line, expected in cases.items():
+            self.assertEqual(guard_bash.split(line), expected, line)
+
+    def test_split_keeps_redirections_in_one_word(self):
+        cases = {
+            "git stash 2>&1 | tee log": [["git", "stash", "2>&1"], ["tee", "log"]],
+            "make test &>/dev/null; git stash": [["make", "test", "&>/dev/null"], ["git", "stash"]],
+            "cat < .env": [["cat", "<", ".env"]],
+            "cat<.env": [["cat", "<", ".env"]],
+            "echo $(<.env)": [["echo"], ["<", ".env"]],
+        }
+        for line, expected in cases.items():
+            self.assertEqual(guard_bash.split(line), expected, line)
+
+    def test_denies_git_stash_after_a_newline_or_a_backtick_and_not_in_a_heredoc(self):
+        self.assertEqual(run("ls\ngit stash"), "deny")
+        self.assertEqual(run("echo `git stash`"), "deny")
+        self.assertEqual(run("echo $(git stash)"), "deny")
+        self.assertEqual(run("cat <<EOF\ngit stash\nEOF"), "allow")
+        self.assertEqual(run("echo x # git stash"), "allow")
+
     def test_broken_input_allows(self):
         out = subprocess.run([sys.executable, "-I", str(SCRIPT)], input="not json", capture_output=True, text=True)
         self.assertEqual((out.returncode, out.stdout), (0, ""))
