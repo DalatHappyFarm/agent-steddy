@@ -129,6 +129,25 @@ A `hint` falls back to the `id`, then to the `pattern`.
 - An item that is not an object with a string `pattern`, or whose pattern is not a valid regular expression, is skipped.
   A value of the wrong type is read as the default, and any error inside the hook lets the agent stop.
 
+## Secret output scan
+
+`scripts/secret_output_scan.py` runs after every Bash command: in `PostToolUse` when the command succeeded and in `PostToolUseFailure` when it failed.
+It looks for secrets in the last 200 KB of `stdout` and `stderr`, and in the `error` text of a failed command.
+The patterns are in `scripts/secret-patterns.txt`, one per line: a name, a regular expression, and optionally a second expression for placeholders that are not secrets (`password`, `changeme`).
+They cover Supabase, Postgres URLs with a password, AWS, GitHub, RevenueCat, Sentry, PostHog and Lemon Squeezy keys, and private key headers.
+The patterns are not configurable yet.
+
+When a pattern matches, the agent gets a note that names the pattern and never the value, and tells it not to repeat the secret and to report it to the owner.
+
+- After a command that succeeded, the hook also replaces each secret span with `[REDACTED:<pattern name>]` in the output Claude reads (`updatedToolOutput`); every other field of the output comes back as received.
+- After a failure Claude Code reads `additionalContext` only, so the hook warns and cannot replace the text.
+- The command has already run when the hook fires.
+  The replacement changes what the agent sees, not what the terminal, the transcript file or telemetry captured.
+  A leaked secret still has to be rotated.
+- This is a safety net after the fact; the built-in `secret-read` rule is what keeps secret files out of the conversation in the first place.
+
+The same fail-open rule applies: any internal error prints nothing and the output stays as it was.
+
 ## Command matching
 
 A command pattern is a few words, such as `"supabase config push"`.

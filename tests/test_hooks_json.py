@@ -5,12 +5,14 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-# (event, matcher or None) -> the script that runs, and tool names the matcher must and must not catch (a hook with no matcher runs for every call)
+# (event, matcher or None, script, argument or "") -> tool names the matcher must and must not catch (a hook with no matcher runs for every call)
 WIRING = [
-    ("PreToolUse", "Bash", "guard_bash.py", ["Bash"], ["Write", "Agent"]),
-    ("PreToolUse", "Agent|Task", "guard_agent.py", ["Agent", "Task"], ["Bash", "TaskStop", "Write"]),
-    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit", "guard_write.py", ["Write", "Edit", "MultiEdit", "NotebookEdit"], ["Read", "Bash", "WriteFile"]),
-    ("SubagentStop", None, "stop_check.py", [], []),
+    ("PreToolUse", "Bash", "guard_bash.py", "", ["Bash"], ["Write", "Agent"]),
+    ("PreToolUse", "Agent|Task", "guard_agent.py", "", ["Agent", "Task"], ["Bash", "TaskStop", "Write"]),
+    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit", "guard_write.py", "", ["Write", "Edit", "MultiEdit", "NotebookEdit"], ["Read", "Bash", "WriteFile"]),
+    ("PostToolUse", "Bash", "secret_output_scan.py", "", ["Bash"], ["Write", "Read"]),
+    ("PostToolUseFailure", "Bash", "secret_output_scan.py", "", ["Bash"], ["Write", "Read"]),
+    ("SubagentStop", None, "stop_check.py", "", [], []),
 ]
 
 
@@ -23,12 +25,12 @@ class HooksJson(unittest.TestCase):
                     yield event, group.get("matcher"), hook
 
     def test_each_script_runs_on_its_event_and_matcher(self):
-        found = {(event, matcher): hook for event, matcher, hook in self.entries()}
-        self.assertEqual(sorted(found, key=str), sorted([(event, matcher) for event, matcher, *_ in WIRING], key=str))
-        for event, matcher, script, catches, ignores in WIRING:
-            hook = found[(event, matcher)]
+        found = {(event, matcher, hook["command"]): hook for event, matcher, hook in self.entries()}
+        command = lambda script, arg: f'python3 -I "${{CLAUDE_PLUGIN_ROOT}}/scripts/{script}"' + (f" {arg}" if arg else "")
+        self.assertEqual(sorted(found, key=str), sorted([(event, matcher, command(script, arg)) for event, matcher, script, arg, *_ in WIRING], key=str))
+        for event, matcher, script, arg, catches, ignores in WIRING:
+            hook = found[(event, matcher, command(script, arg))]
             self.assertEqual(hook["type"], "command")
-            self.assertEqual(hook["command"], f'python3 -I "${{CLAUDE_PLUGIN_ROOT}}/scripts/{script}"')
             self.assertTrue((ROOT / "scripts" / script).is_file(), script)
             self.assertTrue(matcher or not (catches or ignores), "a hook with no matcher has no names to check")
             for name in catches:

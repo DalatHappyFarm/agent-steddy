@@ -20,6 +20,22 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/secret_output_scan.py\"", "timeout": 5 }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/secret_output_scan.py\"", "timeout": 5 }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "hooks": [
