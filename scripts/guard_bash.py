@@ -1,7 +1,7 @@
 """PreToolUse hook (matcher Bash): deny shell commands that break work other agents share.
 
-Reads the hook input as JSON on stdin and prints a deny decision, or nothing to allow.
-The built-in rules always hold; the project config (`commands.deny`) adds its own.
+Reads the hook input as JSON on stdin and prints a decision, or nothing to allow.
+The built-in rules hold with no config and with a broken one; the project config adds its own (`commands.deny`) and can turn built-in rules off (`guards.disable`).
 Any internal error allows the command (prints nothing, exits 0), so a bug here never blocks a session.
 """
 import json
@@ -11,8 +11,6 @@ import shlex
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script directory off the path
-
-GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree"}
 
 # One shell token per match. A word keeps its quotes (unquoted later); `$(`, `;`, `|`, `&`, parentheses and backticks end a command.
 # `&` inside a redirection such as `2>&1` or `&>file` stays in the word; the last branch skips a stray character such as an unterminated quote.
@@ -132,16 +130,6 @@ def parse(line, depth=0):
             yield words
 
 
-def git_subcommand(words):
-    """`stash` for `git -C dir stash list`, None when the command is not git."""
-    if not words or words[0].rsplit("/", 1)[-1] != "git":
-        return None
-    i = 1
-    while i < len(words) and words[i].startswith("-"):
-        i += 2 if words[i] in GIT_OPTIONS_WITH_VALUE else 1
-    return words[i] if i < len(words) else None
-
-
 def matches(words, pattern):
     """True when a simple command runs the program named by the first pattern word, then the other pattern words.
 
@@ -149,31 +137,74 @@ def matches(words, pattern):
     So `supabase --workdir app config push --yes` matches "supabase config push" and `supabase config list` does not.
     """
     want = pattern.split()
-    if not words or not want or words[0].rsplit("/", 1)[-1] != want[0]:
+    if not words or not want or basename(words[0]) != want[0]:
         return False
     positional = iter(word for word in words[1:] if not word.startswith("-"))
     return all(part in positional for part in want[1:])  # `in` on an iterator consumes up to the match: a subsequence test
 
 
-def reason(line):
-    """Why the command is denied, or None when it is allowed."""
-    simple = list(parse(line))
-    for words in simple:
-        if git_subcommand(words) == "stash":
-            return "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."
-    import project_config  # here, not at the top: the built-in rules above hold even if the config cannot load
-    for rule in project_config.load()["commands"]["deny"]:
-        if any(matches(words, rule["match"]) for words in simple):
-            return rule.get("reason") or f"Denied by this project's agent-steddy config: {rule['match']}."
+GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env", "--super-prefix"}
+
+
+def git(words):
+    """(subcommand, its arguments) of a git command, skipping git's own options such as `-C dir`; None when the command is not git."""
+    if basename(words[0]) != "git":
+        return None
+    i = 1
+    while i < len(words) and words[i].startswith("-"):
+        i += 2 if words[i] in GIT_OPTIONS_WITH_VALUE else 1
+    return (words[i], words[i + 1:]) if i < len(words) else None
+
+
+def git_rule(subcommand, test=lambda args: True):
+    """A rule test that is true when some command is `git <subcommand> <args>` with test(args)."""
+    def check(commands):
+        found = (git(words) for words in commands)
+        return any(f and f[0] == subcommand and test(f[1]) for f in found)
+    return check
+
+
+# Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
+DENY_RULES = [
+    ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
+]
+
+
+def listed(config, section, key):
+    """The list at config[section][key], or [] when the section or the key is missing or has another type."""
+    section = config.get(section)
+    value = section.get(key) if isinstance(section, dict) else None
+    return value if isinstance(value, list) else []
+
+
+def judge(line, agent_type, config):
+    """("deny", reason) for a shell line the rules block, None to allow it.
+
+    Built-in rules come first, then `commands.deny` of the project config; `guards.disable` turns built-in rules off by id.
+    """
+    commands = list(parse(line))
+    off = {rule_id for rule_id in listed(config, "guards", "disable") if isinstance(rule_id, str)}
+    for rule_id, test, why in DENY_RULES:
+        if rule_id not in off and test(commands):
+            return "deny", f"[{rule_id}] {why}"
+    for rule in listed(config, "commands", "deny"):
+        if isinstance(rule, dict) and isinstance(rule.get("match"), str) and any(matches(words, rule["match"]) for words in commands):
+            why = rule.get("reason")
+            return "deny", why if isinstance(why, str) and why else f"Denied by this project's agent-steddy config: {rule['match']}."
     return None
 
 
 def main():
     data = json.load(sys.stdin)
-    why = reason((data.get("tool_input") or {}).get("command") or "")
-    if why:
+    try:
+        import project_config  # here, not at the top: the built-in rules hold even if the config cannot load
+        config = project_config.load()
+    except Exception:
+        config = {}
+    verdict = judge((data.get("tool_input") or {}).get("command") or "", data.get("agent_type"), config)
+    if verdict:
         print(json.dumps({"hookSpecificOutput": {
-            "hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": why}}))
+            "hookEventName": "PreToolUse", "permissionDecision": verdict[0], "permissionDecisionReason": verdict[1]}}))
 
 
 if __name__ == "__main__":

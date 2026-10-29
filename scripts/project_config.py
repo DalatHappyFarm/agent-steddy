@@ -13,6 +13,7 @@ DEFAULTS = {
     "workingBranch": "main",
     "verifyCommand": None,
     "agents": {"allowed": ["*"], "models": {}, "writeFences": {}},
+    "guards": {"disable": []},
     "commands": {"deny": [], "askFromSubagent": [], "alwaysAsk": []},
     "records": {
         "lessons": "docs/agents/lessons.md",

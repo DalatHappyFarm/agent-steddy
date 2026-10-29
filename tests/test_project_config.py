@@ -52,6 +52,7 @@ class LoadConfig(unittest.TestCase):
         self.assertEqual(config["agents"], {"allowed": ["acme-*"], "models": {}, "writeFences": {}})
         self.assertEqual(config["commands"]["deny"], [{"match": "x y", "reason": "no"}])
         self.assertEqual(config["commands"]["alwaysAsk"], [])
+        self.assertEqual(config["guards"], {"disable": []})
         self.assertEqual(config["records"], project_config.DEFAULTS["records"])
         self.assertEqual(config["extra"], {"kept": True})
 

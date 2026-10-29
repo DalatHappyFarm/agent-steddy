@@ -25,6 +25,7 @@ Unknown keys are kept and are not an error.
 | `agents.allowed` | `["*"]` | planned: step 4 |
 | `agents.models` | `{}` | planned: step 4 |
 | `agents.writeFences` | `{}` | planned: step 4 |
+| `guards.disable` | `[]` | `scripts/guard_bash.py` |
 | `commands.deny` | `[]` | `scripts/guard_bash.py` |
 | `commands.askFromSubagent` | `[]` | planned: step 3 |
 | `commands.alwaysAsk` | `[]` | planned: step 3 |
@@ -38,6 +39,8 @@ Unknown keys are kept and are not an error.
 - `agents.models` maps an agent type pattern to the model that agent must run on, for example `"acme-docs": "haiku"`.
 - `agents.writeFences` maps an agent type pattern to the list of path prefixes that agent may write, for example `"acme-auditor": ["docs/reviews/"]`.
   An agent type that matches no pattern is not fenced.
+- `guards.disable` is a list of built-in rule ids (see [Built-in rules](#built-in-rules)) that this project turns off.
+  An id that no rule has is ignored, so a typo leaves the rule on.
 - `commands.deny` is a list of `{"match": "<words>", "reason": "<text>"}` objects; a matching command is always blocked and the agent sees the reason.
   A rule without a `reason` still blocks and says which rule matched.
 - `commands.askFromSubagent` is a list of `"<words>"` patterns; a subagent that runs a matching command makes the owner confirm it.
@@ -82,3 +85,13 @@ Limits to know:
 
 The rules built into `scripts/guard_bash.py`, such as denying `git stash`, do not depend on the config.
 They hold with no config file, with a broken one, and with any `commands.deny`.
+Each has a short id, and the id leads the reason the agent sees, for example `[git-stash] Never git stash ...`.
+The README lists every id.
+
+A project that must allow what a rule blocks lists the id in `guards.disable`:
+
+```json
+{ "guards": { "disable": ["sed-in-place"] } }
+```
+
+Only that rule is off; the others and the project's own `commands.deny` rules stay on.

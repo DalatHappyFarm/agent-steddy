@@ -12,6 +12,9 @@
       "acme-auditor": ["docs/reviews/"]
     }
   },
+  "guards": {
+    "disable": []
+  },
   "commands": {
     "deny": [
       { "match": "supabase config push", "reason": "A config push overwrites the settings of the live project. Ask the owner to run it." }

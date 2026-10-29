@@ -14,9 +14,12 @@ import guard_bash  # noqa: E402
 DENY_PUSH = {"commands": {"deny": [{"match": "supabase config push", "reason": "Ask the owner to run config push."}]}}
 
 
-def decide(command, config=None):
+def decide(command, config=None, agent_type=None):
     """Run the hook the way Claude Code does, in a temp project dir holding `config` when given; return its JSON output or None."""
-    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
+    data = {"tool_name": "Bash", "tool_input": {"command": command}}
+    if agent_type:
+        data["agent_type"] = agent_type
+    payload = json.dumps(data)
     with tempfile.TemporaryDirectory() as tmp:
         if config is not None:
             (pathlib.Path(tmp) / ".claude").mkdir()
@@ -26,10 +29,10 @@ def decide(command, config=None):
     return json.loads(out)["hookSpecificOutput"] if out.strip() else None
 
 
-def run(command, config=None):
-    """The hook's decision: 'deny' or 'allow'."""
-    decision = decide(command, config)
-    return decision["permissionDecision"] if decision else "allow"
+def run(command, config=None, agent_type=None):
+    """The decision for a command, in process: 'deny', 'ask' or 'allow'. `config` is the project config as a dict."""
+    verdict = guard_bash.judge(command, agent_type, config or {})
+    return verdict[0] if verdict else "allow"
 
 
 class GuardBash(unittest.TestCase):
@@ -181,12 +184,33 @@ class GuardBash(unittest.TestCase):
             self.assertEqual(run(command, DENY_PUSH), "allow", command)
 
     def test_allows_the_listed_command_without_a_config_file_or_with_a_broken_one(self):
-        self.assertEqual(run("supabase config push"), "allow")
-        self.assertEqual(run("supabase config push", ["not", "an", "object"]), "allow")
+        self.assertIsNone(decide("supabase config push"))
+        self.assertIsNone(decide("supabase config push", ["not", "an", "object"]))
 
-    def test_built_in_rules_hold_without_the_config_and_with_a_broken_rule(self):
-        self.assertEqual(run("git stash", DENY_PUSH), "deny")
-        self.assertEqual(run("git stash", {"commands": {"deny": [42]}}), "deny")
+    def test_built_in_rules_hold_without_the_config_and_with_a_broken_one(self):
+        for config in [None, DENY_PUSH, ["not", "an", "object"], {"commands": {"deny": [42]}}, {"commands": "x", "guards": [1]},
+                       {"guards": {"disable": [["git-stash"], 7, None]}}, {"guards": {"disable": "git-stash"}}]:
+            self.assertEqual(decide("git stash", config)["permissionDecision"], "deny", config)
+        for config in [{"commands": {"deny": "oops"}}, {"commands": {"deny": [None, {"match": 3}]}}, {"commands": []}]:
+            self.assertIsNone(decide("git status", config), config)
+
+    def test_a_broken_deny_entry_does_not_hide_a_valid_one_after_it(self):
+        config = {"commands": {"deny": [42, {"match": 3}, {"reason": "no match key"}] + DENY_PUSH["commands"]["deny"]}}
+        self.assertEqual(run("supabase config push", config), "deny")
+
+    def test_a_project_can_turn_a_built_in_rule_off_by_id(self):
+        off = {"guards": {"disable": ["git-stash"]}}
+        self.assertEqual(run("git stash"), "deny")
+        self.assertEqual(run("git stash", off), "allow")
+        self.assertIsNone(decide("git stash", off))
+        self.assertEqual(run("git stash", {"guards": {"disable": ["no-such-rule"]}}), "deny")
+        self.assertEqual(run("git stash", {**DENY_PUSH, **off}), "allow")
+        self.assertEqual(run("supabase config push", {**DENY_PUSH, **off}), "deny")
+
+    def test_the_reason_of_a_built_in_rule_starts_with_its_id(self):
+        decision = decide("git stash")
+        self.assertEqual(decision["permissionDecision"], "deny")
+        self.assertTrue(decision["permissionDecisionReason"].startswith("[git-stash] "), decision)
 
     def test_a_rule_without_a_reason_still_denies(self):
         decision = decide("make deploy", {"commands": {"deny": [{"match": "make deploy"}]}})
