@@ -188,6 +188,14 @@ def commit_all(args):
     return False
 
 
+def force_delete(args):
+    """True for `git branch -D` and for -d together with -f, in any order or spelling."""
+    letters = "".join(arg[1:] for arg in args if arg.startswith("-") and not arg.startswith("--"))
+    delete = "d" in letters or "--delete" in args
+    force = "f" in letters or "--force" in args
+    return "D" in letters or (delete and force)
+
+
 # Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
@@ -203,6 +211,8 @@ DENY_RULES = [
      "Staging everything sweeps in files other agents are editing. Stage your own files by path, then commit by path."),
     ("git-commit-all", git_rule("commit", commit_all),
      "git commit -a commits other agents' uncommitted changes too. Commit by path: git commit -m <message> -- <paths>."),
+    ("git-branch-force-delete", git_rule("branch", force_delete),
+     "Force-deleting a branch can lose commits that exist nowhere else. Use git branch -d, which refuses a branch that is not merged."),
 ]
 
 

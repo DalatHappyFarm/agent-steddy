@@ -55,6 +55,12 @@ RULE_CASES = {
                  "git commit -m -a", "git commit -ma", "git commit -m x -- -a", "git commit -F -", "git commit -m x a.md", "git commit --author='A <a@b.c>' -m x",
                  "git commit --amend --no-edit", "git commit -C HEAD", "git commit -c HEAD -m x", "git commit --message=-a", "echo 'git commit -a'", "git status -a"],
     },
+    "git-branch-force-delete": {
+        "hit": ["git branch -D x", "git branch -df x", "git branch -Df x", "git branch -fd x", "git branch --delete --force x", "git branch -d -f x",
+                "git branch --force -d x", "git branch -D", "git -C a branch -D x", "echo hi && git branch -D x", "bash -c 'git branch -D x'"],
+        "miss": ["git branch -d x", "git branch --delete x", "git branch", "git branch -a", "git branch -m a b", "git branch -f x HEAD", "git branch --force x HEAD",
+                 "git switch -c x", "git branch feat/D", "echo 'git branch -D x'"],
+    },
 }
 
 
