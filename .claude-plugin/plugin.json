@@ -1,0 +1,9 @@
+{
+  "name": "agent-steddy",
+  "version": "0.1.0",
+  "description": "Guardrails, gates and a learning loop for a team of Claude Code agents.",
+  "author": { "name": "DalatHappyFarm" },
+  "repository": "https://github.com/DalatHappyFarm/agent-steddy",
+  "license": "MIT",
+  "keywords": ["agents", "guardrails", "hooks", "workflow"]
+}
