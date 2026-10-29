@@ -35,6 +35,11 @@ RULE_CASES = {
         "miss": ["git restore apps/web/a.ts", "git restore --staged a.md", "git restore ./a.md", "git restore --source HEAD~1 a.ts", "echo 'git restore .'",
                  "git status ."],
     },
+    "git-clean-force": {
+        "hit": ["git clean -f", "git clean -fd", "git clean -fdx", "git clean -d -f", "git clean -ffdx", "git clean --force", "git clean -d --force",
+                "git -C app clean -fd", "cd app && git clean -f", "sudo git clean -f", "bash -c 'git clean -fd'"],
+        "miss": ["git clean -n", "git clean -nd", "git clean --dry-run", "git clean", "git clean -i", "git clean -d", "echo 'git clean -f'", "git status -f"],
+    },
 }
 
 

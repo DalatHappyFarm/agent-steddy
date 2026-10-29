@@ -164,6 +164,11 @@ def git_rule(subcommand, test=lambda args: True):
     return check
 
 
+def short(arg, letter):
+    """True when `arg` is a cluster of short options, such as `-fd`, that contains `letter`."""
+    return arg.startswith("-") and not arg.startswith("--") and letter in arg[1:]
+
+
 # Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
@@ -173,6 +178,8 @@ DENY_RULES = [
      "Checking out . overwrites every uncommitted change in the tree, including other agents' work. Restore single files by path."),
     ("git-restore-all", git_rule("restore", lambda args: "." in args),
      "Restoring . discards every uncommitted change in the tree, including other agents' work. Restore single files by path."),
+    ("git-clean-force", git_rule("clean", lambda args: "--force" in args or any(short(arg, "f") for arg in args)),
+     "git clean -f deletes untracked files that other agents may own. Remove your own files by path."),
 ]
 
 
