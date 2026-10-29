@@ -63,6 +63,16 @@ class LoadConfig(unittest.TestCase):
             with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}), contextlib.chdir(env_dir):
                 self.assertEqual(project_config.load()["workingBranch"], "env")
 
+    def test_example_config_is_complete_and_uses_only_known_keys(self):
+        text = (ROOT / "examples" / "agent-steddy.json").read_text()
+        example = json.loads(text)
+        for key, value in example.items():
+            self.assertIn(key, project_config.DEFAULTS, key)
+            if isinstance(value, dict):
+                self.assertLessEqual(set(value), set(project_config.DEFAULTS[key]), key)
+        with project(text) as tmp:
+            self.assertEqual(project_config.load(tmp), {**project_config.DEFAULTS, **example})
+
 
 if __name__ == "__main__":
     unittest.main()

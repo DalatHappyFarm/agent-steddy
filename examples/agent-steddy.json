@@ -1,0 +1,27 @@
+{
+  "workingBranch": "main",
+  "verifyCommand": "make verify",
+  "agents": {
+    "allowed": ["acme-*"],
+    "models": {
+      "acme-web": "sonnet",
+      "acme-docs": "haiku",
+      "acme-auditor": "sonnet"
+    },
+    "writeFences": {
+      "acme-auditor": ["docs/reviews/"]
+    }
+  },
+  "commands": {
+    "deny": [
+      { "match": "supabase config push", "reason": "A config push overwrites the settings of the live project. Ask the owner to run it." }
+    ],
+    "askFromSubagent": ["make deploy", "make deploy-web"],
+    "alwaysAsk": ["npm publish"]
+  },
+  "records": {
+    "lessons": "docs/agents/lessons.md",
+    "metrics": "docs/agents/metrics.jsonl",
+    "decisions": "docs/agents/decisions.md"
+  }
+}
