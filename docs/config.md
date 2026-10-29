@@ -97,6 +97,8 @@ Limits to know:
   Write the pattern with the fewest words that name the command.
 - Commands that run other commands are not looked through: `xargs`, `find -exec`, `eval`, `watch`, shell scripts run by path, and a `$(...)` inside double quotes.
 - A script nested in more than three `bash -c` levels is not read.
+- Built-in rules share these limits.
+  They stop the usual forms of a command and guard against honest mistakes; an agent set on getting around them, for example with `eval` or a command built from variables, can.
 
 ## Built-in rules
 
@@ -104,6 +106,10 @@ The rules built into `scripts/guard_bash.py`, such as denying `git stash` or ask
 They hold with no config file, with a broken one, and with any `commands.deny`.
 Each has a short id, and the id leads the reason the agent sees, for example `[git-stash] Never git stash ...`.
 The README lists every id.
+
+Built-in rules use the same splitting and wrapper handling as the patterns above.
+They do not match words in order; each reads the options of the program it guards.
+For git that means its own options, such as `-C dir`, are skipped and the next word is the subcommand, so `git -C app stash` is a stash and `git log --grep stash` is not.
 
 A project that must allow what a rule blocks lists the id in `guards.disable`:
 
