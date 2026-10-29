@@ -40,7 +40,7 @@ agent-steddy/
 ├── scripts/                     the hook scripts and the command's code (Python, standard library only)
 ├── skills/                      the method: the gates skill and the finish skill
 ├── templates/                   agent, role card and brief templates for a project to copy
-├── examples/                    an example project config
+├── examples/acme/               an example project: config, agents and role cards
 ├── docs/                        config reference, roadmap and the diagrams
 └── tests/                       unit tests for the scripts, and a check that the docs agree with the code
 ```
@@ -49,7 +49,7 @@ agent-steddy/
 
 A project adjusts the kit with one file, `.claude/agent-steddy.json` in its root.
 Every key is optional; a missing file gives the defaults.
-See [docs/config.md](docs/config.md) for every key and [examples/agent-steddy.json](examples/agent-steddy.json) for a full example.
+See [docs/config.md](docs/config.md) for every key and [examples/acme/.claude/agent-steddy.json](examples/acme/.claude/agent-steddy.json) for a full example.
 
 ## Built-in Bash rules
 

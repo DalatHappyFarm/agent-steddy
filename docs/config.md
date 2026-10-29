@@ -3,7 +3,7 @@
 The kit holds the mechanism, each project holds its own settings.
 This file is the seam between them: `.claude/agent-steddy.json` in the project root.
 Every hook reads it through `scripts/project_config.py`.
-A complete example is in [`examples/agent-steddy.json`](../examples/agent-steddy.json).
+A complete example is in [`examples/acme/.claude/agent-steddy.json`](../examples/acme/.claude/agent-steddy.json).
 
 ## Loading
 

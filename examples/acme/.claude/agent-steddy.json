@@ -6,7 +6,8 @@
     "models": {
       "acme-web": "sonnet",
       "acme-docs": "haiku",
-      "acme-auditor": "sonnet"
+      "acme-auditor": "sonnet",
+      "acme-verifier": "sonnet"
     },
     "writeFences": {
       "acme-auditor": ["docs/reviews/"]
@@ -25,7 +26,7 @@
   },
   "commands": {
     "deny": [
-      { "match": "supabase config push", "reason": "A config push overwrites the settings of the live project. Ask the owner to run it." }
+      { "match": "acme-cli config push", "reason": "A config push overwrites the settings of the live project. Ask the owner to run it." }
     ],
     "askFromSubagent": ["git push", "make deploy", "make deploy-web"],
     "alwaysAsk": ["npm publish", "pnpm publish"]

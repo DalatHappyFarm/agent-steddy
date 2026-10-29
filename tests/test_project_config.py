@@ -81,7 +81,7 @@ class LoadConfig(unittest.TestCase):
         self.assertEqual(project_config.DEFAULTS["agents"]["allowed"], ["*"])
 
     def test_example_config_is_complete_and_uses_only_known_keys(self):
-        text = (ROOT / "examples" / "agent-steddy.json").read_text()
+        text = (ROOT / "examples" / "acme" / ".claude" / "agent-steddy.json").read_text()
         example = json.loads(text)
         for key, value in example.items():
             self.assertIn(key, project_config.DEFAULTS, key)

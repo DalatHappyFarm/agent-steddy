@@ -18,12 +18,14 @@ The copied files hold no links, because a copy in a project would not resolve th
 
 ## Adopt them
 
+The [example project](../examples/acme/README.md) shows the agents, the role cards and the config filled in for a made-up company.
+
 1. Install the plugin, or load it for one session with `claude --plugin-dir <path>`.
 2. Copy the agent files into `.claude/agents/`, and replace `<project>`, `<area>`, `<paths>` and the test paths in each one.
    Rename an agent for each area the project has.
 3. Copy the two role files into `docs/agents/roles/`, and write one card for each role the agents play.
 4. Copy `brief.md` into `docs/agents/`.
-5. Write `.claude/agent-steddy.json`; [docs/config.md](../docs/config.md) lists every key, and the [example](../examples/agent-steddy.json) is a full file.
+5. Write `.claude/agent-steddy.json`; [docs/config.md](../docs/config.md) lists every key, and the [example config](../examples/acme/.claude/agent-steddy.json) is a full file.
    For these agents the keys are:
    - `agents.allowed`, a pattern for the agent names, such as `"<project>-*"`;
    - `agents.models`, the model each agent type must run on, such as `"<project>-docs": "haiku"`;

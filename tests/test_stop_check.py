@@ -127,7 +127,7 @@ class ExampleConfig(unittest.TestCase):
     def test_the_example_opts_the_demo_agents_in_with_valid_items(self):
         with tempfile.TemporaryDirectory() as tmp:
             (pathlib.Path(tmp) / ".claude").mkdir()
-            (pathlib.Path(tmp) / ".claude" / "agent-steddy.json").write_text((ROOT / "examples" / "agent-steddy.json").read_text())
+            (pathlib.Path(tmp) / ".claude" / "agent-steddy.json").write_text((ROOT / "examples" / "acme" / ".claude" / "agent-steddy.json").read_text())
             config = project_config.load(tmp)
         self.assertEqual(config["handback"]["agents"], ["acme-*"])
         self.assertIsNone(stop(FULL + " Resources released: nothing started.", config))
