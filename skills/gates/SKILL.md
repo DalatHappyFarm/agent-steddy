@@ -19,7 +19,7 @@ The walls hold in every role, for the main session and for every subagent.
 
 | # | Wall | Enforced by |
 | --- | --- | --- |
-| 1 | Secrets stay in their files: no reading a secret file into the conversation and no dumping the environment. | Built-in `secret-read` and `env-dump` deny the commands; the secret output scan redacts known patterns after a command has run. |
+| 1 | Secrets stay in their files: no reading a secret file into the conversation and no dumping the environment. | Built-in `secret-read` and `env-dump` deny the commands; the secret output scan redacts known patterns in the output of a command that succeeded, and only warns after a failed one. |
 | 2 | Only the owner's explicit ask publishes, deploys or pushes, and subagents never deploy or publish. | Project config lists the commands in `commands.deny`, `commands.askFromSubagent` and `commands.alwaysAsk`; built-in `git-push-force` asks for a force push. |
 | 3 | No destructive git on a tree that agents share: no stash, no hard reset, no whole-tree checkout or restore, no forced clean. | Built-in `git-stash`, `git-reset-hard`, `git-checkout-all`, `git-restore-all` and `git-clean-force`. |
 | 4 | Stage and commit by path, never everything at once. | Built-in `git-add-all` and `git-commit-all` deny the forms that take everything; committing by path is a practice the kit does not check. |
