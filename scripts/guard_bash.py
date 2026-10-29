@@ -216,6 +216,16 @@ def recursive(args):
     return False
 
 
+def in_place(args):
+    """True for `sed -i` without its suffix argument, `-i` also at the end of a cluster such as `-Ei`, and for any `--in-place`; stops at `--`."""
+    for i, arg in enumerate(args):
+        if arg == "--":
+            return False
+        if arg.startswith("--in-place") or (re.fullmatch(r"-[A-Za-z]*i", arg) and args[i + 1:i + 2] != [""]):
+            return True
+    return False
+
+
 # Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
@@ -235,6 +245,9 @@ DENY_RULES = [
      "Force-deleting a branch can lose commits that exist nowhere else. Use git branch -d, which refuses a branch that is not merged."),
     ("grep-recursive", program_rule(("grep", "egrep", "fgrep"), recursive),
      "Use rg for a recursive or directory search. Plain grep is fine in a pipe or on one file, and so is git grep."),
+    ("sed-in-place", program_rule(("sed",), in_place),
+     "sed -i takes a backup suffix argument on macOS and none on Linux, and --in-place does not exist on macOS. "
+     "Pass the suffix explicitly (sed -i '' or sed -i.bak), or edit the file with a script."),
 ]
 
 # Ask rules make the owner confirm the command, in the main session too.

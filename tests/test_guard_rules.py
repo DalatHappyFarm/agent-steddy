@@ -72,9 +72,16 @@ RULE_CASES = {
         "hit": ["grep -r foo src", "grep -R foo src", "grep --recursive foo src", "grep -rn foo src", "grep -Rn foo src", "grep -rl foo .", "grep -nri foo src",
                 "grep foo -r src", "cat f | grep -rn foo", "ls && grep -r foo f", "echo $(grep -rn x y)", "FOO=1 grep -rn x y", "egrep -r x y", "fgrep -r x y",
                 "/usr/bin/grep -r x", "sudo grep -r x y", "bash -c 'grep -rn x .'", "ls\ngrep -r x ."],
-        "miss": ["ls | grep x", "grep -n foo file.txt", "xcrun simctl list devices booked | grep -c Booted", "git grep -n x", "git grep foo", "git grep -n foo -- src",
+        "miss": ["ls | grep x", "grep -n foo file.txt", "xcrun simctl list devices booted | grep -c Booted", "git grep -n x", "git grep foo", "git grep -n foo -- src",
                  "rg -n grep src", "rg grep", "echo grep", "echo 'grep -r x'", "grep -n -- -r file", "grep -E 'a|b' f", "grep --include='*.ts' x f", "grep -c x f",
                  "rg -r foo src"],
+    },
+    "sed-in-place": {
+        "hit": ["sed -i 's/a/b/' f", "sed -i -e s/a/b/ f", "sed --in-place s/a/b/ f", "sed --in-place=.bak s/a/b/ f", "sed -n 1p f | sed -i 's/a/b/' g",
+                "sed -Ei 's/a/b/' f", "sed -ni 's/a/b/p' f", "sed -E -i 's/a/b/' f", "sudo sed -i s/a/b/ f", "bash -c \"sed -i 's/a/b/' f\"", "FOO=1 sed -i x f",
+                "cd app && sed -i s/a/b/ f", "/usr/bin/sed -i s/a/b/ f"],
+        "miss": ["sed -i '' 's/a/b/' f", "sed -i \"\" s/a/b/ f", "sed -i.bak 's/a/b/' f", "sed -Ei '' s/a/b/ f", "sed -E -i.bak s/a/b/ f", "sed -n '1,5p' f",
+                 "sed 's/a/b/' f", "sed -e 's/i/x/' f", "echo 'sed -i x f'", "sed -n -e 1p f", "sed -s p f", "sed -n 1p -- -i", "python3 -I edit.py"],
     },
 }
 
