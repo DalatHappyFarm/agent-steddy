@@ -10,7 +10,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from hook_runner import make_repo, write_config  # noqa: E402
+from hook_runner import git, make_repo, write_config  # noqa: E402
 
 BIN = ROOT / "bin" / "agent-steddy"
 LOG = ["metrics", "log", "--size", "M", "--type", "new", "--verify-first-pass", "yes"]
@@ -118,6 +118,61 @@ class Reports(unittest.TestCase):
             report = agent_steddy(["metrics", "report"], root).stdout
             self.assertIn("Tasks (out/m.jsonl)", report)
             self.assertIn("  12/", report)
+
+
+class Records(unittest.TestCase):
+    def test_decision_and_lesson_go_to_the_files_named_in_the_config(self):
+        with project({"records": {"decisions": "notes/decisions.md", "lessons": "notes/lessons.md"}}) as root:
+            done = agent_steddy(["record", "decision", "api", "keep v1 for a month - clients lag"], root)
+            self.assertEqual((done.returncode, done.stdout.strip(), done.stderr), (0, "added: - [api] keep v1 for a month - clients lag", ""))
+            self.assertTrue((root / "notes" / "decisions.md").read_text().endswith("- [api] keep v1 for a month - clients lag\n"))
+            done = agent_steddy(["record", "lesson", "--task", "t1", "--roles", "web,docs", "--worked", "w", "--exposed", "e", "--rule", "r"], root)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertRegex(done.stdout, r"^added: ## \d{4}-\d\d-\d\d - t1 - roles: web, docs\n$")
+            self.assertIn("- Rule: r\n", (root / "notes" / "lessons.md").read_text())
+            self.assertFalse((root / "docs").exists())
+
+    def test_a_refused_record_exits_1_and_a_missing_option_exits_2(self):
+        with project() as root:
+            done = agent_steddy(["record", "decision", "bad area!", "x"], root)
+            self.assertEqual((done.returncode, done.stdout), (1, ""))
+            self.assertIn("agent-steddy: refused: area must be", done.stderr)
+            self.assertEqual(agent_steddy(["record", "lesson", "--task", "t"], root).returncode, 2)
+            self.assertFalse((root / "docs").exists())
+
+    def feature_branch(self, root):
+        if (root / ".claude").exists():  # the project config is committed, as in a real project, so the tree is clean
+            git(root, "add", ".claude")
+            git(root, "commit", "-q", "-m", "config")
+        git(root, "switch", "-q", "-c", "feat/x")
+        (root / "f.txt").write_text("1")
+        git(root, "add", "f.txt")
+        git(root, "commit", "-q", "-m", "work")
+        git(root, "switch", "-q", "main")
+
+    def test_finish_merges_a_verified_branch_and_prints_its_progress(self):
+        with project({"verifyCommand": "test -f f.txt"}) as root:
+            self.feature_branch(root)
+            done = agent_steddy(["record", "finish", "feat/x"], root)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertIn("[finish] test -f f.txt passed", done.stdout)
+            self.assertTrue(done.stdout.strip().endswith("(nothing was pushed)"))
+            self.assertEqual(git(root, "branch", "--format=%(refname:short)").split(), ["main"])
+
+    def test_finish_refuses_a_failing_verify_and_a_missing_verify_command(self):
+        with project({"verifyCommand": "false"}) as root:
+            self.feature_branch(root)
+            done = agent_steddy(["record", "finish", "feat/x"], root)
+            self.assertEqual((done.returncode, done.stdout.count("passed")), (1, 0))
+            self.assertIn("nothing merged", done.stderr)
+            self.assertEqual(sorted(git(root, "branch", "--format=%(refname:short)").split()), ["feat/x", "main"])
+        with project() as root:
+            self.feature_branch(root)
+            done = agent_steddy(["record", "finish", "feat/x"], root)
+            self.assertEqual(done.returncode, 1)
+            self.assertIn("--no-verify", done.stderr)
+            self.assertEqual(agent_steddy(["record", "finish", "feat/x", "--no-verify"], root).returncode, 0)
+            self.assertEqual(git(root, "branch", "--format=%(refname:short)").split(), ["main"])
 
 
 if __name__ == "__main__":

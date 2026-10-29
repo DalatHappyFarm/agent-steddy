@@ -20,8 +20,8 @@ Unknown keys are kept and are not an error.
 
 | Key | Default | Read by |
 | --- | --- | --- |
-| `workingBranch` | `"main"` | planned: step 5 |
-| `verifyCommand` | `null` | planned: step 5 |
+| `workingBranch` | `"main"` | `scripts/record.py` |
+| `verifyCommand` | `null` | `scripts/record.py` |
 | `agents.allowed` | `["*"]` | `scripts/guard_agent.py` |
 | `agents.models` | `{}` | `scripts/guard_agent.py` |
 | `agents.writeFences` | `{}` | `scripts/guard_write.py` |
@@ -33,12 +33,13 @@ Unknown keys are kept and are not an error.
 | `commands.alwaysAsk` | `[]` | `scripts/guard_bash.py` |
 | `reminder.enabled` | `true` | `scripts/gate_reminder.py` |
 | `reminder.text` | the seven gates | `scripts/gate_reminder.py` |
-| `records.lessons` | `"docs/agents/lessons.md"` | planned: step 5 |
+| `records.lessons` | `"docs/agents/lessons.md"` | `scripts/record.py` |
 | `records.metrics` | `"docs/agents/metrics.jsonl"` | `scripts/metrics.py` |
-| `records.decisions` | `"docs/agents/decisions.md"` | planned: step 5 |
+| `records.decisions` | `"docs/agents/decisions.md"` | `scripts/record.py` |
 
-- `workingBranch` is the branch agents work on and merge into.
+- `workingBranch` is the branch agents work on and merge into; `record finish` fast-forwards it.
 - `verifyCommand` is the command that proves a change, or `null` when the project has none.
+  `record finish` runs it through a shell in the project root.
 - `agents.allowed` is a list of agent type patterns; only those agent types may be started.
   The default `["*"]` allows every type, and `[]` allows none.
 - `agents.models` maps an agent type pattern to the model that agent must run on, for example `"acme-docs": "haiku"`.
@@ -62,6 +63,7 @@ Unknown keys are kept and are not an error.
 - `reminder.text` is the text added to the context of every prompt; the default lists the seven gates.
   An empty text adds nothing.
 - `records.*` are the paths, relative to the project root, of the lessons file, the metrics file and the decisions file.
+  The command creates the file and its folder when it first writes to it.
 
 ## Decisions
 
@@ -147,7 +149,7 @@ When a pattern matches, the agent gets a note that names the pattern and never t
 - After a command that succeeded, the hook also replaces each secret span with `[REDACTED:<pattern name>]` in the output Claude reads (`updatedToolOutput`); every other field of the output comes back as received.
 - After a failure Claude Code reads `additionalContext` only, so the hook warns and cannot replace the text.
 - The command has already run when the hook fires.
-  The replacement changes what the agent sees, not what the terminal, the transcript file or telemetry captured.
+  The replacement changes only what the agent sees, and telemetry captures the original output (Claude Code hooks reference).
   A leaked secret still has to be rotated.
 - This is a safety net after the fact; the built-in `secret-read` rule is what keeps secret files out of the conversation in the first place.
 
@@ -244,6 +246,29 @@ There are two clocks, both in local time:
 `metrics log` does not need the clock: with `--task` and `--minutes` it works in a project that has no local state.
 `start` needs it and refuses without one.
 A line that is not a JSON object with a `date` is skipped by the report.
+
+## Records
+
+`agent-steddy record` writes down what a task decided and learned, and ends it.
+
+| Command | What it does |
+| --- | --- |
+| `record decision "<area>" "<text>"` | Appends `- [area] text` to `records.decisions`. The area is a short tag of letters, digits, spaces and `_ . / -`; the area and the text are one line each. A missing file is created with a short header. |
+| `record lesson --task T --roles a,b --worked W --exposed E --rule R` | Puts an entry at the top of `records.lessons`, above the older ones: a heading `## <date> - <task> - roles: a, b` and the three lines Worked, Exposed and Rule. A missing file is created from a template: a title, the entry format in a code fence, and the rule that a rule broken twice moves up into a role card and from there into a hook. A heading inside a code fence is not an entry. |
+| `record finish <branch> [--full] [--no-verify]` | Verifies a branch and merges it into `workingBranch`, see below. |
+
+`record finish` is the merge at the end of a task, and it never pushes.
+It refuses when the branch does not exist, is the working branch, or does not fast-forward onto it, and when the working tree has uncommitted or untracked files.
+Then:
+
+1. It checks out the branch, runs `verifyCommand` through a shell in the project root, and goes back to the branch it came from, so the proof is of the branch itself.
+   `--full` appends ` --full` to the command, for a verify script that scopes itself to what the branch changed and checks everything with that flag.
+2. When the command fails it merges nothing, keeps the branch, and prints the last 40 lines of the output.
+3. When it passes it checks out `workingBranch`, merges the branch with `git merge --ff-only`, and deletes the branch with `git branch -d`.
+
+With no `verifyCommand` nothing proves the branch, so the command refuses unless `--no-verify` is given.
+With a `verifyCommand`, `--no-verify` is refused: a gate the project set is not skipped by a flag.
+The command runs git itself and not through the Bash tool, so the Bash rules do not see it; it uses only `switch`, `merge --ff-only` and `branch -d`.
 
 ## Command matching
 

@@ -7,6 +7,12 @@
   agent-steddy metrics slow [--days 7] [--top 10]   Bash commands by total time and count
   agent-steddy metrics selftest                     a quick check of the installed scripts
 
+  agent-steddy record decision "<area>" "<text>"    append `- [area] text` to the decisions file
+  agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R
+                                                    put a dated entry at the top of the lessons file
+  agent-steddy record finish <branch> [--full] [--no-verify]
+                                                    verify the branch, fast-forward the working branch onto it, delete it; never pushes
+
 The project is `CLAUDE_PROJECT_DIR` when set, else the nearest folder from the cwd up that has `.claude/agent-steddy.json` or `.git`.
 Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused, with the reason on stderr.
 """
@@ -20,6 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I lea
 import local_state  # noqa: E402
 import metrics  # noqa: E402
 import project_config  # noqa: E402
+import record  # noqa: E402
 from local_state import Refuse  # noqa: E402
 
 
@@ -45,33 +52,54 @@ def build_parser():
     slow.add_argument("--days", type=int, default=7)
     slow.add_argument("--top", type=int, default=10)
     commands.add_parser("selftest", help="a quick check of the installed scripts")
+    records = groups.add_parser("record", help="decisions, lessons and the merge that ends a task").add_subparsers(dest="command", required=True)
+    decision = records.add_parser("decision", help="append a decision to the decisions file")
+    decision.add_argument("area", help="a short tag such as app or website")
+    decision.add_argument("text", help="one line: the decision and why")
+    lesson = records.add_parser("lesson", help="put an entry at the top of the lessons file")
+    for field in ("task", "roles", "worked", "exposed", "rule"):
+        lesson.add_argument(f"--{field}", required=True, help="comma separated" if field == "roles" else "one line")
+    finish = records.add_parser("finish", help="verify a branch, fast-forward the working branch onto it and delete it; never pushes")
+    finish.add_argument("branch")
+    finish.add_argument("--full", action="store_true", help="append --full to verifyCommand")
+    finish.add_argument("--no-verify", action="store_true", help="merge without proof; only when the project has no verifyCommand")
     return parser
 
 
-def run(args, project, config, state):
-    """Run one parsed command. Returns the lines to print; raises Refuse when the command will not run."""
-    if args.group == "metrics":
-        log_file = Path(project) / project_config.get(config, "records", "metrics")
-        if args.command == "start":
-            return [metrics.start(state, args.task, args.force)]
-        if args.command == "log":
-            row = metrics.log(state, log_file, args.size, args.task_type, args.verify_first_pass, args.task, args.roles, args.agents, args.minutes, args.exposed)
-            note = ["note: the task name is still the auto name; pass --task next time"] if str(row["task"]).startswith("auto ") else []
-            return [*note, f"logged: {json.dumps(row, ensure_ascii=False)}"]
-        if args.command == "report":
-            return metrics.report(log_file, project_config.get(config, "records", "metrics"), project, args.weeks)
-        if args.command == "slow":
-            return metrics.slow(state, args.days, args.top)
-        metrics.selftest()
-        return ["selftest ok"]
-    raise Refuse(f"unknown command {args.group}")
+def run_metrics(args, project, config, state):
+    log_file = Path(project) / project_config.get(config, "records", "metrics")
+    if args.command == "start":
+        return [metrics.start(state, args.task, args.force)]
+    if args.command == "log":
+        row = metrics.log(state, log_file, args.size, args.task_type, args.verify_first_pass, args.task, args.roles, args.agents, args.minutes, args.exposed)
+        note = ["note: the task name is still the auto name; pass --task next time"] if str(row["task"]).startswith("auto ") else []
+        return [*note, f"logged: {json.dumps(row, ensure_ascii=False)}"]
+    if args.command == "report":
+        return metrics.report(log_file, project_config.get(config, "records", "metrics"), project, args.weeks)
+    if args.command == "slow":
+        return metrics.slow(state, args.days, args.top)
+    metrics.selftest()
+    return ["selftest ok"]
+
+
+def run_record(args, project, config):
+    if args.command == "decision":
+        path = Path(project) / project_config.get(config, "records", "decisions")
+        return [f"added: {record.decision(path, args.area, args.text)}"]
+    if args.command == "lesson":
+        path = Path(project) / project_config.get(config, "records", "lessons")
+        return [f"added: {record.lesson(path, args.task, args.roles, args.worked, args.exposed, args.rule)}"]
+    record.finish(project, args.branch, config, args.full, args.no_verify)  # prints its own progress, since a verify can take minutes
+    return []
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
     project = local_state.project_dir()
     try:
-        for line in run(args, project, project_config.load(project), local_state.state_dir(project)):
+        config = project_config.load(project)
+        lines = run_metrics(args, project, config, local_state.state_dir(project)) if args.group == "metrics" else run_record(args, project, config)
+        for line in lines:
             print(line)
     except Refuse as error:
         print(f"agent-steddy: refused: {error}", file=sys.stderr)

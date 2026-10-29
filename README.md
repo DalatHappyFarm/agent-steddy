@@ -72,9 +72,9 @@ Each one reads its keys from the project config and does nothing until they are 
 The write fence guards the file-writing tools only; a write through the Bash tool is not fenced.
 See [docs/config.md](docs/config.md) for the keys and the matching rules.
 
-## Measure the work
+## Measure and record
 
-Three more hooks collect the data, and the `agent-steddy` command turns it into numbers.
+Three more hooks collect the data, and the `agent-steddy` command turns it into numbers and keeps the record of decisions and lessons.
 The data is local state in the git common dir (`.git/agent-steddy/`), shared by every worktree and never committed.
 
 | Hook | Runs | What it does |
@@ -89,9 +89,12 @@ The data is local state in the git common dir (`.git/agent-steddy/`), shared by 
 | `agent-steddy metrics log --size M --type new --verify-first-pass yes` | Appends one line (minutes, minutes since the prompt, defects found, first-pass verification) to `records.metrics`. |
 | `agent-steddy metrics report` | Weekly tables of tasks and of git rework. |
 | `agent-steddy metrics slow` | The Bash commands that take the most time, grouped. |
+| `agent-steddy record decision "<area>" "<text>"` | Appends a line to `records.decisions`. |
+| `agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R` | Puts a dated entry at the top of `records.lessons`. |
+| `agent-steddy record finish <branch>` | Runs `verifyCommand` on the branch, fast-forwards `workingBranch` onto it and deletes it; it refuses when the verify fails and never pushes. |
 
 Claude Code puts the plugin's `bin/` folder on the Bash tool's `PATH` while the plugin is enabled; Claude.ai and Cowork do not install a plugin that has one.
-See [docs/config.md](docs/config.md) for the clocks, the file formats and the keys.
+See [docs/config.md](docs/config.md) for the clocks, the file formats, `finish` and the keys.
 
 ## Try it locally
 
