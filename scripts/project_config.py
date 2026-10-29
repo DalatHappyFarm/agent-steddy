@@ -23,6 +23,14 @@ DEFAULTS = {
 }
 
 
+def get(config, section, key):
+    """config[section][key] when it has the type of the default, else a copy of the default, so a hook never trips over a wrongly typed value."""
+    default = DEFAULTS[section][key]
+    value = config.get(section)
+    value = value.get(key) if isinstance(value, dict) else None
+    return value if isinstance(value, type(default)) else copy.deepcopy(default)
+
+
 def load(project_dir=None):
     """The defaults with the project file's values on top: objects merge one level down, lists and scalars replace."""
     path = Path(project_dir or os.environ.get("CLAUDE_PROJECT_DIR") or ".") / ".claude" / "agent-steddy.json"

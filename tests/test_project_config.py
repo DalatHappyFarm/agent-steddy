@@ -64,6 +64,16 @@ class LoadConfig(unittest.TestCase):
             with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": ""}), contextlib.chdir(env_dir):
                 self.assertEqual(project_config.load()["workingBranch"], "env")
 
+    def test_get_reads_a_value_of_the_right_type_and_falls_back_to_a_copy_of_the_default(self):
+        config = {"agents": {"allowed": ["acme-*"], "models": ["not", "a", "dict"], "writeFences": None}, "guards": "x"}
+        self.assertEqual(project_config.get(config, "agents", "allowed"), ["acme-*"])
+        self.assertEqual(project_config.get(config, "agents", "models"), {})
+        self.assertEqual(project_config.get(config, "agents", "writeFences"), {})
+        self.assertEqual(project_config.get(config, "guards", "disable"), [])
+        self.assertEqual(project_config.get({}, "agents", "allowed"), ["*"])
+        project_config.get({}, "agents", "allowed").append("x")
+        self.assertEqual(project_config.DEFAULTS["agents"]["allowed"], ["*"])
+
     def test_example_config_is_complete_and_uses_only_known_keys(self):
         text = (ROOT / "examples" / "agent-steddy.json").read_text()
         example = json.loads(text)

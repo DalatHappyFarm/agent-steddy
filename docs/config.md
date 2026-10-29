@@ -22,8 +22,8 @@ Unknown keys are kept and are not an error.
 | --- | --- | --- |
 | `workingBranch` | `"main"` | planned: step 5 |
 | `verifyCommand` | `null` | planned: step 5 |
-| `agents.allowed` | `["*"]` | planned: step 4 |
-| `agents.models` | `{}` | planned: step 4 |
+| `agents.allowed` | `["*"]` | `scripts/guard_agent.py` |
+| `agents.models` | `{}` | `scripts/guard_agent.py` |
 | `agents.writeFences` | `{}` | planned: step 4 |
 | `guards.disable` | `[]` | `scripts/guard_bash.py` |
 | `commands.deny` | `[]` | `scripts/guard_bash.py` |
@@ -36,7 +36,9 @@ Unknown keys are kept and are not an error.
 - `workingBranch` is the branch agents work on and merge into.
 - `verifyCommand` is the command that proves a change, or `null` when the project has none.
 - `agents.allowed` is a list of agent type patterns; only those agent types may be started.
+  The default `["*"]` allows every type, and `[]` allows none.
 - `agents.models` maps an agent type pattern to the model that agent must run on, for example `"acme-docs": "haiku"`.
+  The model name is matched as a substring of the model the call passes, ignoring case, so `haiku` accepts `claude-haiku-4-5`.
 - `agents.writeFences` maps an agent type pattern to the list of path prefixes that agent may write, for example `"acme-auditor": ["docs/reviews/"]`.
   An agent type that matches no pattern is not fenced.
 - `guards.disable` is a list of built-in rule ids (see [Built-in rules](#built-in-rules)) that this project turns off.
@@ -69,6 +71,21 @@ An ask is not a deny: the owner can approve it.
 Agent type patterns are `fnmatch` patterns: `*` matches any run of characters, `?` one character, `[ab]` one of a set.
 So `"acme-*"` matches `acme-web` and `acme-docs`.
 The keys of `agents.models` and `agents.writeFences` are agent type patterns too.
+Matching is case-sensitive on every platform.
+
+## Agent guard
+
+`scripts/guard_agent.py` runs before the tool that starts a subagent (`Agent`, and `Task`, its older name).
+It checks the call against the project config and denies it with a reason the agent reads, or says nothing to allow it:
+
+1. The call's `subagent_type` must match a pattern of `agents.allowed`.
+   A call that names no type is checked as `general-purpose`, the type Claude Code starts then.
+2. When the call passes a `model` and a pattern of `agents.models` matches the type, the model must contain that pattern's model name.
+   The first matching pattern wins, in the order of the file, so put a specific pattern such as `acme-docs` before a wide one such as `acme-*`.
+   A call that passes no `model` is allowed, because the agent file carries its own model.
+
+Everything fails open.
+A value of the wrong type is read as the default (`allowed` as a string allows every type), a pattern whose model is not a string allows the call, an entry of the wrong type inside a list is skipped, and any error inside the hook allows the call.
 
 ## Command matching
 

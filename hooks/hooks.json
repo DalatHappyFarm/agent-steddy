@@ -6,6 +6,12 @@
         "hooks": [
           { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/guard_bash.py\"", "timeout": 5 }
         ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          { "type": "command", "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/scripts/guard_agent.py\"", "timeout": 5 }
+        ]
       }
     ]
   }
