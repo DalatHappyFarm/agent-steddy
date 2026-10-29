@@ -9,7 +9,7 @@ A new session picks up at the first unticked step.
 - [x] 4. Agent guard (allowlist and model), a write fence per agent type, and a stop check for the hand-back format.
 - [x] 5. Tool timing, secret output scan, the per-prompt gate reminder, and the metrics and record scripts.
 - [x] 6. The gates document, agent and role card templates, the brief template, and a `finish` skill.
-- [ ] 7. Architecture and flow diagrams in the README, and an example project the tests run against.
+- [x] 7. Architecture and flow diagrams in the README, and an example project the tests run against.
 - [ ] 8. Open-source audit (secrets, private names, git history), then publish when the owner says so.
 
 ## Facts found on the way
@@ -31,3 +31,7 @@ A new session picks up at the first unticked step.
 - Checked in a live Claude Code session on 2026-10-29 (Haiku, a throwaway git repo): the gate reminder reached the agent as prompt context; `agent-steddy` from the plugin's `bin/` ran from the Bash tool; a fake AWS key printed by `echo` reached the agent only as `[REDACTED:aws-access-key-id]`, and the timing log stored the redacted command; the prompt hook started the task clock.
 - Decided 2026-10-29: task clocks need a git repo; outside one, `metrics log --task --minutes` still works, and no state folder is added to the project.
 - Checked in a live Claude Code session on 2026-10-29 (Haiku): the plugin skills load as `agent-steddy:gates` and `agent-steddy:finish`, and the gates description is enough for the agent to say what the skill covers.
+- Decided 2026-10-29: the two diagrams in `docs/diagrams/` are drawn from the JSON specs beside them.
+  Change the JSON and redraw, never the SVG by hand; `tests/test_diagrams.py` keeps each spec, its SVG and the README alt text equal.
+- Decided 2026-10-29: `examples/acme` is the config, four agents and their role cards, with no product code and no Makefile.
+  Its demo deny rule uses a made-up command (`acme-cli config push`), and `tests/test_example_project.py` runs the real hooks and the command against it.

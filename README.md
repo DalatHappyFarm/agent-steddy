@@ -42,7 +42,7 @@ agent-steddy/
 ├── templates/                   agent, role card and brief templates for a project to copy
 ├── examples/acme/               an example project: config, agents and role cards
 ├── docs/                        config reference, roadmap and the diagrams
-└── tests/                       unit tests for the scripts, and a check that the docs agree with the code
+└── tests/                       unit tests for the scripts, the hooks run on the example project, and a check that the docs agree with the code
 ```
 
 ## Configure
@@ -126,6 +126,12 @@ The method for a task has three parts.
 - The [templates](templates/README.md) hold an orchestrator role card, the shape of a role card, an agent file for each kind of agent and the brief for a subagent; a project copies them and fills in the placeholders.
 
 The gates skill marks which walls a hook enforces and which ones a person has to keep.
+
+## Example project
+
+[examples/acme](examples/acme/README.md) is a small complete project for a made-up company: the config, the four agents filled in from the templates and their role cards.
+`tests/test_example_project.py` runs the real hook scripts and the command against it, so the config, the agents and the hooks are proved together.
+Copy it as a starting point, and read it next to the [config reference](docs/config.md).
 
 ## Try it locally
 
