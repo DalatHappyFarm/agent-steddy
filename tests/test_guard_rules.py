@@ -68,6 +68,14 @@ RULE_CASES = {
         "miss": ["git push", "git push origin main", "git push --dry-run", "git push -u origin feat/a", "git push --follow-tags", "git push origin feat/fix",
                  "git pull --force", "git fetch -f", "git push origin a+b", "echo 'git push -f'", "git status -f"],
     },
+    "grep-recursive": {
+        "hit": ["grep -r foo src", "grep -R foo src", "grep --recursive foo src", "grep -rn foo src", "grep -Rn foo src", "grep -rl foo .", "grep -nri foo src",
+                "grep foo -r src", "cat f | grep -rn foo", "ls && grep -r foo f", "echo $(grep -rn x y)", "FOO=1 grep -rn x y", "egrep -r x y", "fgrep -r x y",
+                "/usr/bin/grep -r x", "sudo grep -r x y", "bash -c 'grep -rn x .'", "ls\ngrep -r x ."],
+        "miss": ["ls | grep x", "grep -n foo file.txt", "xcrun simctl list devices booked | grep -c Booted", "git grep -n x", "git grep foo", "git grep -n foo -- src",
+                 "rg -n grep src", "rg grep", "echo grep", "echo 'grep -r x'", "grep -n -- -r file", "grep -E 'a|b' f", "grep --include='*.ts' x f", "grep -c x f",
+                 "rg -r foo src"],
+    },
 }
 
 

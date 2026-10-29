@@ -201,6 +201,21 @@ def force_push(args):
     return any(arg.startswith("--force") or short(arg, "f") or (arg.startswith("+") and len(arg) > 1) for arg in args)
 
 
+def program_rule(names, test):
+    """A rule test that is true when some command runs one of the programs `names` with arguments that pass test(args)."""
+    return lambda commands: any(basename(words[0]) in names and test(words[1:]) for words in commands)
+
+
+def recursive(args):
+    """True for -r, -R, --recursive or a cluster such as -rn, before any `--`."""
+    for arg in args:
+        if arg == "--":
+            return False
+        if arg == "--recursive" or short(arg, "r") or short(arg, "R"):
+            return True
+    return False
+
+
 # Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
@@ -218,6 +233,8 @@ DENY_RULES = [
      "git commit -a commits other agents' uncommitted changes too. Commit by path: git commit -m <message> -- <paths>."),
     ("git-branch-force-delete", git_rule("branch", force_delete),
      "Force-deleting a branch can lose commits that exist nowhere else. Use git branch -d, which refuses a branch that is not merged."),
+    ("grep-recursive", program_rule(("grep", "egrep", "fgrep"), recursive),
+     "Use rg for a recursive or directory search. Plain grep is fine in a pipe or on one file, and so is git grep."),
 ]
 
 # Ask rules make the owner confirm the command, in the main session too.
