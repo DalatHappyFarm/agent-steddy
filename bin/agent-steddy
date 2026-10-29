@@ -1,0 +1,4 @@
+#!/bin/sh
+# The agent-steddy command. Claude Code puts the plugin's bin/ folder on the PATH of the Bash tool while the plugin is enabled.
+# It only dispatches: the code is in scripts/cli.py, run isolated (-I) like the hooks.
+exec python3 -I "$(dirname "$0")/../scripts/cli.py" "$@"

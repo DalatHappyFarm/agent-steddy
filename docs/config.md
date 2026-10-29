@@ -34,7 +34,7 @@ Unknown keys are kept and are not an error.
 | `reminder.enabled` | `true` | `scripts/gate_reminder.py` |
 | `reminder.text` | the seven gates | `scripts/gate_reminder.py` |
 | `records.lessons` | `"docs/agents/lessons.md"` | planned: step 5 |
-| `records.metrics` | `"docs/agents/metrics.jsonl"` | planned: step 5 |
+| `records.metrics` | `"docs/agents/metrics.jsonl"` | `scripts/metrics.py` |
 | `records.decisions` | `"docs/agents/decisions.md"` | planned: step 5 |
 
 - `workingBranch` is the branch agents work on and merge into.
@@ -203,6 +203,47 @@ It does two things, and neither can block the prompt.
 
 Claude Code discards the context of a `UserPromptSubmit` hook that reaches its timeout, so the hook does almost nothing: it reads the config and one small file.
 The same fail-open rules apply: a value of the wrong type is read as the default and any error leaves the prompt as it was.
+
+## Command line
+
+`bin/agent-steddy` is the command for what a hook cannot do: name a task, write a line to the metrics file, show a report.
+Claude Code puts the `bin/` folder of a plugin on the `PATH` of the Bash tool while the plugin is enabled, so an agent runs it as a bare `agent-steddy`.
+Claude.ai and Cowork do not install a plugin that has a top-level `bin/` folder, so the plugin installs in Claude Code only.
+The command only dispatches to `scripts/cli.py`, which runs isolated (`python3 -I`) like the hooks.
+
+The Bash tool does not give `CLAUDE_PROJECT_DIR` to the commands it runs.
+So the command finds the project itself: `CLAUDE_PROJECT_DIR` when it is set, else the nearest folder from the working directory up that has `.claude/agent-steddy.json` or `.git`.
+It reads the project config from there, and every path it writes comes from that config.
+A command that is refused exits 1 and prints the reason on stderr after `agent-steddy: refused:`.
+
+## Metrics
+
+`agent-steddy metrics` measures the work.
+It writes to `records.metrics`, a JSON lines file that the project commits, and keeps the clock of the task in progress in the [local state](#local-state).
+
+| Command | What it does |
+| --- | --- |
+| `metrics start "<task>" [--force]` | Names the task and starts its clock. It refuses when a named task is already running, so a sub-agent that reads the gates does not restart the clock of the task it works for; `--force` replaces it. |
+| `metrics log --size S\|M\|L --type new\|feedback --verify-first-pass yes\|no [--task T] [--roles a,b] [--agents N] [--minutes N] [--exposed N]` | Appends one line to the metrics file and deletes the clock. `--task` defaults to the name given to `start`; `--minutes` replaces the clock. |
+| `metrics report [--weeks 8]` | Prints a table per week of tasks (count, average minutes by size, average prompt minutes, defects found by the owner per task, share of first-pass verifications) and a table per week of commits by conventional prefix, with the share of fixes as rework. |
+| `metrics slow [--days 7] [--top 10]` | Prints the Bash commands of the [tool timing](#tool-timing) log grouped by key, by total time and by count. A command line is keyed by its heaviest known step, else by the chain of its steps. |
+| `metrics selftest` | Checks the installed scripts on temporary files and prints `selftest ok`. |
+
+A line of the metrics file has these fields: `date`, `task`, `type` (`new` for a fresh request, `feedback` for an owner round on earlier work), `size`, `roles`, `agents`, `minutes`, `prompt_minutes`, `exposed` (defects the owner found in work that was already delivered), `verify_first_pass`.
+
+There are two clocks, both in local time:
+
+- `minutes` runs from `start` to `log`, which is the work itself.
+  When `start` was never called it runs from the auto start that the [prompt hook](#gate-reminder) wrote.
+- `prompt_minutes` runs from the prompt that began the work to `log`, so it includes the discussion before `start`.
+  It starts at the auto start, which `start` keeps as `prompt_start`, and an auto start that only `log` names is still the prompt time.
+  It is `null` when there was no auto start, as for a second task of the same prompt (`log` deletes the clock), and when the auto start is older than 12 hours: that was a prompt that never reached `log`, and it is not the prompt of the task being logged now.
+  A stale auto start also gives a `null` for `minutes`, unless `--minutes` is given.
+- The report averages `prompt_minutes` over the lines that have it.
+
+`metrics log` does not need the clock: with `--task` and `--minutes` it works in a project that has no local state.
+`start` needs it and refuses without one.
+A line that is not a JSON object with a `date` is skipped by the report.
 
 ## Command matching
 

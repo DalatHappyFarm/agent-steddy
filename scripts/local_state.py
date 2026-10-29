@@ -17,6 +17,10 @@ MARKS = "tool-marks"  # start times of Bash commands that have not finished
 STALE_AUTO_HOURS = 12
 
 
+class Refuse(Exception):
+    """A command of the `agent-steddy` CLI that will not run; the message says why and the CLI exits 1."""
+
+
 def project_dir():
     """The project root: `CLAUDE_PROJECT_DIR` (set for hooks), else the nearest folder from the cwd up that has `.claude/agent-steddy.json` or `.git`, else the cwd."""
     env = os.environ.get("CLAUDE_PROJECT_DIR")

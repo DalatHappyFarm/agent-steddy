@@ -16,8 +16,9 @@ Guardrails, gates and a learning loop for a team of Claude Code agents, packaged
 ```text
 agent-steddy/
 ├── .claude-plugin/plugin.json   plugin manifest
+├── bin/agent-steddy             the command for metrics and records (on the Bash PATH while the plugin is enabled)
 ├── hooks/hooks.json             which script runs on which Claude Code event
-├── scripts/                     the hook scripts (Python, standard library only)
+├── scripts/                     the hook scripts and the command's code (Python, standard library only)
 ├── examples/                    an example project config
 ├── docs/                        config reference and roadmap
 └── tests/                       unit tests for the scripts
@@ -70,6 +71,27 @@ Each one reads its keys from the project config and does nothing until they are 
 
 The write fence guards the file-writing tools only; a write through the Bash tool is not fenced.
 See [docs/config.md](docs/config.md) for the keys and the matching rules.
+
+## Measure the work
+
+Three more hooks collect the data, and the `agent-steddy` command turns it into numbers.
+The data is local state in the git common dir (`.git/agent-steddy/`), shared by every worktree and never committed.
+
+| Hook | Runs | What it does |
+| --- | --- | --- |
+| `tool_timing.py` | before and after every Bash command | Logs how long the command took, the agent type and whether it failed, with the command normalized (no `cd` prefix, relative paths, no heredoc body, secrets redacted). |
+| `secret_output_scan.py` | after every Bash command | Replaces a secret in the output the agent reads with `[REDACTED:<pattern>]` and tells the agent to report it. After a failed command it can only warn. It never prints the value. |
+| `gate_reminder.py` | when a prompt is submitted | Adds the seven gates (or `reminder.text`) to the prompt context, and starts the task clock when no task is pending. |
+
+| Command | What it does |
+| --- | --- |
+| `agent-steddy metrics start "<task>"` | Names the task and starts its clock; a running named task is kept. |
+| `agent-steddy metrics log --size M --type new --verify-first-pass yes` | Appends one line (minutes, minutes since the prompt, defects found, first-pass verification) to `records.metrics`. |
+| `agent-steddy metrics report` | Weekly tables of tasks and of git rework. |
+| `agent-steddy metrics slow` | The Bash commands that take the most time, grouped. |
+
+Claude Code puts the plugin's `bin/` folder on the Bash tool's `PATH` while the plugin is enabled; Claude.ai and Cowork do not install a plugin that has one.
+See [docs/config.md](docs/config.md) for the clocks, the file formats and the keys.
 
 ## Try it locally
 
