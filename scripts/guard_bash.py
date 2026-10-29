@@ -25,6 +25,9 @@ TOKEN = re.compile(r"""
 """, re.VERBOSE | re.DOTALL)
 
 
+QUOTING = re.compile(r"['\"\\]")
+
+
 def split(line):
     """Split a shell line into simple commands (lists of words).
 
@@ -39,7 +42,8 @@ def split(line):
         pos = token.end()
         kind = token.lastgroup
         if kind == "word":
-            words.append(shlex.split(token.group())[0])
+            text = token.group()
+            words.append(shlex.split(text)[0] if QUOTING.search(text) else text)  # shlex is slow, and most words have nothing to unquote
         elif kind == "heredoc":
             heredocs.append(token.group("tag"))
         elif kind in ("newline", "separator"):
@@ -303,8 +307,8 @@ DENY_RULES = [
     ("grep-recursive", program_rule(("grep", "egrep", "fgrep"), recursive),
      "Use rg for a recursive or directory search. Plain grep is fine in a pipe or on one file, and so is git grep."),
     ("sed-in-place", program_rule(("sed",), in_place),
-     "sed -i takes a backup suffix argument on macOS and none on Linux, and --in-place does not exist on macOS. "
-     "Pass the suffix explicitly (sed -i '' or sed -i.bak), or edit the file with a script."),
+     "A bare sed -i differs between macOS and Linux: macOS wants a suffix argument, and --in-place does not exist there. "
+     "Give a suffix, as in sed -i.bak or sed -i '', or edit the file with a script."),
     ("secret-read", secret_read, "Never print a secret file. Read it only through the script that needs it, and leave its values out of the conversation."),
     ("env-dump", env_dump, "printenv and a bare env print the environment, which can hold secrets. Read a variable inside the script that needs it."),
 ]
