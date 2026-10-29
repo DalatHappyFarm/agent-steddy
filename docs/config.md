@@ -61,11 +61,22 @@ A line is split into simple commands at `;`, `&&`, `||`, `|`, `&`, newlines, bac
 Quoted text is never a command, so `echo "supabase config push"` does not match.
 Heredoc bodies and comments are skipped.
 
-Two limits to know:
+Wrappers are looked through, at the start of a simple command and in any order:
+
+- leading `NAME=value` assignments;
+- `env`, `sudo`, `command`, `nohup`, `time`, `nice` and `exec`, with their options (`env -i FOO=1`, `sudo -u root`, `nice -n 10`) and, for `env` and `sudo`, assignments;
+- the shell keywords `!`, `{`, `if`, `then`, `elif`, `else`, `while`, `until` and `do`.
+
+The script of `bash -c`, `sh -c` and `zsh -c` (also `-lc` and similar option clusters) is checked as its own command line, up to three levels deep.
+So `sudo -u root env FOO=1 supabase config push` and `bash -lc "cd app && supabase config push"` both match the pattern above.
+A wrapper word further along does not count: `echo sudo supabase config push` does not match.
+
+Limits to know:
 
 - A pattern can match too much: `cli config push` also matches `cli config list push`, because the words only have to appear in order.
   Write the pattern with the fewest words that name the command.
-- Wrappers such as `env`, `sudo` or `VAR=1 command` are not looked through.
+- Commands that run other commands are not looked through: `xargs`, `find -exec`, `eval`, `watch`, shell scripts run by path, and a `$(...)` inside double quotes.
+- A script nested in more than three `bash -c` levels is not read.
 
 ## Built-in rules
 

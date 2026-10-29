@@ -61,6 +61,77 @@ def split(line):
     return commands
 
 
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+KEYWORDS = {"!", "{", "if", "then", "elif", "else", "while", "until", "do"}
+# Wrappers that run the command after them, each with the options that take a separate value.
+WRAPPERS = {
+    "env": {"-u", "-C", "--unset", "--chdir"},
+    "sudo": {"-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U", "-r", "-t", "--user", "--group"},
+    "command": set(),
+    "nohup": set(),
+    "time": set(),
+    "nice": {"-n"},
+    "exec": {"-a"},
+}
+SHELLS = {"bash", "sh", "zsh"}
+MAX_SCRIPT_DEPTH = 3
+
+
+def basename(word):
+    return word.rsplit("/", 1)[-1]
+
+
+def unwrap(words):
+    """The command a simple command really runs: leading NAME=value words, shell keywords and wrappers (env, sudo, ...) with their options are skipped.
+
+    A bare `env` has no command after it and stays as ["env"], because it prints the environment.
+    """
+    i, last = 0, None
+    while i < len(words):
+        word = words[i]
+        name = basename(word)
+        if ASSIGNMENT.match(word) or word in KEYWORDS:
+            i += 1
+        elif name in WRAPPERS:
+            i, last = i + 1, name
+            while i < len(words):
+                if words[i] == "--":
+                    i += 1
+                    break
+                if words[i] in WRAPPERS[name]:
+                    i += 2
+                elif words[i].startswith("-") or ASSIGNMENT.match(words[i]):
+                    i += 1
+                else:
+                    break
+        else:
+            break
+    return words[i:] or (["env"] if last == "env" else [])
+
+
+def shell_script(words):
+    """The script of `bash -c script` (also sh and zsh, and clusters such as `-lc`), None when the command is not that."""
+    if not words or basename(words[0]) not in SHELLS:
+        return None
+    i = 1
+    while i < len(words) and words[i].startswith("-"):
+        if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", words[i]):
+            return words[i + 1] if i + 1 < len(words) else None
+        i += 2 if words[i] in ("-o", "-O") else 1
+    return None
+
+
+def parse(line, depth=0):
+    """Every simple command a shell line runs, with wrappers looked through; the script of `bash -c` is parsed as its own line."""
+    for words in split(line):
+        words = unwrap(words)
+        script = shell_script(words)
+        if script is not None and depth < MAX_SCRIPT_DEPTH:
+            yield from parse(script, depth + 1)
+        elif words:
+            yield words
+
+
 def git_subcommand(words):
     """`stash` for `git -C dir stash list`, None when the command is not git."""
     if not words or words[0].rsplit("/", 1)[-1] != "git":
@@ -86,7 +157,7 @@ def matches(words, pattern):
 
 def reason(line):
     """Why the command is denied, or None when it is allowed."""
-    simple = split(line)
+    simple = list(parse(line))
     for words in simple:
         if git_subcommand(words) == "stash":
             return "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."

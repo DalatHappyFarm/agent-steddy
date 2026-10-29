@@ -103,6 +103,42 @@ class GuardBash(unittest.TestCase):
         self.assertEqual(run("cat <<EOF\ngit stash\nEOF"), "allow")
         self.assertEqual(run("echo x # git stash"), "allow")
 
+    def test_looks_through_assignments_wrappers_and_keywords(self):
+        wrapped = [
+            "FOO=1 {}", 'A=1 B="x y" {}', "env {}", "env FOO=1 {}", "env -i FOO=1 {}", "env -u FOO {}", "env -- {}", "/usr/bin/env {}",
+            "sudo {}", "sudo -E {}", "sudo -u root {}", "sudo --user=root {}", "sudo -- {}", "command {}", "nohup {}", "time {}", "time -p {}",
+            "nice {}", "nice -n 10 {}", "nice -10 {}", "exec {}", "sudo env FOO=1 nohup {}", "FOO=1 sudo -u me nice -n 5 {}",
+            "if true; then {}; fi", "while true; do {}; done", "! {}", "{{ {}; }}",
+        ]
+        for template in wrapped:
+            for inner, config in [("git stash", None), ("supabase config push", DENY_PUSH)]:
+                command = template.format(inner)
+                self.assertEqual(run(command, config), "deny", command)
+                self.assertEqual(run(template.format("git status"), config), "allow", template)
+
+    def test_a_wrapper_word_only_counts_at_the_start_of_a_command(self):
+        for command in ["echo sudo git stash", "echo env FOO=1 git stash", "git log nohup stash", "ls time git stash", "echo FOO=1 git stash"]:
+            self.assertEqual(run(command, DENY_PUSH), "allow", command)
+        self.assertEqual(run("echo sudo supabase config push", DENY_PUSH), "allow")
+
+    def test_checks_the_script_of_a_shell_dash_c(self):
+        for command in ['bash -c "git stash"', "sh -c 'git stash'", 'zsh -c "git stash"', 'bash -lc "git stash"', 'bash -ec "git stash"',
+                        'bash -c "cd app && git stash"', 'bash -c "ls\ngit stash"', "bash -c 'sh -c \"git stash\"'", 'sudo bash -c "git stash"',
+                        'env A=1 sh -c "git stash" name', 'bash --norc -c "git stash"', 'bash -o pipefail -c "git stash"',
+                        "echo hi; bash -c 'git stash'", "bash -c 'git stash' | tee log"]:
+            self.assertEqual(run(command), "deny", command)
+        for command in ['bash -c "supabase config push"', "sh -c 'cd x; supabase --debug config push'"]:
+            self.assertEqual(run(command, DENY_PUSH), "deny", command)
+        for command in ['bash -c "git status"', "bash -c 'echo git stash'", "bash script.sh", "bash git stash", "bash -c", "bash -x script.sh -c 'git stash'",
+                        "echo bash -c 'git stash'", "bash -c ''", 'dash -c "git stash"']:
+            self.assertEqual(run(command), "allow", command)
+
+    def test_looks_into_nested_scripts_three_levels_deep(self):
+        three = "bash -c \"bash -c \\\"bash -c 'git stash'\\\"\""
+        four = "bash -c \"bash -c \\\"bash -c 'bash -c \\\\\\\"git stash\\\\\\\"'\\\"\""
+        self.assertEqual(run(three), "deny")
+        self.assertEqual(run(four), "allow")  # the depth limit: a script nested deeper is not read
+
     def test_broken_input_allows(self):
         out = subprocess.run([sys.executable, "-I", str(SCRIPT)], input="not json", capture_output=True, text=True)
         self.assertEqual((out.returncode, out.stdout), (0, ""))
