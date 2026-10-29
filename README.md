@@ -19,9 +19,11 @@ agent-steddy/
 ├── bin/agent-steddy             the command for metrics and records (on the Bash PATH while the plugin is enabled)
 ├── hooks/hooks.json             which script runs on which Claude Code event
 ├── scripts/                     the hook scripts and the command's code (Python, standard library only)
+├── skills/                      the method: the gates skill and the finish skill
+├── templates/                   agent, role card and brief templates for a project to copy
 ├── examples/                    an example project config
 ├── docs/                        config reference and roadmap
-└── tests/                       unit tests for the scripts
+└── tests/                       unit tests for the scripts, and a check that the docs agree with the code
 ```
 
 ## Configure
@@ -95,6 +97,16 @@ The data is local state in the git common dir (`.git/agent-steddy/`), shared by 
 
 Claude Code puts the plugin's `bin/` folder on the Bash tool's `PATH` while the plugin is enabled; Claude.ai and Cowork do not install a plugin that has one.
 See [docs/config.md](docs/config.md) for the clocks, the file formats, `finish` and the keys.
+
+## Method
+
+The method for a task has three parts.
+
+- The [gates skill](skills/gates/SKILL.md) holds the walls, the seven gates, task sizing, the verification ladder, roles and the learning loop; its description tells Claude when to load it.
+- The [finish skill](skills/finish/SKILL.md) runs gates 6 and 7 as commands: the decisions, the retro, the metrics line, the commit of the records, the merge and the report.
+- The [templates](templates/README.md) hold an orchestrator role card, the shape of a role card, an agent file for each kind of agent and the brief for a subagent; a project copies them and fills in the placeholders.
+
+The gates skill marks which walls a hook enforces and which ones a person has to keep.
 
 ## Try it locally
 

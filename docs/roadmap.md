@@ -8,7 +8,7 @@ A new session picks up at the first unticked step.
 - [x] 3. The remaining Bash guard rules (destructive git, recursive grep, `sed -i` without a backup suffix, reading secret files, deploys from a subagent), each with tests.
 - [x] 4. Agent guard (allowlist and model), a write fence per agent type, and a stop check for the hand-back format.
 - [x] 5. Tool timing, secret output scan, the per-prompt gate reminder, and the metrics and record scripts.
-- [ ] 6. The gates document, agent and role card templates, the brief template, and a `finish` skill.
+- [x] 6. The gates document, agent and role card templates, the brief template, and a `finish` skill.
 - [ ] 7. Architecture and flow diagrams in the README, and an example project the tests run against.
 - [ ] 8. Open-source audit (secrets, private names, git history), then publish when the owner says so.
 
