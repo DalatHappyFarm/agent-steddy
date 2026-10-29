@@ -226,6 +226,58 @@ def in_place(args):
     return False
 
 
+READERS = {"cat", "tac", "less", "more", "head", "tail", "sed", "awk", "gawk", "rg", "grep", "egrep", "fgrep", "bat", "strings", "xxd", "od", "hexdump",
+           "cut", "sort", "uniq", "nl", "base64", "paste", "tr", "diff", "cmp", "dd", "cp", "jq"}
+PATTERN_FIRST = {"sed", "awk", "gawk", "rg", "grep", "egrep", "fgrep"}  # the first word that is not an option is a pattern or a script, not a file
+PATTERN_OPTIONS = {"-e", "-f", "--regexp", "--file", "--expression"}  # these give the pattern, so the first word is a file again
+STD_SINKS = ("/dev/stdout", "/dev/stderr", "/dev/tty", "/dev/fd/")
+
+
+def secret_path(word):
+    """True for .env, .env.* (not .env.example), *.env.local and globs such as .env*, also as the value of `--option=` or `if=`."""
+    for text in (word.lstrip("<"), word.split("=", 1)[1] if "=" in word else ""):
+        name = basename(text.rstrip("/"))
+        if name == ".env" or name.endswith(".env.local") or (name.startswith(".env.") and name != ".env.example") or (name.startswith(".env") and re.search(r"[*?[]", name)):
+            return True
+    return False
+
+
+def reads_secret(words):
+    """True when a reader command such as cat or grep names a secret file, or `$(<.env)` reads one."""
+    prog = basename(words[0])
+    if prog.startswith("<"):
+        return any(secret_path(word) for word in words)
+    if prog not in READERS:
+        return False
+    args = words[1:]
+    if prog == "cp" and not any(arg.startswith(STD_SINKS) for arg in args):  # a copy to a file prints nothing
+        return False
+    skip = prog in PATTERN_FIRST and not any(arg in PATTERN_OPTIONS or arg.startswith(("--regexp=", "--file=", "--expression=")) for arg in args)
+    for arg in args:
+        if arg == "--" or (arg.startswith("-") and len(arg) > 1 and not secret_path(arg)):
+            continue
+        if skip:
+            skip = False
+        elif secret_path(arg):
+            return True
+    return False
+
+
+def prints_sourced_secret(commands):
+    """True when a secret file is sourced and a later echo or printf prints a variable."""
+    sourced = False
+    for words in commands:
+        if words[0] in ("source", ".") and any(secret_path(word) for word in words[1:]):
+            sourced = True
+        elif sourced and basename(words[0]) in ("echo", "printf") and any("$" in word for word in words[1:]):
+            return True
+    return False
+
+
+def secret_read(commands):
+    return any(reads_secret(words) for words in commands) or prints_sourced_secret(commands)
+
+
 # Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
@@ -248,6 +300,7 @@ DENY_RULES = [
     ("sed-in-place", program_rule(("sed",), in_place),
      "sed -i takes a backup suffix argument on macOS and none on Linux, and --in-place does not exist on macOS. "
      "Pass the suffix explicitly (sed -i '' or sed -i.bak), or edit the file with a script."),
+    ("secret-read", secret_read, "Never print a secret file. Read it only through the script that needs it, and leave its values out of the conversation."),
 ]
 
 # Ask rules make the owner confirm the command, in the main session too.

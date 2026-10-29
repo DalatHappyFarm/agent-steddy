@@ -83,6 +83,22 @@ RULE_CASES = {
         "miss": ["sed -i '' 's/a/b/' f", "sed -i \"\" s/a/b/ f", "sed -i.bak 's/a/b/' f", "sed -Ei '' s/a/b/ f", "sed -E -i.bak s/a/b/ f", "sed -n '1,5p' f",
                  "sed 's/a/b/' f", "sed -e 's/i/x/' f", "echo 'sed -i x f'", "sed -n -e 1p f", "sed -s p f", "sed -n 1p -- -i", "python3 -I edit.py"],
     },
+    "secret-read": {
+        "hit": ["cat .env", "cat .env.local", "cat config/.env.staging", "cat apps/web/.env.production", "cat foo.env.local", "cat ./.env", 'cat "config/.env.local"',
+                "cat -n .env", "cat -- .env", "less .env", "more .env.local", "head -n 3 .env", "tail -5 config/.env.local", "sed -n 1p .env",
+                "sed -n '1,5p' config/.env.local", "sed -e p .env", "awk -F= '{print $2}' .env.local", "rg -n KEY .env", "rg -e KEY .env.local", "grep KEY .env",
+                "grep -n KEY config/.env.local", "bat .env", "strings .env", "xxd .env", "od -c .env", "cut -d= -f2 .env", "sort .env", "nl .env", "base64 .env",
+                "base64 -i config/.env.local", "cp .env /dev/stdout", "cp config/.env.local /dev/stderr", "cat .env*", "cat .env.*", "tac .env", "dd if=.env",
+                "jq . .env.local", "cat < .env", "cat<.env", "echo $(<.env)", "cat .env | head", "ls && cat .env", "cd config && cat .env.local", 'bash -c "cat .env"',
+                "FOO=1 cat .env", "sudo cat .env", "diff .env .env.example", "cat .env.example .env", "ls\ncat .env",
+                "source .env; echo $KEY", 'source config/.env.local && printf "%s" "$DATABASE_URL"', '. .env.local; echo "$X"', "set -a; source .env; set +a; echo $TOKEN",
+                'bash -c "source .env; echo $K"', "source .env\necho $KEY"],
+        "miss": ["cat .env.example", "cat config/.env.example", "head .env.example", "ls -la .env.local", "ls .env", "test -f config/.env.local", "[ -f .env ] && echo yes",
+                 "make test", "stat .env", "rg -n 'env.local' docs", "rg -n .env.local docs", 'rg --glob "!.env*" KEY', "sed -n '1,5p' .envrc-notes.md",
+                 "grep -n ENV_FILE Makefile", "cat docs/env-notes.md", "cat environment.md", "echo $HOME", "echo .env", "cp .env.example .env", "cp .env.local backup/",
+                 "git status --short .env.example", "git add .env.example", "cat envfile.txt", "source scripts/lib.sh; echo $X", "source .env; make test",
+                 "set -a; source config/.env.local; set +a; bash scripts/run.sh", "echo $KEY; source .env", "cat <<EOF\ncat .env\nEOF", "diff a.md b.md"],
+    },
 }
 
 

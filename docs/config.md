@@ -112,3 +112,7 @@ A project that must allow what a rule blocks lists the id in `guards.disable`:
 ```
 
 Only that rule is off; the others and the project's own `commands.deny` rules stay on.
+
+The `secret-read` rule can be turned off like any other, but it should not be.
+It is what keeps the values of `.env` files out of the conversation, and a value that reaches the conversation is leaked.
+If an agent needs a secret, run the script that loads it instead of printing the file.
