@@ -47,6 +47,14 @@ RULE_CASES = {
                  "git commit -m 'git add -A is banned' -- a.md", "echo 'git add .'", "cat <<EOF\ngit add -A\nEOF",
                  "git commit -m \"$(cat <<'EOF'\nfeat: x\n\ngit add -A and git add . mentioned\nEOF\n)\" -- a.md"],
     },
+    "git-commit-all": {
+        "hit": ["git commit -a -m x", "git commit -am x", "git commit --all -m x", "git commit -m x -a", "git commit -m x --all", "git commit -sam x",
+                "git commit -vam x", "git commit --amend -a", "git commit -a", "git -C app commit -am x", "cd app && git commit -am x", "sudo git commit -a -m x",
+                "bash -c 'git commit -am x'"],
+        "miss": ["git commit -m 'fix: no git stash here'", "git commit -- apps/web/a.ts -m x", "git commit -m msg -- a b", "git commit --amend -m x",
+                 "git commit -m -a", "git commit -ma", "git commit -m x -- -a", "git commit -F -", "git commit -m x a.md", "git commit --author='A <a@b.c>' -m x",
+                 "git commit --amend --no-edit", "git commit -C HEAD", "git commit -c HEAD -m x", "git commit --message=-a", "echo 'git commit -a'", "git status -a"],
+    },
 }
 
 

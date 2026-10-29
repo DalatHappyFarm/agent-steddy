@@ -169,6 +169,25 @@ def short(arg, letter):
     return arg.startswith("-") and not arg.startswith("--") and letter in arg[1:]
 
 
+COMMIT_VALUE_OPTIONS = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--author", "--date", "--template", "--reuse-message",
+                        "--reedit-message", "--cleanup", "--fixup", "--squash", "--trailer", "--pathspec-from-file"}
+
+
+def commit_all(args):
+    """True when the arguments of `git commit` ask for -a or --all; the value of an option such as -m and everything after `--` is not looked at."""
+    skip = False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg == "--":
+            return False
+        elif arg == "--all" or (arg.startswith("-") and not arg.startswith("--") and "a" in re.split("[mFCct]", arg[1:], maxsplit=1)[0]):
+            return True
+        else:
+            skip = arg in COMMIT_VALUE_OPTIONS
+    return False
+
+
 # Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
@@ -182,6 +201,8 @@ DENY_RULES = [
      "git clean -f deletes untracked files that other agents may own. Remove your own files by path."),
     ("git-add-all", git_rule("add", lambda args: any(arg in (".", "--all") or short(arg, "A") for arg in args)),
      "Staging everything sweeps in files other agents are editing. Stage your own files by path, then commit by path."),
+    ("git-commit-all", git_rule("commit", commit_all),
+     "git commit -a commits other agents' uncommitted changes too. Commit by path: git commit -m <message> -- <paths>."),
 ]
 
 
