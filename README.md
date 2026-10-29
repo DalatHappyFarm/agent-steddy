@@ -56,6 +56,21 @@ The project config can add its own rules (`commands.deny`, `commands.alwaysAsk`,
 A deny beats an ask, and a built-in rule beats a config rule.
 See [docs/config.md](docs/config.md) for the details and the limits of the matching.
 
+## Agent rules
+
+Three more hooks keep delegated agents inside their lane.
+Agents shipped in a plugin ignore the `hooks` field of their frontmatter, so these rules live in plugin hooks that read `agent_type` from the hook input.
+Each one reads its keys from the project config and does nothing until they are set; the stop check is off until a project opts in.
+
+| Hook | Runs | What it blocks |
+| --- | --- | --- |
+| `guard_agent.py` | before the tool that starts a subagent (`Agent`, and `Task`, its older name) | An agent type that matches no pattern of `agents.allowed`, and a passed `model` that lacks the model name `agents.models` gives that type. |
+| `guard_write.py` | before `Write`, `Edit`, `MultiEdit` and `NotebookEdit` | A write outside the path prefixes of `agents.writeFences`, for an agent type that has a fence. The main session and unfenced agents are not fenced. |
+| `stop_check.py` | when a subagent is about to stop | A hand-back that lacks a `handback.required` item (by default a verification level and a retro line), for an agent type in `handback.agents`. It blocks once. |
+
+The write fence guards the file-writing tools only; a write through the Bash tool is not fenced.
+See [docs/config.md](docs/config.md) for the keys and the matching rules.
+
 ## Try it locally
 
 ```bash
