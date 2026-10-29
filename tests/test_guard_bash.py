@@ -118,6 +118,21 @@ class GuardBash(unittest.TestCase):
         self.assertFalse(guard_bash.matches(["ls"], ""))
         self.assertFalse(guard_bash.matches([], "ls"))
 
+    def test_pattern_words_match_in_order_among_the_positional_words(self):
+        pattern = "cli config push"
+        for command in ["cli --workdir app config push", "cli app config push", "cli config app push", "cli config push app",
+                        "cli -v config -q push", "cli a b config c d push e"]:
+            self.assertTrue(guard_bash.matches(command.split(), pattern), command)
+        for command in ["cli push config", "cli config", "cli push", "cli --config --push", "cli config-push", "cli config pull"]:
+            self.assertFalse(guard_bash.matches(command.split(), pattern), command)
+        self.assertTrue(guard_bash.matches(["cli", "--x=config", "config", "push"], pattern))
+        self.assertTrue(guard_bash.matches(["make", "deploy"], "make deploy"))
+        self.assertTrue(guard_bash.matches(["make"], "make"))
+
+    def test_an_option_value_does_not_hide_a_listed_command(self):
+        for command in ["supabase --workdir app config push", "cd x && supabase --workdir app config push --yes"]:
+            self.assertEqual(run(command, DENY_PUSH), "deny", command)
+
     def test_denies_a_command_listed_in_the_project_config_with_its_reason(self):
         for command in ["supabase config push", "supabase --debug config push --yes", "cd app && supabase config push",
                         "make test; /usr/bin/supabase config push | tee log"]:

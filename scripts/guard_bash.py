@@ -74,14 +74,14 @@ def git_subcommand(words):
 def matches(words, pattern):
     """True when a simple command runs the program named by the first pattern word, then the other pattern words.
 
-    The program is compared by basename; the command's words that do not start with `-` must begin with the rest of the pattern.
-    So `supabase --debug config push --yes` matches "supabase config push" and `supabase config list` does not.
+    The program is compared by basename; the other pattern words must appear in order among the command's words that do not start with `-`, not necessarily next to each other.
+    So `supabase --workdir app config push --yes` matches "supabase config push" and `supabase config list` does not.
     """
     want = pattern.split()
     if not words or not want or words[0].rsplit("/", 1)[-1] != want[0]:
         return False
-    positional = [word for word in words[1:] if not word.startswith("-")]
-    return positional[:len(want) - 1] == want[1:]
+    positional = iter(word for word in words[1:] if not word.startswith("-"))
+    return all(part in positional for part in want[1:])  # `in` on an iterator consumes up to the match: a subsequence test
 
 
 def reason(line):

@@ -55,15 +55,16 @@ The keys of `agents.models` and `agents.writeFences` are agent type patterns too
 A command pattern is a few words, such as `"supabase config push"`.
 It matches a simple command when the program's basename equals the first pattern word.
 The command's positional words are the words that do not start with `-`, after the program.
-Those positional words must start with the remaining pattern words.
-So `supabase --debug config push --yes` and `/usr/local/bin/supabase config push` match, and `supabase config list` does not.
-A line is split into simple commands at `;`, `&&`, `||`, `|` and `&`, so `cd app && supabase config push` matches too.
+The remaining pattern words must appear in order among the positional words; other words may sit between them.
+So `supabase --debug config push --yes`, `supabase --workdir app config push` and `/usr/local/bin/supabase config push` match, and `supabase config list` does not.
+A line is split into simple commands at `;`, `&&`, `||`, `|`, `&`, newlines, backticks and `$(`, so `cd app && supabase config push` matches too.
 Quoted text is never a command, so `echo "supabase config push"` does not match.
+Heredoc bodies and comments are skipped.
 
 Two limits to know:
 
-- The value of an option counts as a positional word, so `supabase --workdir app config push` does not match.
-  Write the rule for the form your agents use, or add a second rule.
+- A pattern can match too much: `cli config push` also matches `cli config list push`, because the words only have to appear in order.
+  Write the pattern with the fewest words that name the command.
 - Wrappers such as `env`, `sudo` or `VAR=1 command` are not looked through.
 
 ## Built-in rules
