@@ -28,3 +28,5 @@ A new session picks up at the first unticked step.
 - A `UserPromptSubmit` hook that reaches its timeout has its `additionalContext` discarded.
 - Not yet checked in a live session: that Claude Code applies the redacted Bash output of the secret scan, and that the prompt hook's context reaches the agent.
   Step 5 is verified by unit tests and `claude plugin validate` only.
+- Checked in a live Claude Code session on 2026-10-29 (Haiku, a throwaway git repo): the gate reminder reached the agent as prompt context; `agent-steddy` from the plugin's `bin/` ran from the Bash tool; a fake AWS key printed by `echo` reached the agent only as `[REDACTED:aws-access-key-id]`, and the timing log stored the redacted command; the prompt hook started the task clock.
+- Decided 2026-10-29: task clocks need a git repo; outside one, `metrics log --task --minutes` still works, and no state folder is added to the project.
