@@ -17,3 +17,4 @@ A new session picks up at the first unticked step.
 - Agents shipped in a plugin ignore the `hooks`, `permissionMode` and `mcpServers` frontmatter fields (Claude Code docs, plugin components, checked 2026-10-29).
   A per-agent fence therefore lives in a plugin hook that reads `agent_type` from the hook input.
 - Hook processes receive `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` and `CLAUDE_PROJECT_DIR`; commands Claude runs through the Bash tool do not.
+- Checked in a live Claude Code session on 2026-10-29 (a throwaway project, Haiku): the agent guard denied a type outside `agents.allowed`; a subagent's `Write` outside its fence was denied, so `agent_type` reaches file-writing tools; the stop check blocked a hand-back that missed its items exactly once, and the agent then finished.
