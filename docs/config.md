@@ -56,8 +56,9 @@ When several rules match, the strictest decision wins and, within it, the first 
 
 1. built-in deny rules;
 2. `commands.deny`;
-3. `commands.alwaysAsk`;
-4. `commands.askFromSubagent`, for a subagent only.
+3. built-in ask rules, which ask in every session;
+4. `commands.alwaysAsk`;
+5. `commands.askFromSubagent`, for a subagent only.
 
 So a deny beats an ask, and a built-in rule beats a config rule.
 This holds for a whole line: in `make deploy && supabase config push` the denied half blocks the line even though the other half only asks.
@@ -99,7 +100,7 @@ Limits to know:
 
 ## Built-in rules
 
-The rules built into `scripts/guard_bash.py`, such as denying `git stash`, do not depend on the config.
+The rules built into `scripts/guard_bash.py`, such as denying `git stash` or asking before a force push, do not depend on the config.
 They hold with no config file, with a broken one, and with any `commands.deny`.
 Each has a short id, and the id leads the reason the agent sees, for example `[git-stash] Never git stash ...`.
 The README lists every id.

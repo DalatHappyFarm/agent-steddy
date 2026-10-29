@@ -61,11 +61,23 @@ RULE_CASES = {
         "miss": ["git branch -d x", "git branch --delete x", "git branch", "git branch -a", "git branch -m a b", "git branch -f x HEAD", "git branch --force x HEAD",
                  "git switch -c x", "git branch feat/D", "echo 'git branch -D x'"],
     },
+    "git-push-force": {
+        "hit": ["git push --force", "git push -f", "git push -f origin feat/a", "git push --force-with-lease", "git push --force-with-lease=main",
+                "git push --force-if-includes", "git push origin +feat/a", "git push origin +HEAD:main", "git push -fu origin x", "git -C x push -f",
+                "cd pkg && git push --force", "sudo git push -f", "bash -c 'git push -f'"],
+        "miss": ["git push", "git push origin main", "git push --dry-run", "git push -u origin feat/a", "git push --follow-tags", "git push origin feat/fix",
+                 "git pull --force", "git fetch -f", "git push origin a+b", "echo 'git push -f'", "git status -f"],
+    },
 }
 
 
 def rule_ids():
-    return [rule_id for rule_id, _, _ in guard_bash.DENY_RULES]
+    return [rule_id for rule_id, _, _ in guard_bash.DENY_RULES + guard_bash.ASK_RULES]
+
+
+def kind_of(rule_id):
+    """What a rule decides: 'ask' for an ask rule, 'deny' for the others."""
+    return "ask" if rule_id in [ask_id for ask_id, _, _ in guard_bash.ASK_RULES] else "deny"
 
 
 def verdict(command, config=None, agent_type=None):
@@ -78,11 +90,11 @@ class BuiltInRules(unittest.TestCase):
         self.assertEqual(sorted(rule_ids()), sorted(RULE_CASES))
         self.assertEqual(len(rule_ids()), len(set(rule_ids())))
 
-    def test_each_rule_denies_its_commands_and_names_itself_in_the_reason(self):
+    def test_each_rule_decides_on_its_commands_and_names_itself_in_the_reason(self):
         for rule_id, cases in RULE_CASES.items():
             for command in cases["hit"]:
                 kind, reason = verdict(command)
-                self.assertEqual(kind, "deny", command)
+                self.assertEqual(kind, kind_of(rule_id), command)
                 self.assertTrue(reason.startswith(f"[{rule_id}] "), f"{command}: {reason}")
 
     def test_each_rule_allows_its_lookalikes(self):
@@ -97,7 +109,29 @@ class BuiltInRules(unittest.TestCase):
                 self.assertEqual(verdict(command, off)[0], "allow", f"{rule_id}: {command}")
             for other_id, other in RULE_CASES.items():
                 if other_id != rule_id:
-                    self.assertEqual(verdict(other["hit"][0], off)[0], "deny", f"{rule_id} off, {other_id}")
+                    self.assertEqual(verdict(other["hit"][0], off)[0], kind_of(other_id), f"{rule_id} off, {other_id}")
+
+
+class AskRules(unittest.TestCase):
+    def test_an_ask_rule_asks_in_the_main_session_and_in_a_subagent(self):
+        for agent in [None, "", "acme-web"]:
+            self.assertEqual(verdict("git push --force", agent_type=agent)[0], "ask", agent)
+            self.assertEqual(verdict("git push", agent_type=agent)[0], "allow", agent)
+
+    def test_a_deny_beats_a_built_in_ask(self):
+        self.assertEqual(verdict("git push -f && git stash")[0], "deny")
+        self.assertEqual(verdict("git stash; git push -f")[0], "deny")
+        self.assertTrue(verdict("git push -f && git stash")[1].startswith("[git-stash] "))
+        config = {"commands": {"deny": [{"match": "git push", "reason": "No pushes."}]}}
+        self.assertEqual(verdict("git push -f", config), ("deny", "No pushes."))
+
+    def test_a_built_in_ask_comes_before_a_config_ask(self):
+        config = {"commands": {"alwaysAsk": ["git push"]}}
+        kind, reason = verdict("git push -f", config)
+        self.assertEqual(kind, "ask")
+        self.assertTrue(reason.startswith("[git-push-force] "), reason)
+        self.assertEqual(verdict("git push", config)[0], "ask")
+        self.assertIn("alwaysAsk", verdict("git push", config)[1])
 
 
 if __name__ == "__main__":

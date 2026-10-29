@@ -196,6 +196,11 @@ def force_delete(args):
     return "D" in letters or (delete and force)
 
 
+def force_push(args):
+    """True for --force, --force-with-lease and the like, -f in a cluster of short options, and a `+refspec`."""
+    return any(arg.startswith("--force") or short(arg, "f") or (arg.startswith("+") and len(arg) > 1) for arg in args)
+
+
 # Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
@@ -215,6 +220,11 @@ DENY_RULES = [
      "Force-deleting a branch can lose commits that exist nowhere else. Use git branch -d, which refuses a branch that is not merged."),
 ]
 
+# Ask rules make the owner confirm the command, in the main session too.
+ASK_RULES = [
+    ("git-push-force", git_rule("push", force_push), "A force push can overwrite commits that others rely on. The owner confirms it."),
+]
+
 
 def listed(config, section, key):
     """The list at config[section][key], or [] when the section or the key is missing or has another type."""
@@ -227,7 +237,7 @@ def judge(line, agent_type, config):
     """("deny" | "ask", reason) for a shell line the rules stop, None to allow it.
 
     A deny beats an ask, and built-in rules come before the project config.
-    Order: built-in deny, `commands.deny`, `commands.alwaysAsk`, then `commands.askFromSubagent` when `agent_type` is non-empty (a subagent).
+    Order: built-in deny, `commands.deny`, built-in ask, `commands.alwaysAsk`, then `commands.askFromSubagent` when `agent_type` is non-empty (a subagent).
     `guards.disable` turns built-in rules off by id.
     """
     commands = list(parse(line))
@@ -249,7 +259,8 @@ def judge(line, agent_type, config):
             deny.append(why if isinstance(why, str) and why else f"Denied by this project's agent-steddy config: {rule['match']}.")
     if deny:
         return "deny", deny[0]
-    ask = [f"`{pattern}` needs the owner's confirmation (commands.alwaysAsk in the project config)." for pattern in patterns("alwaysAsk")]
+    ask = built_in(ASK_RULES)
+    ask += [f"`{pattern}` needs the owner's confirmation (commands.alwaysAsk in the project config)." for pattern in patterns("alwaysAsk")]
     if agent_type:
         ask += [f"A subagent needs the owner's confirmation to run `{pattern}` (commands.askFromSubagent in the project config)."
                 for pattern in patterns("askFromSubagent")]
