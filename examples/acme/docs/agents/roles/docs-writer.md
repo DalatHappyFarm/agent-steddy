@@ -2,7 +2,7 @@
 
 Mission: write and edit the documentation under `docs/` so that every statement matches the code.
 
-Reads: the walls in the gates skill, `docs/agents/lessons.md` once it exists, and the code the text describes.
+Reads: the walls in the gates skill and in `docs/agents/walls.md` once it exists, `docs/agents/lessons.md` once it exists, and the code the text describes.
 
 ## Standards
 

@@ -5,7 +5,7 @@ Guardrails, gates and a learning loop for a team of Claude Code agents, packaged
 <!-- diagram source: docs/diagrams/architecture.json -->
 ![agent-steddy: Claude Code fires its events at the plugin's hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which reads the project config, keeps that clock and writes the project's records under docs/agents; agents read the skills, and the templates are copied into the project's agents and role cards.](docs/diagrams/architecture.svg)
 
-> Status: version 0.1.0, early.
+> Status: version 0.2.0, early.
 > Tested with Claude Code 2.1.314 on macOS; it needs `python3` 3.9 or later and `git` on the PATH.
 > It works in Claude Code only: the `bin/` folder keeps it out of Claude.ai and Cowork.
 
@@ -13,7 +13,7 @@ Guardrails, gates and a learning loop for a team of Claude Code agents, packaged
 
 - Stop the commands that break shared work (destructive git, reading secrets, deploying from a subagent) with hooks, so the rule holds even when a prompt forgets it.
 - Give every task the same seven gates: intake, recall, shape, act, prove, record, deliver.
-- Turn repeated mistakes into rules: a short retro per task, and a rule that repeats moves into a role card or a hook.
+- Turn repeated mistakes into rules: a short retro per task with a key on each rule, a notice when a rule repeats, and one command that moves it into a role card or the walls file.
 - Measure the work: minutes per task, first-pass verification, defects the owner found.
 
 ## How a task flows
@@ -38,7 +38,7 @@ Hooks fire on events, not on gates:
 ```text
 agent-steddy/
 ├── .claude-plugin/              plugin.json, and marketplace.json so this repo is its own marketplace
-├── bin/agent-steddy             the command for metrics and records (on the Bash PATH while the plugin is enabled)
+├── bin/agent-steddy             the command for metrics, records and lessons (on the Bash PATH while the plugin is enabled)
 ├── hooks/hooks.json             which script runs on which Claude Code event
 ├── scripts/                     the hook scripts and the command's code (Python, standard library only)
 ├── skills/                      the method: the gates skill and the finish skill
@@ -116,7 +116,7 @@ The data is local state in the git common dir (`.git/agent-steddy/`), shared by 
 | --- | --- | --- |
 | `tool_timing.py` | before and after every Bash command | Logs how long the command took, the agent type and whether it failed, with the command normalized (no `cd` prefix, relative paths, no heredoc body, secrets redacted). |
 | `secret_output_scan.py` | after every Bash command | Replaces a secret in the output the agent reads with `[REDACTED:<pattern>]` and tells the agent to report it. After a failed command it can only warn. It never prints the value. |
-| `gate_reminder.py` | when a prompt is submitted | Adds the seven gates (or `reminder.text`) to the prompt context, and starts the task clock when no task is pending. |
+| `gate_reminder.py` | when a prompt is submitted | Adds the seven gates (or `reminder.text`) to the prompt context, with one more line while a rule is seen twice and not promoted, and starts the task clock when no task is pending. |
 
 | Command | What it does |
 | --- | --- |
@@ -125,11 +125,13 @@ The data is local state in the git common dir (`.git/agent-steddy/`), shared by 
 | `agent-steddy metrics report` | Weekly tables of tasks and of git rework. |
 | `agent-steddy metrics slow` | The Bash commands that take the most time, grouped. |
 | `agent-steddy record decision "<area>" "<text>"` | Appends a line to `records.decisions`. |
-| `agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R` | Puts a dated entry at the top of `records.lessons`. |
+| `agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R --key K` | Puts a dated entry at the top of `records.lessons`. A rule other than `none` needs a key, a slug such as `commit-by-path`; without one nothing is written and the closest recorded rules are listed. A key recorded a second time prints a notice with the promote command. |
 | `agent-steddy record finish <branch>` | Runs `verifyCommand` on the branch, fast-forwards `workingBranch` onto it and deletes it; it refuses when the verify fails and never pushes. |
+| `agent-steddy lessons check [--quiet]` | Lists the rules seen twice and not promoted, the Rule lines with no key (with a suggested key) and the role cards to prune; `--quiet` prints the one reminder line, or nothing. |
+| `agent-steddy lessons promote <key> --to <role\|walls> [--text T] [--force]` | Writes a repeated rule as the last bullet of the role card's Pitfalls, or into `records.walls`, and marks its Rule lines ` [promoted -> <path>]`. |
 
 Claude Code puts the plugin's `bin/` folder on the Bash tool's `PATH` while the plugin is enabled; Claude.ai and Cowork do not install a plugin that has one.
-See [docs/config.md](docs/config.md) for the clocks, the file formats, `finish` and the keys.
+See [docs/config.md](docs/config.md) for the clocks, the file formats, `finish`, the learning loop and the keys.
 
 ## Method
 

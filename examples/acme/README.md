@@ -16,7 +16,7 @@ The config sets these rules:
 - `acme-auditor` writes only under `docs/reviews/`.
 - Every `acme-*` hand-back must name a verification level, a retro line and a resources line, or it is blocked once.
 - `git push`, `make deploy` and `make deploy-web` need the owner's confirmation when a subagent runs them, `npm publish` and `pnpm publish` always do, and `acme-cli config push` is denied.
-- The records go to `docs/agents/`, which does not exist until the first `agent-steddy record` or `agent-steddy metrics log` creates it.
+- The records go to `docs/agents/`, which does not exist until the first `agent-steddy record` or `agent-steddy metrics log` creates it; a rule promoted with `agent-steddy lessons promote` goes into a card of `docs/agents/roles/`, or into `docs/agents/walls.md` with `--to walls`.
 
 The config names `make verify` as the verify command; the example has no Makefile because it has no product code.
 To try it, copy this folder somewhere else, make the copy a git repo, and start `claude --plugin-dir <path to agent-steddy>` in it.

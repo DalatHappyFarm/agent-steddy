@@ -11,6 +11,7 @@ A new session picks up at the first unticked step.
 - [x] 6. The gates document, agent and role card templates, the brief template, and a `finish` skill.
 - [x] 7. Architecture and flow diagrams in the README, and an example project the tests run against.
 - [x] 8. Open-source audit (secrets, private names, git history), then publish when the owner says so.
+- [x] 9. Learning loop automation (rule keys, repeat notice, lessons check and promote, the reminder line) and the single-agent-loop defaults in the method.
 
 ## Facts found on the way
 
@@ -52,3 +53,9 @@ A new session picks up at the first unticked step.
 - Checked 2026-10-30: the unit tests pass on Python 3.9.6 and 3.14 on macOS.
   They use no macOS-only tool: every test repo is made with `git init -b` and an explicit `-c user.name` identity, so they do not read the machine's git config.
   Linux has not been run locally; `.github/workflows/test.yml` runs the tests on Ubuntu and macOS with Python 3.9 and 3.13, and ruff 0.8.4 once.
+- Decided 2026-10-30 for step 9: the learning loop is commands plus judgment.
+  A rule other than `none` needs a key (a lowercase slug, at most 40 characters), the count that makes a rule due is the constant 2 in `scripts/lessons.py` and not a config key, and the refusals that ask for another key or target exit 2.
+  The commands pick nothing that is a judgment: which target (a role card, the walls file, a check as well) and the final wording stay with the person or the agent.
+  The method also says the main session is the loop and a role becomes a subagent only when it earns it, with the docs writer as the first fold candidate; the token cost of folding a cheaper-model agent is a trade-off to measure, not a measured number.
+- Checked 2026-10-30 for step 9: the unit tests (307) pass on Python 3.9 and 3.14, and the example project runs the whole loop end to end on a temporary copy: two lessons with one key, the notice, the reminder line, `lessons promote` into an Acme role card, and `lessons check` with nothing due.
+  Not yet checked in a live Claude Code session: that the reminder line reaches the agent and that an agent follows the notice.

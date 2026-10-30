@@ -32,11 +32,24 @@ The text is one line.
 Write the retro for every task, even a small one:
 
 ```text
-agent-steddy record lesson --task "<task>" --roles <a>,<b> --worked "<one line>" --exposed "<one line, or none>" --rule "<one line, or none>"
+agent-steddy record lesson --task "<task>" --roles <a>,<b> --worked "<one line>" --exposed "<one line, or none>" --rule "<one line, or none>" --key <slug>
 ```
 
 `--roles` is comma separated, and every value is one line.
+Name the roles as the role cards are named: `web` for `docs/agents/roles/web.md`, so that the command can suggest the card to promote a repeated rule into.
 The entry goes to the top of the lessons file, above the older ones.
+
+`--key` names the rule, a lowercase slug such as `commit-by-path`, and the same rule recorded again takes the same key.
+A rule of `none` takes no key.
+For any other rule the command refuses without a key: it writes nothing, exits 2 and lists the closest recorded rules.
+Read them, then re-run with `--key <existing>` when it is the same rule, or with a new slug when it is not.
+
+When the command prints `<key> is now seen <n> times`, the rule repeated and is due for promotion:
+
+- Decide the target: the role card the rule belongs to, or the walls file when it is about safety, data or money or a role keeps breaking it.
+  When a machine can check the rule, also add a check, such as a `commands.deny` entry or a `handback.required` item.
+- Run the command the notice printed, for example `agent-steddy lessons promote <key> --to <role>` or `--to walls`; `--text "<wording>"` replaces the rule text with a final wording.
+- The changed role card or walls file and the lessons file are committed in step 5.
 
 ## 4. Metrics line
 
@@ -54,6 +67,7 @@ agent-steddy metrics log --task "<task>" --size S|M|L --type new|feedback --veri
 
 The record files are the paths `records.decisions`, `records.lessons` and `records.metrics` in `.claude/agent-steddy.json`.
 The defaults are `docs/agents/decisions.md`, `docs/agents/lessons.md` and `docs/agents/metrics.jsonl`.
+A promotion in step 3 also changed a role card in `records.roles` or the walls file `records.walls` (`docs/agents/walls.md`).
 Commit them by path, with each path written out in the command:
 
 ```text
@@ -62,6 +76,7 @@ git commit -m "docs(agents): record <task>" -- docs/agents/decisions.md docs/age
 git status --short
 ```
 
+Add a promoted role card or the walls file to the paths.
 Use the paths the project's config names when they differ from the defaults.
 The `git status --short` output must show no line for this task's files.
 
@@ -105,3 +120,9 @@ The report to the owner has these parts, in English or in the owner's language:
 
 This skill never deploys, publishes or pushes.
 A deploy, a publish or a push needs the owner's explicit ask for that exact action.
+
+## Each week
+
+When you run `agent-steddy metrics report` for the weekly look at the work, run `agent-steddy lessons check` with it.
+It lists the rules that are due and not yet promoted, the Rule lines with no key (migrate them by adding a key to the line), and the role cards that are due for pruning.
+Act on each section: promote what is due, key or merge the old lines, and merge or drop the pitfalls it names.

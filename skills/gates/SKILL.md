@@ -16,6 +16,7 @@ This page carries the rest, and each wall says which hook or rule enforces it, o
 ## Walls
 
 The walls hold in every role, for the main session and for every subagent.
+The table is the kit's own walls; a project adds its own in the walls file (`records.walls`, `docs/agents/walls.md` by default), which `agent-steddy lessons promote <key> --to walls` appends to when a rule repeats.
 
 | # | Wall | Enforced by |
 | --- | --- | --- |
@@ -39,11 +40,11 @@ A rule matches the usual forms of a command, not every way around it; [the limit
 | Gate | Purpose | Output | Do not pass if |
 | --- | --- | --- | --- |
 | 1 Intake | Understand the real goal, the scope, the size (S, M or L) and the type (bug, feature, review, analysis, content). | One sentence that restates the goal and the scope; M and L tasks name the task with `agent-steddy metrics start "<task>"`. | An ambiguity that changes the result is neither asked nor logged as an assumption. |
-| 2 Recall | Load the walls, the role card of each role in play, and the matching lessons. | A short list of the traps to avoid this time. | Work starts before the role cards were read. |
+| 2 Recall | Load the walls (the table above and the project's walls file, `records.walls`), the role card of each role in play, and the matching lessons. | A short list of the traps to avoid this time. | Work starts before the walls file and the role cards were read. |
 | 3 Shape | Pick the roles and the split, check the side effects on existing behavior, and define Done. | The roles, the split and Done written down; a large task has a spec before any work starts. | Nobody can say what done means, or an owner decision is still open. |
 | 4 Act | Do the work to the role's standards. | The smallest correct change, in the right place and in the files assigned. | A wall or a role rule is broken. |
 | 5 Prove | Act as the adversary: evidence, not promises; reproduce a bug before fixing it. | Evidence at the level chosen on the ladder below: test output, screenshots you looked at, numbers from code, and subagent reports checked with your own eyes. | Anything is red, a screenshot was not looked at, or a claim has no evidence. |
-| 6 Record | Log the decisions, write the retro, and add the metrics line. | `agent-steddy record decision` lines, one `agent-steddy record lesson` entry, and one `agent-steddy metrics log` line. | A mistake reached the owner without a lesson entry. |
+| 6 Record | Log the decisions, write the retro, and add the metrics line. | `agent-steddy record decision` lines, one `agent-steddy record lesson` entry (a rule other than `none` takes `--key`), and one `agent-steddy metrics log` line. | A mistake reached the owner without a lesson entry. |
 | 7 Deliver | Report to the owner, merge the verified branch with `agent-steddy record finish <branch>`, and release what the task started. | The report: what changed, the evidence, what was not done and why, and what the owner must do. | Done from gate 3 is not met. |
 
 Gate 7 never deploys, publishes or pushes unless the owner asked for that exact action.
@@ -92,6 +93,17 @@ Each role has a card in the project's roles folder, with the same shape: mission
 The agent reads the card of each role it plays at gate 2.
 The [templates](../../templates/README.md) hold the empty shape and a filled orchestrator card.
 
+By default the main session is the loop: it plays a role by reading that role's card, and does the work itself.
+A role becomes a subagent only when it earns it:
+
+1. It reads far more than it hands back, so its reads would bloat the main context.
+2. Its work must be independent of the author, as for a verifier or an auditor.
+3. It runs in parallel with other units.
+
+Folding a subagent into the main session has a cost to weigh.
+A subagent that runs on a cheaper model does its reads there, and folding moves those reads onto the main session's model, which can cost more tokens than it saves.
+Measure the tokens and the minutes of a few real tasks both ways before folding.
+
 | Role | Typical work |
 | --- | --- |
 | Orchestrator | Splits the work, briefs the subagents, checks what comes back, and merges. |
@@ -114,13 +126,31 @@ Checking each branch and then again after every merge repeats the same checks.
 
 ## Learning loop
 
+The kit counts the repeats and writes the promotion; a person or an agent keeps the judgment.
+
 1. Write a retro at gate 6 for every task: three lines (Worked, Exposed, Rule), and ask whether any step was slow or repeated.
-2. A lesson seen a second time moves into the Pitfalls of the matching role card.
-3. A role rule broken a second time, or any rule about safety, data or money, moves into the walls.
+   Record it with `agent-steddy record lesson ... --rule R --key K`.
+   A rule other than `none` takes a key, a lowercase slug such as `commit-by-path`, and the same rule recorded again takes the same key.
+   Without a key the command writes nothing, exits 2 and lists the closest recorded rules, so the key is chosen by comparing and not from memory.
+2. A rule seen a second time moves into the Pitfalls of the matching role card.
+   After the write the command prints `<key> is now seen <n> times` and the `agent-steddy lessons promote <key> --to <role>` command, with the roles of those entries, most common first.
+   `agent-steddy lessons check` lists every rule that is due, and the prompt reminder adds one line while any rule is due, so a repeat is not left to memory.
+3. A role rule broken a second time, or any rule about safety, data or money, moves into the walls file instead: `agent-steddy lessons promote <key> --to walls`.
    When a machine can check it, it also becomes a check: a project config entry such as `commands.deny`, `agents.writeFences` or `handback.required`, or a new built-in rule in the kit.
-4. At each merge, prune: merge duplicate rules, drop stale ones, and keep the cards short.
+4. At each merge, prune: `agent-steddy lessons check` also lists role cards with more than 12 pitfalls, pitfalls in one card that look alike, and Rule lines with no key, each with a suggested key.
+   Merge duplicate rules, drop stale ones, and keep the cards short.
 5. A procedure done by hand three times becomes a script, a make target or a skill.
-6. Each week, run `agent-steddy metrics report` and `agent-steddy metrics slow`; a command near the top by total time gets faster, or gets a written reason to stay.
+6. Each week, run `agent-steddy metrics report`, `agent-steddy metrics slow` and `agent-steddy lessons check`; a command near the top by total time gets faster, or gets a written reason to stay.
+
+| Step | The command does | You decide |
+| --- | --- | --- |
+| Record the rule | `record lesson --key` refuses a rule with no key and lists the closest recorded rules. | Whether the rule is the same as one listed, and the key of a new one. |
+| Notice the repeat | `record lesson` prints the repeat notice; the reminder line and `lessons check` list the rules due. | Nothing to decide; read the notice. |
+| Promote | `lessons promote` writes the bullet, with the dates, and marks every Rule line of the key as promoted. | The target: a role card, the walls file, or a check as well; and the final wording (`--text`). |
+| Prune | `lessons check` lists the cards that are too long, the pitfalls that look alike and the unkeyed rules. | Which to merge or drop, and how to word what stays. |
+
+A promoted rule line ends with ` [promoted -> <path>]`, and a promoted key is no longer due.
+A rule that is broken after its promotion needs a check that a machine runs, not another note.
 
 ## Measuring
 
@@ -140,8 +170,9 @@ The report should move toward fewer feedback rounds and exposed defects per task
 | What | Where |
 | --- | --- |
 | The walls and the gates | This skill; each agent prompt repeats the walls it needs, because a subagent does not see this conversation. |
-| Role cards and their pitfalls | The project's roles folder; `docs/agents/roles/` in the templates. |
-| Lessons | `records.lessons`, newest first. |
+| Role cards and their pitfalls | The project's roles folder, `records.roles` (`docs/agents/roles/` by default). |
+| Lessons | `records.lessons`, newest first; each Rule line carries a key. |
+| The project's walls file | `records.walls`, `docs/agents/walls.md` by default; read at gate 2 with the walls above. |
 | Decisions and assumptions | `records.decisions`. |
 | Metrics lines | `records.metrics`. |
 | Project settings | `.claude/agent-steddy.json`, see the [config reference](../../docs/config.md). |

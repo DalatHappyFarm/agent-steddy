@@ -33,9 +33,11 @@ Unknown keys are kept and are not an error.
 | `commands.alwaysAsk` | `[]` | `scripts/guard_bash.py` |
 | `reminder.enabled` | `true` | `scripts/gate_reminder.py` |
 | `reminder.text` | the seven gates | `scripts/gate_reminder.py` |
-| `records.lessons` | `"docs/agents/lessons.md"` | `scripts/record.py` |
+| `records.lessons` | `"docs/agents/lessons.md"` | `scripts/record.py`, `scripts/lessons.py`, `scripts/gate_reminder.py` |
 | `records.metrics` | `"docs/agents/metrics.jsonl"` | `scripts/metrics.py` |
 | `records.decisions` | `"docs/agents/decisions.md"` | `scripts/record.py` |
+| `records.roles` | `"docs/agents/roles"` | `scripts/lessons.py` |
+| `records.walls` | `"docs/agents/walls.md"` | `scripts/lessons.py` |
 
 - `workingBranch` is the branch agents work on and merge into; `record finish` fast-forwards it.
 - `verifyCommand` is the command that proves a change, or `null` when the project has none.
@@ -62,8 +64,10 @@ Unknown keys are kept and are not an error.
 - `reminder.enabled` turns the per-prompt reminder off when it is `false`; the task clock still starts.
 - `reminder.text` is the text added to the context of every prompt; the default lists the seven gates.
   An empty text adds nothing.
-- `records.*` are the paths, relative to the project root, of the lessons file, the metrics file and the decisions file.
-  The command creates the file and its folder when it first writes to it.
+- `records.*` are paths relative to the project root: the lessons file, the metrics file, the decisions file, the folder of the role cards and the walls file.
+  The command creates the file and its folder when it first writes to it; the role cards are never created, since `lessons promote` writes into a card that exists (copy `templates/roles/role-card.md` from the plugin).
+- `records.roles` is the folder of the role cards, one `<role>.md` for each role; `lessons promote --to <role>` writes into the card of that name, and `lessons check` reads every card of the folder.
+- `records.walls` is the project's walls file, the rules that every role reads at gate 2; `lessons promote --to walls` appends to it and creates it when it is missing.
 
 ## Decisions
 
@@ -192,18 +196,21 @@ It runs three times per command: `pre` before it (`PreToolUse`), and `post` afte
 ## Gate reminder
 
 `scripts/gate_reminder.py` runs when a prompt is submitted (`UserPromptSubmit`).
-It does two things, and neither can block the prompt.
+It does three things, and none can block the prompt.
 
 1. It adds `reminder.text` to the context of the prompt, so the gates stay in front of the agent in a long session.
    The default text lists seven gates: intake, recall, shape, act, prove, record and deliver.
    A project writes its own text, for example one that names its own gates document, or sets `reminder.enabled` to `false`.
-2. It starts the task clock.
+2. When a rule of the lessons file is due for promotion, it adds one more line to the same context: `Learning loop: <n> rule(s) seen twice and not promoted (<keys>); run agent-steddy lessons check.`
+   The line names at most three keys, then `...`, and is left out when nothing is due, when the reminder is off or its text is empty, and when the lessons file cannot be read.
+   It is one plain file read, and no git call.
+3. It starts the task clock.
    When no task is pending, the time of the prompt becomes the start of an auto task named `auto <time>` in `pending-task.json` (see [Local state](#local-state)).
    `agent-steddy metrics start` names that task and keeps the prompt time as `prompt_start`; `metrics log` closes it and deletes the file.
    A pending task is never replaced, so a second prompt of the same task keeps the first start.
    The one exception is an auto task older than 12 hours, which was a prompt that never reached `metrics log`; the new prompt replaces it.
 
-Claude Code discards the context of a `UserPromptSubmit` hook that reaches its timeout, so the hook does almost nothing: it reads the config and one small file.
+Claude Code discards the context of a `UserPromptSubmit` hook that reaches its timeout, so the hook does almost nothing: it reads the config, the lessons file and one small file.
 The same fail-open rules apply: a value of the wrong type is read as the default and any error leaves the prompt as it was.
 
 ## Command line
@@ -216,7 +223,8 @@ The command only dispatches to `scripts/cli.py`, which runs isolated (`python3 -
 The Bash tool does not give `CLAUDE_PROJECT_DIR` to the commands it runs.
 So the command finds the project itself: `CLAUDE_PROJECT_DIR` when it is set, else the nearest folder from the working directory up that has `.claude/agent-steddy.json` or `.git`.
 It reads the project config from there, and every path it writes comes from that config.
-A command that is refused exits 1 and prints the reason on stderr after `agent-steddy: refused:`.
+A command that is refused prints the reason on stderr after `agent-steddy: refused:` and exits 1.
+The learning loop's refusals that ask for another key or target (a rule with no key, a bad key, a promotion that is not allowed) exit 2, the code of a usage error, so a caller can tell them from a failed record.
 
 ## Metrics
 
@@ -254,7 +262,7 @@ A line that is not a JSON object with a `date` is skipped by the report.
 | Command | What it does |
 | --- | --- |
 | `record decision "<area>" "<text>"` | Appends `- [area] text` to `records.decisions`. The area is a short tag of letters, digits, spaces and `_ . / -`; the area and the text are one line each. A missing file is created with a short header. |
-| `record lesson --task T --roles a,b --worked W --exposed E --rule R` | Puts an entry at the top of `records.lessons`, above the older ones: a heading `## <date> - <task> - roles: a, b` and the three lines Worked, Exposed and Rule. A missing file is created from a template: a title, the entry format in a code fence, and the rule that a rule broken twice moves up into a role card and from there into a hook. A heading inside a code fence is not an entry. |
+| `record lesson --task T --roles a,b --worked W --exposed E --rule R [--key K]` | Puts an entry at the top of `records.lessons`, above the older ones: a heading `## <date> - <task> - roles: a, b` and the three lines Worked, Exposed and Rule. A rule other than `none` takes a key, see [Learning loop](#learning-loop). A missing file is created from a template: a title, the entry format in a code fence, and how a repeated rule moves up. A heading inside a code fence is not an entry. |
 | `record finish <branch> [--full] [--no-verify]` | Verifies a branch and merges it into `workingBranch`, see below. |
 
 `record finish` is the merge at the end of a task, and it never pushes.
@@ -269,6 +277,67 @@ Then:
 With no `verifyCommand` nothing proves the branch, so the command refuses unless `--no-verify` is given.
 With a `verifyCommand`, `--no-verify` is refused: a gate the project set is not skipped by a flag.
 The command runs git itself and not through the Bash tool, so the Bash rules do not see it; it uses only `switch`, `merge --ff-only` and `branch -d`.
+
+## Learning loop
+
+A rule that repeats is worth more than a rule written once, so the kit counts the repeats and writes the promotion.
+The counting needs a name for each rule: the key.
+
+### Rule lines and keys
+
+The Rule line of an entry has an optional key right after `Rule`, and a promoted rule ends with a marker:
+
+```text
+## 2026-10-30 - fix the footer - roles: web, docs
+- Worked: the brief named the files
+- Exposed: a commit took a neighbor's file
+- Rule [commit-by-path]: commit by path, never git add all [promoted -> docs/agents/roles/web.md]
+```
+
+- A key is a lowercase slug, `[a-z0-9]+(-[a-z0-9]+)*`, at most 40 characters.
+- A rule of `none` (any case) needs no key, and a key passed with it is ignored.
+- A line with no key, as in a file from before keys, still parses; `lessons check` lists it with a suggested key, and adding the key to the line by hand migrates it.
+- The marker ` [promoted -> <path>]` is written by `lessons promote`; the path is relative to the project root.
+  A key is promoted when any of its Rule lines carries the marker, and a promoted key is never due again.
+- The roles of an entry are read from its heading, so name them as the role cards are named: `web` for `docs/agents/roles/web.md`.
+- The newest entry of a key is the one with the latest date, and the one higher in the file when the dates are equal.
+
+### Recording a rule
+
+`record lesson` with a rule other than `none` and no `--key` writes nothing, exits 2 and prints the closest recorded rules, up to five, each as `<key> (seen <n> times): <newest rule text>`, then `re-run with --key <existing> if it is the same rule, or --key <new-slug> if it is new`.
+With no keyed rule recorded yet it says so and asks for a new slug.
+The ranking is the mean of two numbers from 0 to 1 for the rule texts: the `difflib` ratio of their words, and the share of words they have in common; the best score of the key's entries counts, and ties go by key.
+It is a rough aid for choosing, not a decision.
+
+After writing with a key, the command counts the entries that carry it.
+At two or more, and when the key is not promoted, it prints `<key> is now seen <n> times`, the command `agent-steddy lessons promote <key> --to <role>` with the role that the headings of those entries name most often, the roles with their counts, and a line that a rule about safety, data or money goes `--to walls` instead.
+The threshold is the constant 2 in `scripts/lessons.py`; it is not a config key.
+
+### lessons check
+
+| Command | What it does |
+| --- | --- |
+| `lessons check` | Prints three sections and exits 0, a report and not a gate. Each section says `none` when it is empty. |
+| `lessons check --quiet` | Prints the one line that the prompt reminder adds, and nothing when no rule is due. |
+
+1. Due: every key seen twice or more and not promoted, with its dates, its tasks, its roles and the promote command.
+2. Unkeyed: every Rule line with no key and a rule other than `none`, with a suggested key (the first four words that are not common function words, joined by hyphens), and the pairs of those lines whose rule texts look alike (the same score as above, from 0.45), at most ten.
+3. Cards to prune: each card of `records.roles` whose `## Pitfalls` section has more than 12 bullets, and the pairs of pitfalls in one card that look alike, at most ten a card.
+   Only the first line of a top-level bullet counts, a `(lessons: ...)` note is left out of the comparison, and a placeholder bullet (`None recorded yet ...` or one in angle brackets) is not a pitfall.
+
+### lessons promote
+
+`lessons promote <key> --to <role|walls> [--text "<final wording>"] [--force]` moves a rule up:
+
+1. `--to <role>` appends `- <text> (lessons: <date>, <date>)` as the last bullet of the `## Pitfalls` section of the card `<records.roles>/<role>.md`; the section is added at the end when the card has none, and a placeholder bullet of the section is replaced.
+   The card must exist, or the command exits 2 with a hint to copy `templates/roles/role-card.md` from the plugin.
+2. `--to walls` appends the same bullet to `records.walls`, and creates it with a short header when it is missing.
+3. The text is `--text`, else the rule text of the newest entry of the key; the dates are those of every entry of the key, oldest first.
+4. Every Rule line of the key then gets ` [promoted -> <path of the card or the walls file>]`, and the command prints what it wrote and where.
+
+It refuses, exit 2 and nothing written, an unknown key, a key seen less than twice (unless `--force`), a key that is already promoted, a role with no card or a name that is not a file name, and a text that is empty, on more than one line or holds the marker.
+`--force` lifts only the count.
+It reads the lessons file and the target, writes the target, then writes the lessons file; two agents promoting at the same moment could lose a change.
 
 ## Command matching
 

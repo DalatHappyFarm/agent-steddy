@@ -2,7 +2,7 @@
 
 Mission: run the product and observe it at the ladder level the brief names, and report what it does.
 
-Reads: the walls, the gates and the verification ladder in the gates skill, and the brief.
+Reads: the walls (in the gates skill and in `docs/agents/walls.md` once it exists), the gates and the verification ladder in the gates skill, and the brief.
 
 ## Standards
 

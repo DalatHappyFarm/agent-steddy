@@ -2,7 +2,7 @@
 
 Mission: get the owner's request to a verified result in the least wall-clock time, deciding who does what and checking everything that comes back.
 
-Reads: the walls, the gates and the ladder in the gates skill; the role cards of the roles involved; `docs/agents/lessons.md`; `docs/agents/brief.md`.
+Reads: the walls (in the gates skill and in `docs/agents/walls.md` once it exists), the gates and the ladder in the gates skill; the role cards of the roles involved; `docs/agents/lessons.md`; `docs/agents/brief.md`.
 
 ## Standards
 

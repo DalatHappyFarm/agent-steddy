@@ -2,7 +2,7 @@
 
 Mission: build and fix the Acme storefront pages under `web/` so that they load fast and stay usable on a phone.
 
-Reads: the walls and the gates in the gates skill, `docs/agents/lessons.md` once it exists, and the page being changed.
+Reads: the walls and the gates in the gates skill, `docs/agents/walls.md` and `docs/agents/lessons.md` once they exist, and the page being changed.
 
 ## Standards
 

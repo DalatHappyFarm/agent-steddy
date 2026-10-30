@@ -2,7 +2,7 @@
 
 Mission: review and research with evidence, and report what was found without changing any product code.
 
-Reads: the walls and the gates in the gates skill, `docs/agents/lessons.md` once it exists, and the area under review.
+Reads: the walls and the gates in the gates skill, `docs/agents/walls.md` and `docs/agents/lessons.md` once they exist, and the area under review.
 
 ## Standards
 
