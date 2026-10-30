@@ -83,3 +83,5 @@ A new session picks up at the first unticked step.
   Equal medians are never a difference, which the written rule leaves open when the interquartile range is 0.
   For the share, which is one number per week, the share itself stands where the median stands: the median of a column of 0 and 1 is only 0, 0.5 or 1, and it would call a move from 50% to 60% of 10 tasks better because the median flipped.
   The tests pin both readings of the rule on sample numbers computed with `statistics`; none of it was checked against a real project's metrics file.
+- Fixed 2026-10-30 in 0.3.1: a turn that only delivers a background task's notification fires `UserPromptSubmit` too, with a prompt that starts with `<task-notification>` and no other field that tells it apart (captured in a live session with a hook that logged its input), so the gate reminder started a task clock with no prompt behind it once `metrics log` had closed the last one.
+  The reminder now starts no clock on such a turn; the new test failed on the old hook and passes on the fix, and in a live session (Haiku, `--plugin-dir`) a notification that arrived after `metrics log` left no pending task.

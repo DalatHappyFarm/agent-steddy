@@ -216,6 +216,7 @@ It does three things, and none can block the prompt.
    `agent-steddy metrics start` names that task and keeps the prompt time as `prompt_start`; `metrics log` closes it and deletes the file.
    A pending task is never replaced, so a second prompt of the same task keeps the first start.
    The one exception is an auto task older than 12 hours, which was a prompt that never reached `metrics log`; the new prompt replaces it.
+   A turn that Claude Code opens only to deliver a background task's notification also fires `UserPromptSubmit`, with a prompt that starts with `<task-notification>`; it gets the reminder and starts no clock, so `prompt_minutes` keeps counting from a prompt someone typed.
 
 Claude Code discards the context of a `UserPromptSubmit` hook that reaches its timeout, so the hook does almost nothing: it reads the config, the lessons file and one small file.
 The same fail-open rules apply: a value of the wrong type is read as the default and any error leaves the prompt as it was.

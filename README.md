@@ -5,7 +5,7 @@ Guardrails, gates and a learning loop for a team of Claude Code agents, packaged
 <!-- diagram source: docs/diagrams/architecture.json -->
 ![agent-steddy: Claude Code fires its events at the plugin's hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which reads the project config, keeps that clock and writes the project's records under docs/agents; agents read the skills, and the templates are copied into the project's agents and role cards.](docs/diagrams/architecture.svg)
 
-> Status: version 0.3.0, early.
+> Status: version 0.3.1, early.
 > Tested with Claude Code 2.1.314 on macOS; it needs `python3` 3.9 or later and `git` on the PATH.
 > It works in Claude Code only: the `bin/` folder keeps it out of Claude.ai and Cowork.
 
@@ -120,7 +120,7 @@ The data and the notes are local state in the git common dir (`.git/agent-steddy
 | `tool_timing.py` | before and after every Bash command | Logs how long the command took, the agent type and whether it failed, with the command normalized (no `cd` prefix, relative paths, no heredoc body, secrets redacted). |
 | `secret_output_scan.py` | after every Bash command | Replaces a secret in the output the agent reads with `[REDACTED:<pattern>]` and tells the agent to report it. After a failed command it can only warn. It never prints the value. |
 | `session_start.py` | when a session starts, resumes, is cleared, is compacted or is forked (`SessionStart`) | When the checked out branch has a resume note, adds the line `Resume note for <branch> from <date>: run agent-steddy resume before you start.` to the context, and nothing otherwise. |
-| `gate_reminder.py` | when a prompt is submitted | Adds the seven gates (or `reminder.text`) to the prompt context, with one more line while a rule is seen twice and not promoted, and starts the task clock when no task is pending. |
+| `gate_reminder.py` | when a prompt is submitted | Adds the seven gates (or `reminder.text`) to the prompt context, with one more line while a rule is seen twice and not promoted, and starts the task clock when no task is pending (not on a background task's notification). |
 
 | Command | What it does |
 | --- | --- |
