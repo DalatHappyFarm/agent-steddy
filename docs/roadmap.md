@@ -12,7 +12,7 @@ A new session picks up at the first unticked step.
 - [x] 7. Architecture and flow diagrams in the README, and an example project the tests run against.
 - [x] 8. Open-source audit (secrets, private names, git history), then publish when the owner says so.
 - [x] 9. Learning loop automation (rule keys, repeat notice, lessons check and promote, the reminder line) and the single-agent-loop defaults in the method.
-- [ ] 10. Ideas from pstack: resume notes, rules for checks and lessons, the brief budget, auditor re-run commands, the hand-back status and metric verdicts.
+- [x] 10. Ideas from pstack: resume notes, rules for checks and lessons, the brief budget, auditor re-run commands, the hand-back status and metric verdicts.
 
 ## Facts found on the way
 
@@ -72,3 +72,10 @@ A new session picks up at the first unticked step.
   The notes live in the git common dir (shared by the worktrees) or in `resume.folder`; the kit commits neither, and `record finish` leaves the deletion of a committed note to the person, since it never commits.
   A note kept in the repo does not make the tree dirty for `record finish`, or no in-repo note could ever be merged.
   `feat/x` and `feat__x` map to one file name; the `Branch:` line of the note decides which branch it belongs to, so the other branch sees no note.
+- Decided 2026-10-30 for step 10: the hand-back status is a default `handback.required` item, `\b(?:PASS|ISSUES|BLOCKED)\b`, the first of the list.
+  The words are whole and in capitals, like the level pattern next to it (`\bL[0-5]\b`), so `PASSWORD` and `passed` do not count.
+  This changes the default for a project that opted in with `handback.agents` and left `handback.required` out: its agents are now blocked once until their hand-back has a status word; a project that sets its own `handback.required` list is not affected.
+- Decided 2026-10-30 for step 10: the metric verdicts compare the last two weeks that have tasks among the weeks the report shows, minutes by size and the first-pass share, with the two constants `MIN_TASKS` (5) and `IQR_SHARE` (0.5) in `scripts/metrics.py`.
+  Equal medians are never a difference, which the written rule leaves open when the interquartile range is 0.
+  For the share, which is one number per week, the share itself stands where the median stands: the median of a column of 0 and 1 is only 0, 0.5 or 1, and it would call a move from 50% to 60% of 10 tasks better because the median flipped.
+  The tests pin both readings of the rule on sample numbers computed with `statistics`; none of it was checked against a real project's metrics file.

@@ -5,7 +5,7 @@ Guardrails, gates and a learning loop for a team of Claude Code agents, packaged
 <!-- diagram source: docs/diagrams/architecture.json -->
 ![agent-steddy: Claude Code fires its events at the plugin's hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which reads the project config, keeps that clock and writes the project's records under docs/agents; agents read the skills, and the templates are copied into the project's agents and role cards.](docs/diagrams/architecture.svg)
 
-> Status: version 0.2.0, early.
+> Status: version 0.3.0, early.
 > Tested with Claude Code 2.1.314 on macOS; it needs `python3` 3.9 or later and `git` on the PATH.
 > It works in Claude Code only: the `bin/` folder keeps it out of Claude.ai and Cowork.
 
@@ -126,7 +126,7 @@ The data and the notes are local state in the git common dir (`.git/agent-steddy
 | --- | --- |
 | `agent-steddy metrics start "<task>"` | Names the task and starts its clock; a running named task is kept. |
 | `agent-steddy metrics log --size M --type new --verify-first-pass yes` | Appends one line (minutes, minutes since the prompt, defects found, first-pass verification) to `records.metrics`. |
-| `agent-steddy metrics report` | Weekly tables of tasks and of git rework. |
+| `agent-steddy metrics report` | Weekly tables of tasks and of git rework, then a verdict on the last two weeks that have tasks: minutes by size and the first-pass share are faster or slower, better or worse, no measurable difference, or inconclusive, with the number of tasks of each week. |
 | `agent-steddy metrics slow` | The Bash commands that take the most time, grouped. |
 | `agent-steddy record decision "<area>" "<text>"` | Appends a line to `records.decisions`. |
 | `agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R --key K` | Puts a dated entry at the top of `records.lessons`. A rule other than `none` needs a key, a slug such as `commit-by-path`; without one nothing is written and the closest recorded rules are listed. A key recorded a second time prints a notice with the promote command. |
@@ -151,7 +151,7 @@ The gates skill marks which walls a hook enforces and which ones a person has to
 
 ### Ideas from
 
-Several ideas in the method come from [pstack](https://github.com/cursor/plugins/tree/main/pstack), a skill pack for coding agents by Lauren Tan (MIT license): stopping a task with a resume note and picking it up from the note and git, rules for turning a lesson into a check, a budget in the brief, findings that carry the command that shows them, and numbers that come with a verdict.
+Several ideas in the method come from [pstack](https://github.com/cursor/plugins/tree/main/pstack), a skill pack for coding agents by Lauren Tan (MIT license): pausing a task with a resume note and picking it up from the note and git, a green test that proves only what it measures, a check that counts as enforced only after it failed on the recorded error, two questions before a rule is written, a budget in the brief, auditor findings that carry the command that shows them, a status at the top of a hand-back, and a verdict that comes with a metric.
 The kit's code and wording are its own.
 
 ## Example project
