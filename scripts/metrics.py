@@ -117,7 +117,7 @@ def task_table(rows, weeks):
     for week in sorted(by_week)[-weeks:]:
         rs = by_week[week]
 
-        def average(size):
+        def average(size, rs=rs):
             minutes = [r["minutes"] for r in rs if r.get("size") == size and r.get("minutes") is not None]
             return f"{sum(minutes) / len(minutes):.0f}" if minutes else "-"
 

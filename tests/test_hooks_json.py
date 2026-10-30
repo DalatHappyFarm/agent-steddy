@@ -1,6 +1,5 @@
 import json
 import pathlib
-import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
