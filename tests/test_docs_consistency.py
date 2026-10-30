@@ -1,6 +1,6 @@
 """The docs that teach the method (the skills, the templates and the README) must agree with the code they name.
 
-Eleven checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
+Twelve checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
 every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the README and the config reference;
 every key of the config defaults has a row in the config reference;
 the README status line names the manifest's version;
@@ -8,6 +8,7 @@ the metric verdict rule in the config reference states the two constants of scri
 the method rules that must stand in more than one place (the two questions before a Rule line, a check that counts as enforced only after it failed, the brief budget, the auditor's re-run commands, the hand-back status) do;
 the rules inside the gates are grouped by gate and each names its pstack principle, and the three that an implementer meets most stand in the implementer template and its example too;
 the premise nudge's text, threshold and switch in the config reference and the README are the code's, and the text points at a rule the gates skill has;
+the pstack companion (the README section with its install command, gate 2 loading principle skills, a `Principles:` line in every role card with names that pstack has);
 every backticked built-in rule id is listed in the README table;
 every relative link resolves, and its #anchor exists when the target is a Markdown file.
 """
@@ -253,6 +254,65 @@ class PremiseNudge(unittest.TestCase):
     def test_the_example_config_names_the_switch(self):
         example = json.loads((ROOT / "examples" / "acme" / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
         self.assertEqual(example["nudges"], {"premise": True})
+
+
+class PstackCompanion(unittest.TestCase):
+    # the skills of github.com/backnotprop/pstack named principle-*, without the prefix (listed 2026-10-30)
+    PRINCIPLES = {
+        "attack-the-premise", "boundary-discipline", "build-the-lever", "encode-lessons-in-structure", "exhaust-the-design-space", "experience-first",
+        "explain-the-number", "fix-root-causes", "foundational-thinking", "guard-the-context-window", "laziness-protocol", "make-operations-idempotent",
+        "migrate-callers-then-delete-legacy-apis", "minimize-reader-load", "model-the-domain", "never-block-on-the-human", "outcome-oriented-execution",
+        "prove-it-works", "redesign-from-first-principles", "separate-before-serializing-shared-state", "sequence-verifiable-units", "subtract-before-you-add",
+        "test-behavior-not-implementation", "type-system-discipline",
+    }
+    CARDS = {  # the principles each example role card names
+        "web": ["model-the-domain", "boundary-discipline", "test-behavior-not-implementation"],
+        "verifier": ["prove-it-works", "explain-the-number"],
+        "auditor": ["fix-root-causes", "attack-the-premise"],
+        "docs-writer": ["minimize-reader-load"],
+    }
+
+    def principles(self, path):
+        """The names on the `Principles:` line of a card, which must stand under Standards and before Done."""
+        text = path.read_text(encoding="utf-8")
+        standards = re.search(r"^## Standards\n(.*?)^## Done\n", text, re.M | re.S)
+        self.assertTrue(standards, path)
+        lines = re.findall(r"^Principles: (.*)$", standards.group(1), re.M)
+        self.assertEqual(len(lines), 1, f"{path.relative_to(ROOT)}: one Principles line under Standards")
+        return lines[0]
+
+    def test_the_readme_has_the_section_the_install_command_and_the_credit_line_points_to_it(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        section = re.search(r"^## Works with pstack\n(.*?)^## ", readme, re.M | re.S)
+        self.assertTrue(section)
+        text = squash(section.group(1))
+        self.assertIn("npx skills add backnotprop/pstack", section.group(1))
+        self.assertIn("The kit covers process and guardrails", text)
+        self.assertIn("The kit does not depend on pstack", text)
+        self.assertIn("(see [Works with pstack](#works-with-pstack))", squash(readme))  # the credit line, which the Links check follows to the heading
+
+    def test_gate_2_loads_the_principle_skills_that_fit_the_roles_in_play(self):
+        gates = squash((ROOT / "skills" / "gates" / "SKILL.md").read_text(encoding="utf-8"))
+        row = next(line for line in gates.split(" | ") if line.startswith("Load the walls"))
+        self.assertIn("principle skills installed (for example pstack's `principle-*`), load the ones that fit the roles in play", row)
+        self.assertIn("`Principles:` line", row)
+
+    def test_every_role_card_has_a_principles_line_under_standards(self):
+        template = self.principles(ROOT / "templates" / "roles" / "role-card.md")
+        self.assertIn("the engineering principles this role applies", template)
+        for card in sorted((ROOT / "examples" / "acme" / "docs" / "agents" / "roles").glob("*.md")):
+            names = [name.strip() for name in self.principles(card).rstrip(".").split(",")]
+            self.assertEqual(names, self.CARDS[card.stem], card.name)
+            self.assertLessEqual(set(names), self.PRINCIPLES, card.name)
+        self.assertEqual(sorted(path.stem for path in (ROOT / "examples" / "acme" / "docs" / "agents" / "roles").glob("*.md")), sorted(self.CARDS))
+        orchestrator = [name.strip() for name in self.principles(ROOT / "templates" / "roles" / "orchestrator.md").rstrip(".").split(",")]
+        self.assertTrue(orchestrator and set(orchestrator) <= self.PRINCIPLES, orchestrator)
+
+    def test_the_principle_names_the_method_cites_are_pstack_names(self):
+        gates = (ROOT / "skills" / "gates" / "SKILL.md").read_text(encoding="utf-8")
+        cited = re.findall(r"\(pstack: ([a-z-]+)\)", gates)
+        self.assertEqual(len(cited), 7)
+        self.assertLessEqual(set(cited), self.PRINCIPLES)
 
 
 class RuleIds(unittest.TestCase):

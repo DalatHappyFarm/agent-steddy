@@ -1,6 +1,6 @@
 ---
 name: gates
-description: The method for any non-trivial task in a project that works with Claude Code agents - the walls, the seven gates (intake, recall, shape, act, prove, record, deliver), task sizing, the verification ladder, roles and the learning loop. Load it before planning, splitting or briefing agent work, and before recording a finished task.
+description: The method for any non-trivial task in a project that works with Claude Code agents - the walls, the seven gates (intake, recall, shape, act, prove, record, deliver), the rules inside the gates, task sizing, the verification ladder, roles and the learning loop. Load it before planning, splitting or briefing agent work, and before recording a finished task.
 ---
 
 # Gates
@@ -40,7 +40,7 @@ A rule matches the usual forms of a command, not every way around it; [the limit
 | Gate | Purpose | Output | Do not pass if |
 | --- | --- | --- | --- |
 | 1 Intake | Understand the real goal, the scope, the size (S, M or L) and the type (bug, feature, review, analysis, content). | One sentence that restates the goal and the scope; M and L tasks name the task with `agent-steddy metrics start "<task>"`. | An ambiguity that changes the result is neither asked nor logged as an assumption. |
-| 2 Recall | Load the walls (the table above and the project's walls file, `records.walls`), the role card of each role in play, and the matching lessons. | A short list of the traps to avoid this time. | Work starts before the walls file and the role cards were read. |
+| 2 Recall | Load the walls (the table above and the project's walls file, `records.walls`), the role card of each role in play, and the matching lessons. When the project has principle skills installed (for example pstack's `principle-*`), load the ones that fit the roles in play, such as the ones the role card names on its `Principles:` line. | A short list of the traps to avoid this time. | Work starts before the walls file and the role cards were read. |
 | 3 Shape | Pick the roles and the split, check the side effects on existing behavior, and define Done. | The roles, the split and Done written down; a large task has a spec before any work starts. | Nobody can say what done means, or an owner decision is still open. |
 | 4 Act | Do the work to the role's standards. | The smallest correct change, in the right place and in the files assigned. | A wall or a role rule is broken. |
 | 5 Prove | Act as the adversary: evidence, not promises; reproduce a bug before fixing it. | Evidence at the level chosen on the ladder below: test output, screenshots you looked at, numbers from code, and subagent reports checked with your own eyes. | Anything is red, a screenshot was not looked at, a claim has no evidence, or a green test is read as proof of more than it measures. |
@@ -160,7 +160,7 @@ Keep what the owner asked to keep, and say so in the report.
 ## Roles
 
 A role is a set of standards for one kind of work.
-Each role has a card in the project's roles folder, with the same shape: mission, reads, standards, done, pitfalls, tools and handoff.
+Each role has a card in the project's roles folder, with the same shape: mission, reads, standards (with the engineering principles the role applies), done, pitfalls, tools and handoff.
 The agent reads the card of each role it plays at gate 2.
 The [templates](../../templates/README.md) hold the empty shape and a filled orchestrator card.
 

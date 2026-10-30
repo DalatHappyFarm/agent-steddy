@@ -143,7 +143,7 @@ See [docs/config.md](docs/config.md) for the clocks, the file formats, `finish`,
 
 The method for a task has three parts.
 
-- The [gates skill](skills/gates/SKILL.md) holds the walls, the seven gates, task sizing, the verification ladder, roles and the learning loop; its description tells Claude when to load it.
+- The [gates skill](skills/gates/SKILL.md) holds the walls, the seven gates, the rules inside the gates, task sizing, the verification ladder, roles and the learning loop; its description tells Claude when to load it.
 - The [finish skill](skills/finish/SKILL.md) runs gates 6 and 7 as commands: the decisions, the retro, the metrics line, the commit of the records, the merge and the report.
 - The [templates](templates/README.md) hold an orchestrator role card, the shape of a role card, an agent file for each kind of agent and the brief for a subagent; a project copies them and fills in the placeholders.
 
@@ -152,7 +152,21 @@ The gates skill marks which walls a hook enforces and which ones a person has to
 ### Ideas from
 
 Several ideas in the method come from [pstack](https://github.com/cursor/plugins/tree/main/pstack), a skill pack for coding agents by Lauren Tan (MIT license): pausing a task with a resume note and picking it up from the note and git, a green test that proves only what it measures, a check that counts as enforced only after it failed on the recorded error, two questions before a rule is written, a budget in the brief, auditor findings that carry the command that shows them, a status at the top of a hand-back, a verdict that comes with a metric, and seven principles that became the rules inside the gates (delete before you build, one place for each decision, build the lever, verifiable units, fix where the system first went wrong, attack the premise, do not wait for what can be undone).
-The kit's code and wording are its own.
+The kit's code and wording are its own, and pstack's own skills are a separate install (see [Works with pstack](#works-with-pstack)).
+
+## Works with pstack
+
+The kit covers process and guardrails: the gates, the walls, the hooks, the records and the learning loop.
+It says little about engineering judgment, such as modeling the domain, boundaries, types, idempotent operations, migrating callers and testing behavior.
+[pstack](https://github.com/cursor/plugins/tree/main/pstack) covers that with one principle skill for each principle (`principle-model-the-domain`, `principle-boundary-discipline`, `principle-type-system-discipline`, `principle-make-operations-idempotent`, `principle-test-behavior-not-implementation` and more), so the two fit together.
+Install it next to the kit with:
+
+```bash
+npx skills add backnotprop/pstack
+```
+
+When a project has principle skills installed, the gates skill has the agent load the ones that fit the roles in play at gate 2, and each role card names its own on a `Principles:` line.
+The kit does not depend on pstack and works without it.
 
 ## Example project
 

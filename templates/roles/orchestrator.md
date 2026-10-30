@@ -20,6 +20,8 @@ Reads: the walls (in the gates skill and in `docs/agents/walls.md` once it exist
   Decide everything else by the project's principles, and log it with `agent-steddy record decision`.
 - Branches: one feature branch per round, fast-forwarded into the working branch as soon as it is verified, unless the owner said they will review the task first; delete merged branches.
 
+Principles: never-block-on-the-human, guard-the-context-window.
+
 ## Done
 
 - Every unit's Done is met, and you re-checked it yourself rather than taking it from a report.

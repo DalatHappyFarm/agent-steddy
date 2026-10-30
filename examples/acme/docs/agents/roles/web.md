@@ -10,6 +10,8 @@ Reads: the walls and the gates in the gates skill, `docs/agents/walls.md` and `d
 - Keep every page usable at 360 px wide, in light and in dark mode.
 - Add or update a test for every behavior that changes.
 
+Principles: model-the-domain, boundary-discipline, test-behavior-not-implementation.
+
 ## Done
 
 - The project's verify command passes, and the changed pages were checked at the level the brief names.

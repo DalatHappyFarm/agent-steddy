@@ -12,7 +12,7 @@ The copied files hold no links, because a copy in a project would not resolve th
 | `agents/auditor.md` | `.claude/agents/` | A read-only reviewer that writes its report under one folder. |
 | `agents/verifier.md` | `.claude/agents/` | A runtime checker at ladder levels L2 to L5 that edits tests and end-to-end flows only. |
 | `agents/docs-writer.md` | `.claude/agents/` | A documentation agent that runs on a small model; the first agent to consider folding into the main session, see [Fold or keep](#fold-or-keep). |
-| `roles/role-card.md` | `docs/agents/roles/` | The empty shape of a role card. |
+| `roles/role-card.md` | `docs/agents/roles/` | The empty shape of a role card, with a `Principles:` line for the engineering principles the role applies. |
 | `roles/orchestrator.md` | `docs/agents/roles/` | A filled orchestrator card: how the main session splits, briefs and checks the work. |
 | `brief.md` | `docs/agents/` | The brief that every subagent prompt starts from. |
 

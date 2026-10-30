@@ -10,6 +10,8 @@ Reads: the walls in the gates skill and in `docs/agents/walls.md` once it exists
 - Write one sentence per line in Markdown.
 - Label a statement that is not checked against the code as a placeholder or an assumption.
 
+Principles: minimize-reader-load.
+
 ## Done
 
 - Each statement was compared with the code it describes, and the project's verify command passes.

@@ -11,6 +11,8 @@ Reads: the walls and the gates in the gates skill, `docs/agents/walls.md` and `d
 - The report ends with a Dropped section: how many candidate findings were dropped, and why.
 - Every source carries a URL and the date it was checked; an inference is labeled as one.
 
+Principles: fix-root-causes, attack-the-premise.
+
 ## Done
 
 - The report is under `docs/reviews/` and every finding can be reproduced by running its command.

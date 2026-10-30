@@ -11,6 +11,8 @@ Reads: the walls (in the gates skill and in `docs/agents/walls.md` once it exist
 - Edit only tests and end-to-end flows under `tests/e2e/`; report a product bug with evidence and leave the fix to the implementer.
 - Time box the setup to ten minutes and report an infrastructure failure instead of fighting it.
 
+Principles: prove-it-works, explain-the-number.
+
 ## Done
 
 - The checks the brief names ran, and the report holds their output and the paths of the screenshots that were looked at.
