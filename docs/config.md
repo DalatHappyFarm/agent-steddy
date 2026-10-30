@@ -141,7 +141,7 @@ A `hint` falls back to the `id`, then to the `pattern`.
 `scripts/secret_output_scan.py` runs after every Bash command: in `PostToolUse` when the command succeeded and in `PostToolUseFailure` when it failed.
 It looks for secrets in the last 200 KB of `stdout` and `stderr`, and in the `error` text of a failed command.
 The patterns are in `scripts/secret-patterns.txt`, one per line: a name, a regular expression, and optionally a second expression for placeholders that are not secrets (`password`, `changeme`).
-They cover Supabase, Postgres URLs with a password, AWS, GitHub, RevenueCat, Sentry, PostHog and Lemon Squeezy keys, and private key headers.
+They cover the keys and tokens of common services (Anthropic, OpenAI, Stripe, Slack, Google, npm, GitLab, GitHub, AWS, Sentry and more; the file names every one), Postgres URLs with a password, and private key headers.
 The patterns are not configurable yet.
 
 When a pattern matches, the agent gets a note that names the pattern and never the value, and tells it not to repeat the secret and to report it to the owner.

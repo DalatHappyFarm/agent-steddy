@@ -21,17 +21,36 @@ SECRETS = {
     "private-key": "-----BEGIN " + "RSA PRIVATE KEY-----",
     "aws-access-key-id": "AKIA" + "ABCD1234" * 2,
     "github-token": "ghp_" + "Ab1" * 12,
-    "lemonsqueezy-api-key": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9" + "." + "eyJ" + "a" * 60 + "." + "b" * 110,
+    "lemonsqueezy-api-key": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9" + "." + "eyJ" + "a" * 60 + "." + "b" * 110,  # gitleaks:allow
     "revenuecat-secret-key": "sk_" + "Ab1" * 9,
     "sentry-auth-token": "sntrys_" + "Ab1" * 15,
     "posthog-personal-api-key": "phx_" + "Ab1" * 11,
+    "anthropic-api-key": "sk-ant-" + "api03-" + "Ab1_-" * 18 + "Ab1" + "AA",
+    "openai-api-key": "sk-" + "proj-" + "Ab1_" * 14 + "Ab" + "T3Blbk" + "FJ" + "Cd2-" * 14 + "Cd",
+    "stripe-live-key": "sk_" + "live_" + "Ab1" * 9,
+    "slack-token": "xox" + "b-" + "1234567890" + "-" + "1234567890123" + "-" + "Ab1" * 8,
+    "google-api-key": "AIza" + "Sy" + "Ab1_-" * 6 + "Ab1",
+    "npm-access-token": "npm_" + "Ab1" * 12,
+    "gitlab-pat": "glpat-" + "Ab1_" * 5,
 }
+# Other shapes of the same services: each is found under the name of its pattern.
+VARIANTS = [
+    ("anthropic-api-key", "sk-ant-" + "admin01-" + "Ab1_-" * 18 + "Ab1" + "AA"),
+    ("openai-api-key", "sk-" + "Ab1Cd2Ef3Gh4Ij5Kl6Mn" + "T3Blbk" + "FJ" + "Ab1Cd2Ef3Gh4Ij5Kl6Mn"),
+    ("openai-api-key", "sk-" + "svcacct-" + "Ab1_" * 18 + "Ab" + "T3Blbk" + "FJ" + "Cd2-" * 18 + "Cd"),
+    ("stripe-live-key", "rk_" + "live_" + "Ab1" * 9),
+    ("slack-token", "xox" + "p-" + "1234567890" + "-" + "1234567890123" + "-" + "1234567890123" + "-" + "ab12" * 8),
+    ("slack-token", "xapp" + "-1-" + "A01B2C3D4E5" + "-" + "1234567890123" + "-" + "ab12" * 8),
+    ("gitlab-pat", "glpat-" + "Ab1_-" * 8 + "." + "ab" + "1234567"),
+]
 # Text that must pass untouched: placeholders, short look-alikes, ordinary output.
 HARMLESS = [
     "postgres://user:password@localhost:5432/app",
     "postgresql://user:changeme@example.com/app",
     "postgres://user:$DB_PASSWORD@example.com/app",
     "sbp_short", "npg_abc", "AKIA1234", "sk_live", "ghp_tooshort", "-----BEGIN CERTIFICATE-----",
+    "sk-ant-api03-short", "sk_live_short", "xoxb-token", "xoxo-hello-world-again", "xapp-1-short", "AIzaShort", "npm_config_registry", "glpat-short",
+    "task_live_notifications are on", "sk-proj-short", "https://example.com/mask_live_status_page",
     "On branch main\nnothing to commit, working tree clean\n", "", "Exit code 1\nError: Cannot find module 'express'",
 ]
 
@@ -47,6 +66,10 @@ class Patterns(unittest.TestCase):
             text, names = secret_patterns.redact(f"before {secret} after")
             self.assertEqual(text, f"before [REDACTED:{name}] after", name)
             self.assertEqual(names, [name], name)
+
+    def test_other_shapes_of_a_service_are_replaced_by_the_same_name(self):
+        for name, secret in VARIANTS:
+            self.assertEqual(secret_patterns.redact(f"before {secret} after"), (f"before [REDACTED:{name}] after", [name]), name)
 
     def test_placeholders_and_ordinary_output_are_left_alone(self):
         for text in HARMLESS:

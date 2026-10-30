@@ -1,0 +1,2 @@
+# The synthetic Lemon Squeezy fixture as first committed; the line now carries an inline gitleaks:allow and history is not rewritten.
+c4b405351bdbf86407feb38369f3195b4dd67c86:tests/test_secret_output_scan.py:generic-api-key:24

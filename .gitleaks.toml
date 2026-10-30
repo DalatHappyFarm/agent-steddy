@@ -1,0 +1,10 @@
+# Scanner settings: the default rules plus one skip.
+# Python folds "a" + "b" into one string when it compiles, so a __pycache__ folder next to the tests holds the synthetic keys whole.
+# Those files are git-ignored, and `gitleaks dir` does not read .gitignore.
+title = "agent-steddy"
+
+[extend]
+useDefault = true
+
+[allowlist]
+paths = ['''(^|/)__pycache__/''']
