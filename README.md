@@ -5,7 +5,7 @@ Guardrails, gates and a learning loop for a team of Claude Code agents, packaged
 <!-- diagram source: docs/diagrams/architecture.json -->
 ![agent-steddy: Claude Code fires its events at the plugin's hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which reads the project config, keeps that clock and writes the project's records under docs/agents; agents read the skills, and the templates are copied into the project's agents and role cards.](docs/diagrams/architecture.svg)
 
-> Status: version 0.3.1, early.
+> Status: version 0.4.0, early.
 > Tested with Claude Code 2.1.314 on macOS; it needs `python3` 3.9 or later and `git` on the PATH.
 > It works in Claude Code only: the `bin/` folder keeps it out of Claude.ai and Cowork.
 

@@ -1,6 +1,6 @@
 {
   "name": "agent-steddy",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Guardrails, gates and a learning loop for a team of Claude Code agents.",
   "author": { "name": "DalatHappyFarm" },
   "repository": "https://github.com/DalatHappyFarm/agent-steddy",

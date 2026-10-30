@@ -13,7 +13,7 @@ A new session picks up at the first unticked step.
 - [x] 8. Open-source audit (secrets, private names, git history), then publish when the owner says so.
 - [x] 9. Learning loop automation (rule keys, repeat notice, lessons check and promote, the reminder line) and the single-agent-loop defaults in the method.
 - [x] 10. Ideas from pstack: resume notes, rules for checks and lessons, the brief budget, auditor re-run commands, the hand-back status and metric verdicts.
-- [ ] 11. Method rules from pstack's principles, the premise nudge, pstack as a companion for engineering principles, and named metrics rows.
+- [x] 11. Method rules from pstack's principles, the premise nudge, pstack as a companion for engineering principles, and named metrics rows.
 
 ## Facts found on the way
 
