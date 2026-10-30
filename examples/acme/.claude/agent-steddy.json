@@ -39,6 +39,9 @@
     "enabled": true,
     "text": "Pass the seven gates for this request, record decisions with `agent-steddy record decision`, and commit only when asked."
   },
+  "nudges": {
+    "premise": true
+  },
   "records": {
     "lessons": "docs/agents/lessons.md",
     "metrics": "docs/agents/metrics.jsonl",

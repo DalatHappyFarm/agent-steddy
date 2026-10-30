@@ -227,6 +227,27 @@ class WholeTask(unittest.TestCase):
             self.assertEqual(run_hook("gate_reminder.py", prompt, project)["hookSpecificOutput"]["additionalContext"], CONFIG["reminder"]["text"])
             self.assertFalse((project / records["walls"]).exists())
 
+    def test_a_command_that_keeps_failing_earns_the_premise_nudge_until_the_example_config_turns_it_off(self):
+        self.assertEqual(CONFIG["nudges"], {"premise": True})
+        command = CONFIG["verifyCommand"]
+
+        def failed(number, session="s1"):
+            return {"hook_event_name": "PostToolUseFailure", "tool_name": "Bash", "tool_use_id": f"toolu_{number}", "session_id": session,
+                    "tool_input": {"command": command}, "error": "Exit code 2", "duration_ms": 30}
+
+        with copy_of_example() as project:
+            self.assertIsNone(run_hook("tool_timing.py", failed(1), project, args=["fail"]))
+            self.assertIsNone(run_hook("tool_timing.py", failed(9, session="s2"), project, args=["fail"]))  # another session starts its own count
+            nudge = run_hook("tool_timing.py", failed(2), project, args=["fail"])["hookSpecificOutput"]
+            self.assertEqual(nudge["hookEventName"], "PostToolUseFailure")
+            self.assertTrue(nudge["additionalContext"].startswith("This command failed 2 times in a row in this session. "), nudge)
+            config = json.loads((project / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
+            config["nudges"]["premise"] = False
+            (project / ".claude" / "agent-steddy.json").write_text(json.dumps(config), encoding="utf-8")
+            self.assertIsNone(run_hook("tool_timing.py", failed(3), project, args=["fail"]))
+            slow = agent_steddy("metrics", "slow", "--days", "1", cwd=project).stdout  # the new fields leave the report as it was
+            self.assertRegex(slow, rf"(?m)^ +4 +\S+ +\S+ +4 +{re.escape(command)}$")
+
     def test_a_pause_is_picked_up_with_the_commit_made_after_it_and_then_cleared(self):
         for folder in [None, "docs/agents/resume"]:  # the example's own setting, then the notes kept in the repo
             with self.subTest(folder=folder), copy_of_example() as project:

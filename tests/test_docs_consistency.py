@@ -1,12 +1,13 @@
 """The docs that teach the method (the skills, the templates and the README) must agree with the code they name.
 
-Ten checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
+Eleven checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
 every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the README and the config reference;
 every key of the config defaults has a row in the config reference;
 the README status line names the manifest's version;
 the metric verdict rule in the config reference states the two constants of scripts/metrics.py;
 the method rules that must stand in more than one place (the two questions before a Rule line, a check that counts as enforced only after it failed, the brief budget, the auditor's re-run commands, the hand-back status) do;
 the rules inside the gates are grouped by gate and each names its pstack principle, and the three that an implementer meets most stand in the implementer template and its example too;
+the premise nudge's text, threshold and switch in the config reference and the README are the code's, and the text points at a rule the gates skill has;
 every backticked built-in rule id is listed in the README table;
 every relative link resolves, and its #anchor exists when the target is a Markdown file.
 """
@@ -23,6 +24,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import cli  # noqa: E402
 import metrics  # noqa: E402
 import project_config  # noqa: E402
+import tool_timing  # noqa: E402
 
 README = ROOT / "README.md"
 METHOD_DOCS = sorted([README, *ROOT.glob("skills/**/*.md"), *ROOT.glob("templates/**/*.md")])
@@ -224,6 +226,33 @@ class RulesInsideTheGates(unittest.TestCase):
     def test_the_readme_credit_line_names_the_principles_that_became_rules(self):
         credit = squash((ROOT / "README.md").read_text(encoding="utf-8"))
         self.assertIn("seven principles that became the rules inside the gates", credit)
+
+
+class PremiseNudge(unittest.TestCase):
+    def test_the_config_reference_states_the_text_the_threshold_and_the_switch_of_the_code(self):
+        config = squash((ROOT / "docs" / "config.md").read_text(encoding="utf-8"))
+        self.assertIn(squash(tool_timing.NUDGE.format(n="<n>")), config)
+        self.assertIn(f"`PREMISE_FAILS` = {tool_timing.PREMISE_FAILS} failures in a row", config)
+        self.assertIn(f"the last `TAIL` bytes of the log ({tool_timing.TAIL // 1024} KB)", config)
+        self.assertIn("`nudges.premise`", config)
+        self.assertEqual(project_config.DEFAULTS["nudges"], {"premise": True})
+        source = (ROOT / "scripts" / "tool_timing.py").read_text(encoding="utf-8")
+        for name in ("PREMISE_FAILS", "TAIL", "NUDGE"):  # each number and the text are defined once and used by name
+            self.assertEqual(len(re.findall(rf"^{name} = ", source, re.M)), 1, name)
+
+    def test_the_readme_hooks_table_and_the_gates_skill_name_the_nudge_and_its_switch(self):
+        readme = squash((ROOT / "README.md").read_text(encoding="utf-8"))
+        row = next(line for line in readme.split(" | ") if line.startswith("Logs how long the command took"))
+        self.assertIn("premise nudge", row)
+        self.assertIn("`nudges.premise` turns it off", row)
+        skill = squash((ROOT / "skills" / "gates" / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertIn("**Attack the premise.**", skill)  # the rule the nudge text names
+        self.assertIn("The premise nudge points at this rule", skill)
+        self.assertTrue(tool_timing.NUDGE.endswith("(gates skill, attack the premise)."))
+
+    def test_the_example_config_names_the_switch(self):
+        example = json.loads((ROOT / "examples" / "acme" / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
+        self.assertEqual(example["nudges"], {"premise": True})
 
 
 class RuleIds(unittest.TestCase):

@@ -34,6 +34,7 @@ DEFAULTS = {
     "commands": {"deny": [], "askFromSubagent": [], "alwaysAsk": []},
     "resume": {"folder": None},  # None keeps the resume notes in the local state; a project-relative folder keeps them in the repo
     "reminder": {"enabled": True, "text": DEFAULT_REMINDER},
+    "nudges": {"premise": True},  # the premise nudge of tool_timing.py
     "records": {
         "lessons": "docs/agents/lessons.md",
         "metrics": "docs/agents/metrics.jsonl",

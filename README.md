@@ -32,7 +32,7 @@ Hooks fire on events, not on gates:
 - The session start hook (`session_start.py`) runs when a session starts, resumes or is compacted: when the branch has a resume note it points at it.
 - The gate reminder (`gate_reminder.py`) runs on every prompt: it adds the gates to the prompt and starts the task clock.
 - When the work is delegated, `guard_agent.py` checks a subagent when it starts, `guard_write.py` keeps a fenced agent inside its paths, and `stop_check.py` blocks an incomplete hand-back once.
-- The Bash hooks run on every command, in the main session and in a subagent: `guard_bash.py` checks it, `tool_timing.py` times it and `secret_output_scan.py` hides a secret in its output.
+- The Bash hooks run on every command, in the main session and in a subagent: `guard_bash.py` checks it, `tool_timing.py` times it (and tells the agent to test its premise when a command has failed twice in a row) and `secret_output_scan.py` hides a secret in its output.
 - Gates 6 and 7 are commands, not hooks: the [finish skill](skills/finish/SKILL.md) records the decisions, the retro and the metrics line, commits the record files by path, and runs `agent-steddy record finish`, which verifies the branch, fast-forwards the working branch onto it and never pushes.
 
 ## Layout
@@ -117,7 +117,7 @@ The data and the notes are local state in the git common dir (`.git/agent-steddy
 
 | Hook | Runs | What it does |
 | --- | --- | --- |
-| `tool_timing.py` | before and after every Bash command | Logs how long the command took, the agent type and whether it failed, with the command normalized (no `cd` prefix, relative paths, no heredoc body, secrets redacted). |
+| `tool_timing.py` | before and after every Bash command | Logs how long the command took, the session, the agent and whether it failed, with the command normalized (no `cd` prefix, relative paths, no heredoc body, secrets redacted). After a failure that is the second or later in a row for the same command in the session, it adds the premise nudge: stop, write the premise of the fixes as one sentence and test it (`nudges.premise` turns it off). |
 | `secret_output_scan.py` | after every Bash command | Replaces a secret in the output the agent reads with `[REDACTED:<pattern>]` and tells the agent to report it. After a failed command it can only warn. It never prints the value. |
 | `session_start.py` | when a session starts, resumes, is cleared, is compacted or is forked (`SessionStart`) | When the checked out branch has a resume note, adds the line `Resume note for <branch> from <date>: run agent-steddy resume before you start.` to the context, and nothing otherwise. |
 | `gate_reminder.py` | when a prompt is submitted | Adds the seven gates (or `reminder.text`) to the prompt context, with one more line while a rule is seen twice and not promoted, and starts the task clock when no task is pending (not on a background task's notification). |

@@ -34,6 +34,7 @@ Unknown keys are kept and are not an error.
 | `resume.folder` | `null` | `scripts/resume.py`, `scripts/session_start.py`, `scripts/record.py` |
 | `reminder.enabled` | `true` | `scripts/gate_reminder.py` |
 | `reminder.text` | the seven gates | `scripts/gate_reminder.py` |
+| `nudges.premise` | `true` | `scripts/tool_timing.py` |
 | `records.lessons` | `"docs/agents/lessons.md"` | `scripts/record.py`, `scripts/lessons.py`, `scripts/gate_reminder.py` |
 | `records.metrics` | `"docs/agents/metrics.jsonl"` | `scripts/metrics.py` |
 | `records.decisions` | `"docs/agents/decisions.md"` | `scripts/record.py` |
@@ -69,6 +70,7 @@ Unknown keys are kept and are not an error.
 - `reminder.enabled` turns the per-prompt reminder off when it is `false`; the task clock still starts.
 - `reminder.text` is the text added to the context of every prompt; the default lists the seven gates.
   An empty text adds nothing.
+- `nudges.premise` turns the [premise nudge](#premise-nudge) off when it is `false`; the command is still logged.
 - `records.*` are paths relative to the project root: the lessons file, the metrics file, the decisions file, the folder of the role cards and the walls file.
   The command creates the file and its folder when it first writes to it; the role cards are never created, since `lessons promote` writes into a card that exists (copy `templates/roles/role-card.md` from the plugin).
 - `records.roles` is the folder of the role cards, one `<role>.md` for each role; `lessons promote --to <role>` writes into the card of that name, and `lessons check` reads every card of the folder.
@@ -164,6 +166,9 @@ When a pattern matches, the agent gets a note that names the pattern and never t
 
 The same fail-open rule applies: any internal error prints nothing and the output stays as it was.
 
+After a failed command the [tool timing](#tool-timing) hook can add a note too, the [premise nudge](#premise-nudge).
+The two hooks run in parallel and each prints its own `additionalContext`, which Claude Code hands to the agent as it is; see the premise nudge for what the hooks reference says.
+
 ## Local state
 
 The kit keeps a little state per project, and none of it is committed: the pending task clock, the tool timing log and the resume notes.
@@ -187,10 +192,12 @@ It runs three times per command: `pre` before it (`PreToolUse`), and `post` afte
 `pre` stores the start time under the tool call id; `post` and `fail` append one line to `tool-times.jsonl` and delete the mark:
 
 ```json
-{"ts": "2026-10-29T17:40:02", "agent": "main", "ms": 2500, "status": "ok", "cmd": "make test"}
+{"ts": "2026-10-29T17:40:02", "agent": "main", "ms": 2500, "status": "ok", "cmd": "make test", "session_id": "abc123"}
 ```
 
 - `agent` is the agent type from the hook input, and `main` in the main session.
+- `session_id` is the session id of the hook input, and `agent_id` is the id of the subagent the command ran in; the main session has no `agent_id`, so its lines have none.
+  A line written before these fields existed has neither, and `metrics slow` and the nudge read it as before.
 - `ms` is the `duration_ms` that Claude Code reports with the result when it does; that leaves out the time the owner took to answer a permission prompt.
   Otherwise it is the time from the mark to the `post` hook.
   A result with neither a duration nor a mark is not logged.
@@ -198,7 +205,30 @@ It runs three times per command: `pre` before it (`PreToolUse`), and `post` afte
   A leading `cd <path> &&` is dropped, the project root and the working directory become relative paths, temp paths become `<tmp>`, and heredoc bodies are removed.
   Secrets are replaced by `[REDACTED:<pattern>]` with the patterns of the [secret output scan](#secret-output-scan), and the text is cut to 400 characters after that.
 - A command that was denied or interrupted leaves a mark and no line; `metrics slow` deletes marks older than a day.
-- The hook prints nothing, never blocks and exits 0 whatever happens.
+- The hook never blocks and exits 0 whatever happens; it prints nothing except the premise nudge below.
+
+### Premise nudge
+
+A fix cycle is run, edit, run, and a command that keeps failing through it usually means the fixes share a wrong premise.
+After the `fail` hook has logged a failure, it counts how many of the latest runs of that command failed in a row, this one included, and from the second one on it adds one line to what the agent reads:
+
+```text
+This command failed <n> times in a row in this session. If the fixes between the runs rest on one premise, stop: write that premise as one sentence and test it before the next fix (gates skill, attack the premise).
+```
+
+- The runs counted are those of the same normalized command (`cd x && make test` and `make test` are one command, as in the log) by the same session and the same agent: the same `session_id` and the same `agent_id`, or none in the main session.
+  Other commands between the runs do not matter, and a run of another session or agent is not counted, nor is a line from before these fields existed.
+- A success of that command ends the streak, and the count starts again at the next failure.
+- The nudge speaks from `PREMISE_FAILS` = 2 failures in a row; the number is that constant of `scripts/tool_timing.py` and is written nowhere else.
+- The hook reads only the last `TAIL` bytes of the log (256 KB), so the cost stays small however long the log grows; a run older than that is not seen, and the count can only come out lower.
+- The line holds no text of the command, so it can never repeat a secret.
+- The nudge counts failures, not premises: whether the fixes share one is the agent's judgment, and the [gates skill](../skills/gates/SKILL.md#rules-inside-the-gates) says what to do when they do.
+- `nudges.premise` set to `false` turns it off; the command is still logged.
+- It needs a session id; an input without one is logged and never nudges.
+
+Both the secret scan and the timing hook run on `PostToolUseFailure`, and each may print an `additionalContext`.
+The Claude Code hooks reference (checked 2026-10-30) says that matching hooks run in parallel and that "when several hooks return `additionalContext` for the same event, Claude receives all of the values".
+So each hook speaks for itself: the nudge does not include the scan's note, the scan does not include the nudge, and neither depends on the order in which they finish.
 
 ## Gate reminder
 

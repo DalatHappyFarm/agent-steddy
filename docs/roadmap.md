@@ -13,6 +13,7 @@ A new session picks up at the first unticked step.
 - [x] 8. Open-source audit (secrets, private names, git history), then publish when the owner says so.
 - [x] 9. Learning loop automation (rule keys, repeat notice, lessons check and promote, the reminder line) and the single-agent-loop defaults in the method.
 - [x] 10. Ideas from pstack: resume notes, rules for checks and lessons, the brief budget, auditor re-run commands, the hand-back status and metric verdicts.
+- [ ] 11. Method rules from pstack's principles, the premise nudge, pstack as a companion for engineering principles, and named metrics rows.
 
 ## Facts found on the way
 
@@ -85,3 +86,9 @@ A new session picks up at the first unticked step.
   The tests pin both readings of the rule on sample numbers computed with `statistics`; none of it was checked against a real project's metrics file.
 - Fixed 2026-10-30 in 0.3.1: a turn that only delivers a background task's notification fires `UserPromptSubmit` too, with a prompt that starts with `<task-notification>` and no other field that tells it apart (captured in a live session with a hook that logged its input), so the gate reminder started a task clock with no prompt behind it once `metrics log` had closed the last one.
   The reminder now starts no clock on such a turn; the new test failed on the old hook and passes on the fix, and in a live session (Haiku, `--plugin-dir`) a notification that arrived after `metrics log` left no pending task.
+- Checked 2026-10-30 against the Claude Code hooks reference (https://code.claude.com/docs/en/hooks) for step 11: "when an event fires, its matching hooks run in parallel", and "when several hooks return `additionalContext` for the same event, Claude receives all of the values"; the 10,000 character cap is measured on each string on its own.
+  `PostToolUseFailure` takes `hookSpecificOutput.additionalContext` ("string added to Claude's context alongside the error"), and its input has the common fields `session_id` and, in a subagent, `agent_id` and `agent_type`.
+  So the secret scan and the timing hook, which both run on `PostToolUseFailure`, each print their own note and need no coordination; the docs say nothing about the order of the values.
+- Decided 2026-10-30 for step 11: the premise nudge counts the failures of one normalized command by one session and one agent, newest first, until a success; the threshold is the constant `PREMISE_FAILS` (2) in `scripts/tool_timing.py`, and the hook reads only the last 256 KB of the timing log.
+  It counts failures, not premises, so it can be wrong about a command that fails for a new reason each time; the text says "if the fixes rest on one premise" for that reason.
+  Verified by unit tests and the hook process only; not checked in a live Claude Code session yet.
