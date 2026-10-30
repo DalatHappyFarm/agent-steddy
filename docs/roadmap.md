@@ -66,7 +66,10 @@ A new session picks up at the first unticked step.
 - Checked 2026-10-30 against the Claude Code hooks reference (https://code.claude.com/docs/en/hooks) for step 10: `SessionStart` has the sources `startup`, `resume`, `clear`, `compact` and `fork` (the docs give no version for `compact` or `fork`), and a hook with no matcher runs for all of them.
   It accepts `hookSpecificOutput.additionalContext` with `hookEventName` set to `SessionStart`, which "adds context for Claude" at the start of the conversation, before the first prompt; plain stdout is added as context too, and the event has no blocking or decision control.
   The docs say it runs on every session, so a hook must be fast; the default timeout of a command hook is 600 seconds, and the kit sets 5.
-  Not checked in a live session: that the one line reaches the agent after a compaction.
+- Checked 2026-10-30 in live Claude Code sessions (Haiku, `--plugin-dir`, a throwaway copy of `examples/acme` on a branch `feat/pricing`): `pause` saved the note under `.git/agent-steddy/resume/feat__pricing.md`, and a new session quoted `Resume note for feat/pricing from 2026-10-30 14:40: run agent-steddy resume before you start.` from its context.
+  After one more commit, `resume` printed the note and listed that commit under "Since the note"; after `resume --clear` the next session found no line.
+  A `/compact` in a resumed session (42,436 tokens down to 8,536) fired `SessionStart:compact`, and the hook returned the same line right after the compaction; `SessionStart:resume` returned it when the session was resumed.
+  On a copy of a real project's metrics file, the verdicts called a large drop in the median minutes of L tasks inconclusive, because neither week had 5 such tasks, and a first-pass share that moved by one point no measurable difference.
 - Decided 2026-10-30 for step 10: a resume note is a claim, so `resume` ends with the reminder to check Done against git and the verify command, and the note stores the full HEAD hash, which is what `git log <head>..HEAD` needs.
   The date has the time, since two pauses of one day differ.
   The notes live in the git common dir (shared by the worktrees) or in `resume.folder`; the kit commits neither, and `record finish` leaves the deletion of a committed note to the person, since it never commits.
