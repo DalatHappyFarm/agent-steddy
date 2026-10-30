@@ -36,6 +36,8 @@ agent-steddy record lesson --task "<task>" --roles <a>,<b> --worked "<one line>"
 ```
 
 `--roles` is comma separated, and every value is one line.
+Before you write the rule, ask two questions: will it still be true in six months, and would it make a later agent decide differently?
+If the answer to either is no, write `none`; something that happened once is a fact for the Exposed line, not yet a rule.
 Name the roles as the role cards are named: `web` for `docs/agents/roles/web.md`, so that the command can suggest the card to promote a repeated rule into.
 The entry goes to the top of the lessons file, above the older ones.
 
@@ -47,7 +49,8 @@ Read them, then re-run with `--key <existing>` when it is the same rule, or with
 When the command prints `<key> is now seen <n> times`, the rule repeated and is due for promotion:
 
 - Decide the target: the role card the rule belongs to, or the walls file when it is about safety, data or money or a role keeps breaking it.
-  When a machine can check the rule, also add a check, such as a `commands.deny` entry or a `handback.required` item.
+  When a machine can check the rule, also add a check, such as a `commands.deny` entry, a `handback.required` item, a hook or a test.
+  The check counts as enforced only after you ran it on the error the lessons recorded and it failed there; keep that output for the report, and until then call the rule prose.
 - Run the command the notice printed, for example `agent-steddy lessons promote <key> --to <role>` or `--to walls`; `--text "<wording>"` replaces the rule text with a final wording.
 - The changed role card or walls file and the lessons file are committed in step 5.
 

@@ -1,8 +1,9 @@
 """The docs that teach the method (the skills, the templates and the README) must agree with the code they name.
 
-Six checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
+Seven checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
 every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the README and the config reference;
 every key of the config defaults has a row in the config reference;
+the method rules that must stand in more than one place (the two questions before a Rule line, a check that counts as enforced only after it failed, the brief budget, the auditor's re-run commands) do;
 every backticked built-in rule id is listed in the README table;
 every relative link resolves, and its #anchor exists when the target is a Markdown file.
 """
@@ -106,6 +107,51 @@ class ConfigKeys(unittest.TestCase):
         self.assertIn("resume.folder", keys)
         for key in keys:
             self.assertIn(key, rows, f"docs/config.md has no row for {key}")
+
+
+def squash(text):
+    return " ".join(text.split())
+
+
+def lesson_help():
+    """The help text that `agent-steddy record lesson -h` prints."""
+    for action in cli.build_parser()._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for inner in action.choices["record"]._actions:
+                if isinstance(inner, argparse._SubParsersAction):
+                    return squash(inner.choices["lesson"].format_help())
+
+
+class MethodRules(unittest.TestCase):
+    def read(self, relative):
+        return squash((ROOT / relative).read_text(encoding="utf-8"))
+
+    def test_the_two_questions_before_a_rule_line_are_asked_in_the_skills_and_the_command_help(self):
+        questions = "will it still be true in six months, and would it make a later agent decide differently?"
+        for text, where in [(self.read("skills/gates/SKILL.md"), "gates skill"), (self.read("skills/finish/SKILL.md"), "finish skill"), (lesson_help(), "record lesson -h")]:
+            self.assertIn(questions, text, where)
+        self.assertIn("a fact for the Exposed line, not yet a rule", self.read("skills/gates/SKILL.md"))
+        self.assertIn("a fact for the Exposed line, not yet a rule", self.read("skills/finish/SKILL.md"))
+
+    def test_a_check_counts_as_enforced_only_after_it_failed_on_the_recorded_error(self):
+        for relative in ["skills/gates/SKILL.md", "skills/finish/SKILL.md"]:
+            text = self.read(relative)
+            self.assertIn("counts as enforced only after", text, relative)
+            self.assertIn("the error the lessons recorded", text, relative)
+        self.assertIn("A green test proves only what the test measures.", self.read("skills/gates/SKILL.md"))
+
+    def test_the_brief_has_a_budget_line_and_no_number_for_it(self):
+        text = (ROOT / "templates" / "brief.md").read_text(encoding="utf-8")
+        self.assertIn("Budget: read at most <N> files; hand back at most <M> lines, and list every file you read.\n", text)
+        sentence = next(line for line in text.splitlines() if line.startswith("- Pick the budget"))
+        self.assertIn("no measured default", sentence)
+        self.assertNotRegex(sentence, r"\d")
+
+    def test_the_auditor_template_and_its_example_ask_for_the_command_the_output_and_a_dropped_section(self):
+        for relative in ["templates/agents/auditor.md", "examples/acme/.claude/agents/acme-auditor.md"]:
+            text = self.read(relative)
+            self.assertIn("the command that shows the finding and the output it printed", text, relative)
+            self.assertIn("The report ends with a Dropped section: how many candidate findings you dropped, and why.", text, relative)
 
 
 class RuleIds(unittest.TestCase):

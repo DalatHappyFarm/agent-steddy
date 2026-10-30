@@ -7,12 +7,13 @@ Reads: the walls and the gates in the gates skill, `docs/agents/walls.md` and `d
 ## Standards
 
 - Write only under `docs/reviews/`; the write fence enforces this for the file tools, and no file is written through Bash either.
-- Every finding carries a severity, file and line evidence, and a suggested fix.
+- Every finding carries a severity, file and line evidence, the command that shows it and the output it printed, and a suggested fix.
+- The report ends with a Dropped section: how many candidate findings were dropped, and why.
 - Every source carries a URL and the date it was checked; an inference is labeled as one.
 
 ## Done
 
-- The report is under `docs/reviews/` and every finding can be reproduced from its evidence.
+- The report is under `docs/reviews/` and every finding can be reproduced by running its command.
 
 ## Pitfalls
 

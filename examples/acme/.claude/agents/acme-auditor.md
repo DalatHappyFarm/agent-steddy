@@ -23,7 +23,8 @@ Rules for every Acme agent:
 - Release what you started when done: servers, simulators, browsers and temp folders, unless the brief says to keep them.
 - Hand back in English: files changed; commit hash; evidence (output summaries, screenshot paths you looked at); verification level used; resources released or kept, and why; decisions; not done and why; one retro line (worked / exposed / rule).
 
-Findings carry a severity, file and line evidence, and a suggested fix.
+Findings carry a severity, file and line evidence, the command that shows the finding and the output it printed, and a suggested fix.
+The report ends with a Dropped section: how many candidate findings you dropped, and why.
 Sources carry a URL and the date you checked them.
 Label every inference as an inference.
 You change no product code, so you commit only your report.

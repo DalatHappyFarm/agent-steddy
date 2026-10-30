@@ -67,8 +67,9 @@ def build_parser():
     decision.add_argument("area", help="a short tag such as app or website")
     decision.add_argument("text", help="one line: the decision and why")
     lesson = records.add_parser("lesson", help="put an entry at the top of the lessons file")
+    helps = {"roles": "comma separated", "rule": "one line; first ask: will it still be true in six months, and would it make a later agent decide differently? if not, none (something that happened once is a fact for --exposed, not yet a rule)"}
     for field in ("task", "roles", "worked", "exposed", "rule"):
-        lesson.add_argument(f"--{field}", required=True, help="comma separated" if field == "roles" else "one line")
+        lesson.add_argument(f"--{field}", required=True, help=helps.get(field, "one line"))
     lesson.add_argument("--key", help="a slug that names the rule, such as commit-by-path; the same rule takes the same key; not needed when the rule is none")
     finish = records.add_parser("finish", help="verify a branch, fast-forward the working branch onto it and delete it; never pushes")
     finish.add_argument("branch")

@@ -14,6 +14,7 @@ Scope: only <paths>.
 Owner decisions already made: <list>.
 Open questions: decide them by the project's principles, and log each one.
 Read narrowly: <the sections or files that matter>.
+Budget: read at most <N> files; hand back at most <M> lines, and list every file you read.
 
 Done means:
 - <criterion 1, for example: the verify command passes>
@@ -27,6 +28,7 @@ For the agent types listed in `handback.agents`, the kit's `stop_check` hook che
 
 Notes for the orchestrator:
 
+- Pick the budget before you start the agent: N from the files the task has to read to be done right, and M from what you will really read in the hand-back; the kit has no measured default, so start from your last similar task and change the numbers when an agent runs over or leaves out what you needed.
 - Do not repeat in the brief a wall that a hook already denies.
 - The orchestrator owns the task clock: subagents do not run `agent-steddy metrics start` or `metrics log`.
 - The orchestrator normally runs `agent-steddy record finish` itself, so a subagent does not merge.

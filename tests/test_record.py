@@ -110,6 +110,8 @@ class Lesson(unittest.TestCase):
     def test_the_template_shows_the_key_and_what_a_repeat_does(self):
         self.assertIn("- Rule [<key>]: <the rule to keep, or none>", record.LESSONS_TEMPLATE)
         self.assertIn("agent-steddy lessons promote <key> --to <role>", record.LESSONS_TEMPLATE)
+        self.assertIn("still be true in six months", record.LESSONS_TEMPLATE)
+        self.assertIn("has failed on the error recorded here", record.LESSONS_TEMPLATE)
         self.assertEqual(lessons.parse(record.LESSONS_TEMPLATE), [])  # the format example is not an entry
 
     def test_a_rule_without_a_key_writes_nothing_and_exits_2_with_the_closest_rules_first(self):

@@ -43,7 +43,7 @@ A rule matches the usual forms of a command, not every way around it; [the limit
 | 2 Recall | Load the walls (the table above and the project's walls file, `records.walls`), the role card of each role in play, and the matching lessons. | A short list of the traps to avoid this time. | Work starts before the walls file and the role cards were read. |
 | 3 Shape | Pick the roles and the split, check the side effects on existing behavior, and define Done. | The roles, the split and Done written down; a large task has a spec before any work starts. | Nobody can say what done means, or an owner decision is still open. |
 | 4 Act | Do the work to the role's standards. | The smallest correct change, in the right place and in the files assigned. | A wall or a role rule is broken. |
-| 5 Prove | Act as the adversary: evidence, not promises; reproduce a bug before fixing it. | Evidence at the level chosen on the ladder below: test output, screenshots you looked at, numbers from code, and subagent reports checked with your own eyes. | Anything is red, a screenshot was not looked at, or a claim has no evidence. |
+| 5 Prove | Act as the adversary: evidence, not promises; reproduce a bug before fixing it. | Evidence at the level chosen on the ladder below: test output, screenshots you looked at, numbers from code, and subagent reports checked with your own eyes. | Anything is red, a screenshot was not looked at, a claim has no evidence, or a green test is read as proof of more than it measures. |
 | 6 Record | Log the decisions, write the retro, and add the metrics line. | `agent-steddy record decision` lines, one `agent-steddy record lesson` entry (a rule other than `none` takes `--key`), and one `agent-steddy metrics log` line. | A mistake reached the owner without a lesson entry. |
 | 7 Deliver | Report to the owner, merge the verified branch with `agent-steddy record finish <branch>`, and release what the task started. | The report: what changed, the evidence, what was not done and why, and what the owner must do. | Done from gate 3 is not met. |
 
@@ -86,6 +86,10 @@ Pick up a task that was paused:
 - L: cross-cutting work, new pages, a data model or a brand change; write a spec at gate 3, get the owner's answer on each open decision, and run parallel subagents only as the orchestrator role allows.
 
 ## Verification ladder
+
+A green test proves only what the test measures.
+Before you call a result proof, say what the test would have caught if the change were wrong, and what it cannot see: a test of a helper does not prove the page that calls it, and a test that fakes a call does not prove the call.
+When the claim is wider than the measurement, take a check that measures the claim, or report the claim as unproven.
 
 Pick the lowest level at which this change could still be caught if it were wrong.
 When the diff alone decides the result (a value swap, a rename, a copy or docs edit) and tests pin it, no runtime check is needed.
@@ -158,6 +162,8 @@ Checking each branch and then again after every merge repeats the same checks.
 The kit counts the repeats and writes the promotion; a person or an agent keeps the judgment.
 
 1. Write a retro at gate 6 for every task: three lines (Worked, Exposed, Rule), and ask whether any step was slow or repeated.
+   Before you write the Rule line, ask two questions: will it still be true in six months, and would it make a later agent decide differently?
+   If the answer to either is no, write `none`: something that happened once is a fact for the Exposed line, not yet a rule.
    Record it with `agent-steddy record lesson ... --rule R --key K`.
    A rule other than `none` takes a key, a lowercase slug such as `commit-by-path`, and the same rule recorded again takes the same key.
    Without a key the command writes nothing, exits 2 and lists the closest recorded rules, so the key is chosen by comparing and not from memory.
@@ -165,7 +171,9 @@ The kit counts the repeats and writes the promotion; a person or an agent keeps 
    After the write the command prints `<key> is now seen <n> times` and the `agent-steddy lessons promote <key> --to <role>` command, with the roles of those entries, most common first.
    `agent-steddy lessons check` lists every rule that is due, and the prompt reminder adds one line while any rule is due, so a repeat is not left to memory.
 3. A role rule broken a second time, or any rule about safety, data or money, moves into the walls file instead: `agent-steddy lessons promote <key> --to walls`.
-   When a machine can check it, it also becomes a check: a project config entry such as `commands.deny`, `agents.writeFences` or `handback.required`, or a new built-in rule in the kit.
+   When a machine can check it, it also becomes a check: a project config entry such as `commands.deny`, `agents.writeFences` or `handback.required`, a hook, a test, or a new built-in rule in the kit.
+   A check counts as enforced only after it was shown to fail on the error the lessons recorded: run it on that case and keep the output in the report.
+   Until then the rule stays prose in the Enforced by sense, written down and not enforced, and the walls table does not name the check.
 4. At each merge, prune: `agent-steddy lessons check` also lists role cards with more than 12 pitfalls, pitfalls in one card that look alike, and Rule lines with no key, each with a suggested key.
    Merge duplicate rules, drop stale ones, and keep the cards short.
 5. A procedure done by hand three times becomes a script, a make target or a skill.
@@ -179,7 +187,7 @@ The kit counts the repeats and writes the promotion; a person or an agent keeps 
 | Prune | `lessons check` lists the cards that are too long, the pitfalls that look alike and the unkeyed rules. | Which to merge or drop, and how to word what stays. |
 
 A promoted rule line ends with ` [promoted -> <path>]`, and a promoted key is no longer due.
-A rule that is broken after its promotion needs a check that a machine runs, not another note.
+A rule that is broken after its promotion needs a check that a machine runs, not another note, and that check is not trusted until it has failed on the broken case once.
 
 ## Measuring
 

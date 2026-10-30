@@ -36,8 +36,9 @@ Add them with `agent-steddy record lesson`.
 
 The key is a lowercase slug such as `commit-by-path`; the same rule recorded again takes the same key, so the repeat is counted.
 A rule with no key is only allowed when its text is `none`.
+Write `none` unless the rule will still be true in six months and would make a later agent decide differently; something that happened once is a fact for the Exposed line.
 A rule seen a second time moves up: `agent-steddy lessons promote <key> --to <role>` writes it into a role card, or `--to walls` into the walls file when it is about safety, data or money, and marks its lines ` [promoted -> <path>]`.
-A rule broken after that becomes a check, so it is enforced and not remembered.
+A rule broken after that becomes a check, and the check counts as enforced once it has failed on the error recorded here.
 """
 
 
