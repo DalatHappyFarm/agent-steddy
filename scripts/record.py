@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script directory off the path
+import lessons  # noqa: E402
 import project_config  # noqa: E402
 from local_state import Refuse  # noqa: E402
 
@@ -29,10 +30,13 @@ Add them with `agent-steddy record lesson`.
 ## <date> - <task> - roles: <a, b>
 - Worked: <what held up>
 - Exposed: <what the task showed was missing, or none>
-- Rule: <the rule to keep, or none>
+- Rule [<key>]: <the rule to keep, or none>
 ```
 
-A rule that is broken twice moves up: into a role card, and from there into a hook, so it is enforced and not remembered.
+The key is a lowercase slug such as `commit-by-path`; the same rule recorded again takes the same key, so the repeat is counted.
+A rule with no key is only allowed when its text is `none`.
+A rule seen a second time moves up: `agent-steddy lessons promote <key> --to <role>` writes it into a role card, or `--to walls` into the walls file when it is about safety, data or money, and marks its lines ` [promoted -> <path>]`.
+A rule broken after that becomes a check, so it is enforced and not remembered.
 """
 
 
@@ -62,23 +66,30 @@ def decision(path, area, text):
 
 def first_entry(lines):
     """The index of the first `## ` heading that is not inside a code fence, None when there is none."""
-    fenced = False
-    for index, line in enumerate(lines):
-        if line.startswith("```"):
-            fenced = not fenced
-        elif not fenced and line.startswith("## "):
-            return index
-    return None
+    found = lessons.headings(lines)
+    return found[0] if found else None
 
 
-def lesson(path, task, roles, worked, exposed, rule, today=None):
-    """Put a dated entry at the top of the lessons file, newest first, creating the file from a template when it is missing. Returns its heading."""
+def lesson(path, task, roles, worked, exposed, rule, today=None, key=None):
+    """Put a dated entry at the top of the lessons file, newest first, creating the file from a template when it is missing. Returns its heading.
+
+    A rule other than `none` needs a `key`: without one nothing is written and the refusal lists the closest recorded rules.
+    A rule of `none` takes no key, and a key passed with it is ignored.
+    """
     task, worked, exposed, rule = (one_line(name, value) for name, value in (("task", task), ("worked", worked), ("exposed", exposed), ("rule", rule)))
     role_list = [role.strip() for role in (roles or "").split(",") if role.strip()]
     if not role_list:
         raise Refuse("roles is empty")
+    if "[promoted ->" in rule:
+        raise Refuse("rule must not contain '[promoted ->'; `agent-steddy lessons promote` writes that marker")
+    label = "Rule"
+    if not lessons.is_none(rule):
+        if key is None:
+            raise Refuse(lessons.missing_key(lessons.read(path), rule), 2)
+        lessons.valid_key(key)
+        label = f"Rule [{key}]"
     heading = f"## {today or dt.date.today().isoformat()} - {task} - roles: {', '.join(role_list)}"
-    entry = [heading, f"- Worked: {worked}", f"- Exposed: {exposed}", f"- Rule: {rule}", ""]
+    entry = [heading, f"- Worked: {worked}", f"- Exposed: {exposed}", f"- {label}: {rule}", ""]
     # ponytail: read, insert, write - two agents recording at the same moment could lose an entry; one agent per task records, add a lock if that changes
     lines = (path.read_text(encoding="utf-8") if path.exists() else LESSONS_TEMPLATE).split("\n")
     index = first_entry(lines)

@@ -8,13 +8,13 @@
   agent-steddy metrics selftest                     a quick check of the installed scripts
 
   agent-steddy record decision "<area>" "<text>"    append `- [area] text` to the decisions file
-  agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R
-                                                    put a dated entry at the top of the lessons file
+  agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R [--key K]
+                                                    put a dated entry at the top of the lessons file; a rule other than none needs a key
   agent-steddy record finish <branch> [--full] [--no-verify]
                                                     verify the branch, fast-forward the working branch onto it, delete it; never pushes
 
 The project is `CLAUDE_PROJECT_DIR` when set, else the nearest folder from the cwd up that has `.claude/agent-steddy.json` or `.git`.
-Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused, with the reason on stderr.
+Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused and 2 when the learning loop wants another key or target, with the reason on stderr.
 """
 import argparse
 import json
@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script directory off the path
+import lessons  # noqa: E402
 import local_state  # noqa: E402
 import metrics  # noqa: E402
 import project_config  # noqa: E402
@@ -59,6 +60,7 @@ def build_parser():
     lesson = records.add_parser("lesson", help="put an entry at the top of the lessons file")
     for field in ("task", "roles", "worked", "exposed", "rule"):
         lesson.add_argument(f"--{field}", required=True, help="comma separated" if field == "roles" else "one line")
+    lesson.add_argument("--key", help="a slug that names the rule, such as commit-by-path; the same rule takes the same key; not needed when the rule is none")
     finish = records.add_parser("finish", help="verify a branch, fast-forward the working branch onto it and delete it; never pushes")
     finish.add_argument("branch")
     finish.add_argument("--full", action="store_true", help="append --full to verifyCommand")
@@ -88,7 +90,9 @@ def run_record(args, project, config):
         return [f"added: {record.decision(path, args.area, args.text)}"]
     if args.command == "lesson":
         path = Path(project) / project_config.get(config, "records", "lessons")
-        return [f"added: {record.lesson(path, args.task, args.roles, args.worked, args.exposed, args.rule)}"]
+        heading = record.lesson(path, args.task, args.roles, args.worked, args.exposed, args.rule, key=args.key)
+        notice = [] if lessons.is_none(args.rule) else lessons.repeat_notice(path, args.key)
+        return [f"added: {heading}", *notice]
     record.finish(project, args.branch, config, args.full, args.no_verify)  # prints its own progress, since a verify can take minutes
     return []
 
@@ -103,7 +107,7 @@ def main(argv=None):
             print(line)
     except Refuse as error:
         print(f"agent-steddy: refused: {error}", file=sys.stderr)
-        return 1
+        return error.code
     return 0
 
 

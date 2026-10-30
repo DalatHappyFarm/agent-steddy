@@ -18,7 +18,14 @@ STALE_AUTO_HOURS = 12
 
 
 class Refuse(Exception):
-    """A command of the `agent-steddy` CLI that will not run; the message says why and the CLI exits 1."""
+    """A command of the `agent-steddy` CLI that will not run; the message says why and the CLI exits with `code`.
+
+    The code is 1 by default, and 2 for the learning loop's refusals that ask the caller for another key or target.
+    """
+
+    def __init__(self, message, code=1):
+        super().__init__(message)
+        self.code = code
 
 
 def project_dir():

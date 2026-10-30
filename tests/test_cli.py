@@ -126,10 +126,10 @@ class Records(unittest.TestCase):
             done = agent_steddy(["record", "decision", "api", "keep v1 for a month - clients lag"], root)
             self.assertEqual((done.returncode, done.stdout.strip(), done.stderr), (0, "added: - [api] keep v1 for a month - clients lag", ""))
             self.assertTrue((root / "notes" / "decisions.md").read_text().endswith("- [api] keep v1 for a month - clients lag\n"))
-            done = agent_steddy(["record", "lesson", "--task", "t1", "--roles", "web,docs", "--worked", "w", "--exposed", "e", "--rule", "r"], root)
+            done = agent_steddy(["record", "lesson", "--task", "t1", "--roles", "web,docs", "--worked", "w", "--exposed", "e", "--rule", "r", "--key", "the-key"], root)
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertRegex(done.stdout, r"^added: ## \d{4}-\d\d-\d\d - t1 - roles: web, docs\n$")
-            self.assertIn("- Rule: r\n", (root / "notes" / "lessons.md").read_text())
+            self.assertIn("- Rule [the-key]: r\n", (root / "notes" / "lessons.md").read_text())
             self.assertFalse((root / "docs").exists())
 
     def test_a_refused_record_exits_1_and_a_missing_option_exits_2(self):
@@ -173,6 +173,50 @@ class Records(unittest.TestCase):
             self.assertIn("--no-verify", done.stderr)
             self.assertEqual(agent_steddy(["record", "finish", "feat/x", "--no-verify"], root).returncode, 0)
             self.assertEqual(git(root, "branch", "--format=%(refname:short)").split(), ["main"])
+
+
+
+def lesson(task, rule, key=None, roles="web"):
+    return ["record", "lesson", "--task", task, "--roles", roles, "--worked", "w", "--exposed", "e", "--rule", rule, *(["--key", key] if key else [])]
+
+
+class LearningLoop(unittest.TestCase):
+    def test_a_rule_with_no_key_exits_2_writes_nothing_and_lists_the_closest_rules_on_stderr(self):
+        with project() as root:
+            done = agent_steddy(lesson("t1", "commit by path"), root)
+            self.assertEqual((done.returncode, done.stdout), (2, ""))
+            self.assertTrue(done.stderr.startswith("agent-steddy: refused: a rule needs a key"), done.stderr)
+            self.assertIn("no keyed rule is recorded yet", done.stderr)
+            self.assertFalse((root / "docs").exists())
+            self.assertEqual(agent_steddy(lesson("t1", "commit by path", "commit-by-path"), root).returncode, 0)
+            done = agent_steddy(lesson("t2", "always commit by path"), root)
+            self.assertEqual(done.returncode, 2)
+            self.assertIn("  commit-by-path (seen 1 time): commit by path", done.stderr)
+            self.assertIn("re-run with --key <existing> if it is the same rule, or --key <new-slug> if it is new", done.stderr)
+            self.assertEqual((root / "docs/agents/lessons.md").read_text().count("## 20"), 1)
+
+    def test_the_second_time_a_key_is_recorded_the_notice_names_the_promote_command(self):
+        with project() as root:
+            first = agent_steddy(lesson("t1", "commit by path", "commit-by-path", roles="web,docs"), root)
+            self.assertEqual(first.stdout.count("\n"), 1)  # the heading, no notice
+            second = agent_steddy(lesson("t2", "commit by path always", "commit-by-path", roles="web"), root)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertEqual(second.stdout.splitlines()[1:], [
+                "commit-by-path is now seen 2 times",
+                "agent-steddy lessons promote commit-by-path --to web",
+                "roles in these entries, most common first: web (2), docs (1)",
+                "a rule about safety, data or money goes --to walls instead",
+            ])
+            none = agent_steddy(lesson("t3", "none", roles="web"), root)
+            self.assertEqual((none.returncode, none.stdout.count("\n")), (0, 1))  # a rule of none: no key, no notice
+
+    def test_a_bad_key_exits_2_and_another_refusal_still_exits_1(self):
+        with project() as root:
+            done = agent_steddy(lesson("t1", "r", "Bad Key"), root)
+            self.assertEqual((done.returncode, done.stdout), (2, ""))
+            self.assertIn("bad key 'Bad Key'", done.stderr)
+            done = agent_steddy(["record", "lesson", "--task", "t", "--roles", "web", "--worked", "w", "--exposed", "", "--rule", "none"], root)
+            self.assertEqual(done.returncode, 1)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import lessons  # noqa: E402
 import record  # noqa: E402
 from hook_runner import git, make_repo  # noqa: E402
 from local_state import Refuse  # noqa: E402
@@ -58,7 +59,7 @@ class Decision(unittest.TestCase):
 
 class Lesson(unittest.TestCase):
     def entry(self, **extra):
-        return {"task": "fix the build", "roles": "web, docs", "worked": "tests first", "exposed": "a stale cache", "rule": "clear the cache in CI", "today": "2026-10-29", **extra}
+        return {"task": "fix the build", "roles": "web, docs", "worked": "tests first", "exposed": "a stale cache", "rule": "clear the cache in CI", "key": "clear-the-cache", "today": "2026-10-29", **extra}
 
     def test_a_missing_file_is_created_from_the_template_with_the_entry_below_it(self):
         with folder() as root:
@@ -69,7 +70,7 @@ class Lesson(unittest.TestCase):
             self.assertEqual(lines.count("```text"), 1)
             at = lines.index("## 2026-10-29 - fix the build - roles: web, docs")
             self.assertGreater(at, lines.index("```"))  # below the format block, not inside it
-            self.assertEqual(lines[at + 1:at + 5], ["- Worked: tests first", "- Exposed: a stale cache", "- Rule: clear the cache in CI", ""])
+            self.assertEqual(lines[at + 1:at + 5], ["- Worked: tests first", "- Exposed: a stale cache", "- Rule [clear-the-cache]: clear the cache in CI", ""])
             self.assertEqual(path.read_text()[-1], "\n")
 
     def test_the_newest_entry_goes_first(self):
@@ -98,13 +99,88 @@ class Lesson(unittest.TestCase):
                 path = root / "lessons.md"
                 path.write_text(original)
                 record.lesson(path, **self.entry())
-                self.assertEqual(path.read_text(), "# My lessons\n\n## 2026-10-29 - fix the build - roles: web, docs\n- Worked: tests first\n- Exposed: a stale cache\n- Rule: clear the cache in CI\n", original)
+                self.assertEqual(path.read_text(), "# My lessons\n\n## 2026-10-29 - fix the build - roles: web, docs\n- Worked: tests first\n- Exposed: a stale cache\n- Rule [clear-the-cache]: clear the cache in CI\n", original)
 
     def test_the_date_defaults_to_today(self):
         import datetime
         with folder() as root:
             heading = record.lesson(root / "l.md", **self.entry(today=None))
             self.assertTrue(heading.startswith(f"## {datetime.date.today().isoformat()} - "), heading)
+
+    def test_the_template_shows_the_key_and_what_a_repeat_does(self):
+        self.assertIn("- Rule [<key>]: <the rule to keep, or none>", record.LESSONS_TEMPLATE)
+        self.assertIn("agent-steddy lessons promote <key> --to <role>", record.LESSONS_TEMPLATE)
+        self.assertEqual(lessons.parse(record.LESSONS_TEMPLATE), [])  # the format example is not an entry
+
+    def test_a_rule_without_a_key_writes_nothing_and_exits_2_with_the_closest_rules_first(self):
+        with folder() as root:
+            path = root / "lessons.md"
+            for task, rule, key, today in [("a", "commit by path and never stage everything", "commit-by-path", "2026-10-01"),
+                                           ("b", "commit by path and never stage everything", "commit-by-path", "2026-10-02"),
+                                           ("c", "clear the cache in CI before a build", "clear-the-cache", "2026-10-03"),
+                                           ("d", "read the role card first", "role-card-first", "2026-10-04")]:
+                record.lesson(path, **self.entry(task=task, rule=rule, key=key, today=today))
+            before = path.read_text()
+            with self.assertRaises(Refuse) as caught:
+                record.lesson(path, **self.entry(rule="always commit by path, never git add all", key=None))
+            self.assertEqual(caught.exception.code, 2)
+            lines = str(caught.exception).splitlines()
+            self.assertIn("nothing was written", lines[0])
+            self.assertEqual(lines[1], "closest recorded rules:")
+            self.assertTrue(lines[2].startswith("  commit-by-path (seen 2 times): commit by path"), lines[2])  # the most alike first, with its count and newest text
+            self.assertEqual([line.split()[0] for line in lines[2:5]], ["commit-by-path", "clear-the-cache", "role-card-first"])
+            self.assertEqual(lines[-1], "re-run with --key <existing> if it is the same rule, or --key <new-slug> if it is new")
+            self.assertEqual(path.read_text(), before)
+
+    def test_at_most_five_candidates_are_listed_and_ties_go_by_key(self):
+        with folder() as root:
+            path = root / "lessons.md"
+            for key in ["zz", "bb", "aa", "dd", "cc", "ee", "ff"]:
+                record.lesson(path, **self.entry(rule="same words every time", key=key))
+            with self.assertRaises(Refuse) as caught:
+                record.lesson(path, **self.entry(rule="something else", key=None))
+            self.assertEqual([line.split()[0] for line in str(caught.exception).splitlines()[2:-1]], ["aa", "bb", "cc", "dd", "ee"])
+
+    def test_with_no_recorded_rule_the_refusal_asks_for_a_new_slug(self):
+        with folder() as root:
+            with self.assertRaises(Refuse) as caught:
+                record.lesson(root / "l.md", **self.entry(key=None))
+            self.assertEqual(caught.exception.code, 2)
+            self.assertIn("no keyed rule is recorded yet", str(caught.exception))
+            self.assertIn("--key <new-slug>", str(caught.exception))
+            self.assertFalse((root / "l.md").exists())
+
+    def test_a_key_is_written_after_the_word_rule_and_an_old_line_without_one_still_parses(self):
+        with folder() as root:
+            path = root / "l.md"
+            path.write_text("# L\n\n## 2026-01-01 - old - roles: web\n- Worked: a\n- Exposed: b\n- Rule: write it down\n")
+            record.lesson(path, **self.entry())
+            self.assertEqual([(e.task, e.key, e.rule) for e in lessons.read(path)], [("fix the build", "clear-the-cache", "clear the cache in CI"), ("old", None, "write it down")])
+
+    def test_a_rule_of_none_needs_no_key_and_a_key_passed_with_it_is_dropped(self):
+        with folder() as root:
+            for number, (rule, key) in enumerate([("none", None), ("None", None), ("NONE", None), ("none", "some-key")]):
+                path = root / f"l{number}.md"
+                record.lesson(path, **self.entry(rule=rule, key=key))
+                self.assertIn(f"\n- Rule: {rule}\n", path.read_text(), rule)
+                self.assertEqual(lessons.read(path)[0].key, None)
+
+    def test_a_bad_key_is_refused_with_exit_2_and_nothing_is_written(self):
+        with folder() as root:
+            path = root / "l.md"
+            for key in ["", "Commit", "commit_by_path", "commit by path", "-commit", "commit-", "commit--path", "a" * 41, "caf\u00e9", "a/b", "[x]"]:
+                with self.assertRaises(Refuse, msg=key) as caught:
+                    record.lesson(path, **self.entry(key=key))
+                self.assertEqual(caught.exception.code, 2, key)
+            self.assertFalse(path.exists())
+            for key in ["a", "commit-by-path", "x1-2y", "a" * 40]:
+                record.lesson(path, **self.entry(key=key))
+
+    def test_a_rule_that_carries_the_promoted_marker_is_refused(self):
+        with folder() as root:
+            with self.assertRaises(Refuse):
+                record.lesson(root / "l.md", **self.entry(rule="do x [promoted -> docs/x.md]"))
+            self.assertFalse((root / "l.md").exists())
 
     def test_missing_or_multi_line_fields_are_refused_and_nothing_is_written(self):
         with folder() as root:
