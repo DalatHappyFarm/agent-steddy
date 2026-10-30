@@ -118,7 +118,7 @@ WRAPPERS = [
     "if true; then {}; fi", "while true; do {}; done", "! {}", "{{ {}; }}",
     "bash -c {q}", "sh -c {q}", "zsh -c {q}", "bash -lc {q}", "sudo bash -c {q}", "env A=1 sh -c {q}",
 ]
-DENY_PUSH = {"commands": {"deny": [{"match": "supabase config push", "reason": "No config push."}]}}
+DENY_PUSH = {"commands": {"deny": [{"match": "acme-cli config push", "reason": "No config push."}]}}
 ASKS = {"commands": {"alwaysAsk": ["npm publish"], "askFromSubagent": ["make deploy"]}}
 
 
@@ -180,10 +180,10 @@ class Wrappers(unittest.TestCase):
 
     def test_each_config_rule_sees_through_each_wrapper(self):
         for template in WRAPPERS:
-            for command, config, agent, expected in [("supabase config push", DENY_PUSH, None, "deny"), ("npm publish", ASKS, None, "ask"),
+            for command, config, agent, expected in [("acme-cli config push", DENY_PUSH, None, "deny"), ("npm publish", ASKS, None, "ask"),
                                                      ("make deploy", ASKS, "acme-web", "ask"), ("make deploy", ASKS, None, "allow")]:
                 self.assertEqual(verdict(template.format(command, q=shlex.quote(command)), config, agent)[0], expected, f"{command}: {template}")
-            harmless = "supabase config list"
+            harmless = "acme-cli config list"
             self.assertEqual(verdict(template.format(harmless, q=shlex.quote(harmless)), DENY_PUSH)[0], "allow", template)
 
 

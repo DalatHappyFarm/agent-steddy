@@ -77,7 +77,7 @@ When several rules match, the strictest decision wins and, within it, the first 
 5. `commands.askFromSubagent`, for a subagent only.
 
 So a deny beats an ask, and a built-in rule beats a config rule.
-This holds for a whole line: in `make deploy && supabase config push` the denied half blocks the line even though the other half only asks.
+This holds for a whole line: in `make deploy && acme-cli config push` the denied half blocks the line even though the other half only asks.
 An ask is not a deny: the owner can approve it.
 
 ## Patterns
@@ -272,13 +272,13 @@ The command runs git itself and not through the Bash tool, so the Bash rules do 
 
 ## Command matching
 
-A command pattern is a few words, such as `"supabase config push"`.
+A command pattern is a few words, such as `"acme-cli config push"`.
 It matches a simple command when the program's basename equals the first pattern word.
 The command's positional words are the words that do not start with `-`, after the program.
 The remaining pattern words must appear in order among the positional words; other words may sit between them.
-So `supabase --debug config push --yes`, `supabase --workdir app config push` and `/usr/local/bin/supabase config push` match, and `supabase config list` does not.
-A line is split into simple commands at `;`, `&&`, `||`, `|`, `&`, newlines, backticks and `$(`, so `cd app && supabase config push` matches too.
-Quoted text is never a command, so `echo "supabase config push"` does not match.
+So `acme-cli --debug config push --yes`, `acme-cli --workdir app config push` and `/usr/local/bin/acme-cli config push` match, and `acme-cli config list` does not.
+A line is split into simple commands at `;`, `&&`, `||`, `|`, `&`, newlines, backticks and `$(`, so `cd app && acme-cli config push` matches too.
+Quoted text is never a command, so `echo "acme-cli config push"` does not match.
 Heredoc bodies and comments are skipped.
 
 Wrappers are looked through, at the start of a simple command and in any order:
@@ -288,8 +288,8 @@ Wrappers are looked through, at the start of a simple command and in any order:
 - the shell keywords `!`, `{`, `if`, `then`, `elif`, `else`, `while`, `until` and `do`.
 
 The script of `bash -c`, `sh -c` and `zsh -c` (also `-lc` and similar option clusters) is checked as its own command line, up to three levels deep.
-So `sudo -u root env FOO=1 supabase config push` and `bash -lc "cd app && supabase config push"` both match the pattern above.
-A wrapper word further along does not count: `echo sudo supabase config push` does not match.
+So `sudo -u root env FOO=1 acme-cli config push` and `bash -lc "cd app && acme-cli config push"` both match the pattern above.
+A wrapper word further along does not count: `echo sudo acme-cli config push` does not match.
 
 Limits to know:
 

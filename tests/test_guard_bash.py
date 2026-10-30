@@ -11,7 +11,7 @@ SCRIPT = ROOT / "scripts" / "guard_bash.py"
 sys.path.insert(0, str(ROOT / "scripts"))
 import guard_bash  # noqa: E402
 
-DENY_PUSH = {"commands": {"deny": [{"match": "supabase config push", "reason": "Ask the owner to run config push."}]}}
+DENY_PUSH = {"commands": {"deny": [{"match": "acme-cli config push", "reason": "Ask the owner to run config push."}]}}
 ASKS = {"commands": {"askFromSubagent": ["make deploy", "git push"], "alwaysAsk": ["npm publish"]}}
 
 
@@ -110,7 +110,7 @@ class GuardBash(unittest.TestCase):
     def test_a_wrapper_word_only_counts_at_the_start_of_a_command(self):
         for command in ["echo sudo git stash", "echo env FOO=1 git stash", "git log nohup stash", "ls time git stash", "echo FOO=1 git stash"]:
             self.assertEqual(run(command, DENY_PUSH), "allow", command)
-        self.assertEqual(run("echo sudo supabase config push", DENY_PUSH), "allow")
+        self.assertEqual(run("echo sudo acme-cli config push", DENY_PUSH), "allow")
 
     def test_checks_the_script_of_a_shell_dash_c(self):
         for command in ['bash -c "git stash"', "sh -c 'git stash'", 'zsh -c "git stash"', 'bash -lc "git stash"', 'bash -ec "git stash"',
@@ -118,7 +118,7 @@ class GuardBash(unittest.TestCase):
                         'env A=1 sh -c "git stash" name', 'bash --norc -c "git stash"', 'bash -o pipefail -c "git stash"',
                         "echo hi; bash -c 'git stash'", "bash -c 'git stash' | tee log"]:
             self.assertEqual(run(command), "deny", command)
-        for command in ['bash -c "supabase config push"', "sh -c 'cd x; supabase --debug config push'"]:
+        for command in ['bash -c "acme-cli config push"', "sh -c 'cd x; acme-cli --debug config push'"]:
             self.assertEqual(run(command, DENY_PUSH), "deny", command)
         for command in ['bash -c "git status"', "bash -c 'echo git stash'", "bash script.sh", "bash git stash", "bash -c", "bash -x script.sh -c 'git stash'",
                         "echo bash -c 'git stash'", "bash -c ''", 'dash -c "git stash"']:
@@ -135,12 +135,12 @@ class GuardBash(unittest.TestCase):
         self.assertEqual((out.returncode, out.stdout), (0, ""))
 
     def test_matches_program_basename_then_positional_words(self):
-        pattern = "supabase config push"
-        for command in ["supabase config push", "supabase --debug config push --yes", "/usr/local/bin/supabase config push",
-                        "supabase config push extra"]:
+        pattern = "acme-cli config push"
+        for command in ["acme-cli config push", "acme-cli --debug config push --yes", "/usr/local/bin/acme-cli config push",
+                        "acme-cli config push extra"]:
             self.assertTrue(guard_bash.matches(command.split(), pattern), command)
-        for command in ["supabase config list", "supabase push", "supabase", "supabase config", "echo supabase config push",
-                        "supabase-cli config push", "config push"]:
+        for command in ["acme-cli config list", "acme-cli push", "acme-cli", "acme-cli config", "echo acme-cli config push",
+                        "acme-cli-x config push", "config push"]:
             self.assertFalse(guard_bash.matches(command.split(), pattern), command)
         self.assertFalse(guard_bash.matches(["ls"], ""))
         self.assertFalse(guard_bash.matches([], "ls"))
@@ -157,12 +157,12 @@ class GuardBash(unittest.TestCase):
         self.assertTrue(guard_bash.matches(["make"], "make"))
 
     def test_an_option_value_does_not_hide_a_listed_command(self):
-        for command in ["supabase --workdir app config push", "cd x && supabase --workdir app config push --yes"]:
+        for command in ["acme-cli --workdir app config push", "cd x && acme-cli --workdir app config push --yes"]:
             self.assertEqual(run(command, DENY_PUSH), "deny", command)
 
     def test_denies_a_command_listed_in_the_project_config_with_its_reason(self):
-        for command in ["supabase config push", "supabase --debug config push --yes", "cd app && supabase config push",
-                        "make test; /usr/bin/supabase config push | tee log"]:
+        for command in ["acme-cli config push", "acme-cli --debug config push --yes", "cd app && acme-cli config push",
+                        "make test; /usr/bin/acme-cli config push | tee log"]:
             decision = decide(command, DENY_PUSH)
             self.assertEqual(decision["permissionDecision"], "deny", command)
             self.assertEqual(decision["permissionDecisionReason"], "Ask the owner to run config push.")
@@ -196,12 +196,12 @@ class GuardBash(unittest.TestCase):
         self.assertIsNone(decide("make deploy", ASKS))
 
     def test_a_deny_beats_an_ask(self):
-        both = {"commands": {**DENY_PUSH["commands"], "alwaysAsk": ["supabase config push", "make deploy"], "askFromSubagent": ["supabase config push"]}}
+        both = {"commands": {**DENY_PUSH["commands"], "alwaysAsk": ["acme-cli config push", "make deploy"], "askFromSubagent": ["acme-cli config push"]}}
         for agent in [None, "acme-web"]:
-            decision = guard_bash.judge("supabase config push", agent, both)
+            decision = guard_bash.judge("acme-cli config push", agent, both)
             self.assertEqual(decision, ("deny", "Ask the owner to run config push."))
-            self.assertEqual(run("make deploy && supabase config push", both, agent), "deny")
-            self.assertEqual(run("supabase config push; make deploy", both, agent), "deny")
+            self.assertEqual(run("make deploy && acme-cli config push", both, agent), "deny")
+            self.assertEqual(run("acme-cli config push; make deploy", both, agent), "deny")
         self.assertEqual(run("make deploy", both), "ask")
 
     def test_a_built_in_deny_beats_a_config_deny_and_a_config_ask(self):
@@ -226,12 +226,12 @@ class GuardBash(unittest.TestCase):
         self.assertEqual(decide("npm publish", ASKS)["hookEventName"], "PreToolUse")
 
     def test_allows_other_commands_with_a_config(self):
-        for command in ["supabase config list", "supabase db push", "echo 'supabase config push'", "git status"]:
+        for command in ["acme-cli config list", "acme-cli db push", "echo 'acme-cli config push'", "git status"]:
             self.assertEqual(run(command, DENY_PUSH), "allow", command)
 
     def test_allows_the_listed_command_without_a_config_file_or_with_a_broken_one(self):
-        self.assertIsNone(decide("supabase config push"))
-        self.assertIsNone(decide("supabase config push", ["not", "an", "object"]))
+        self.assertIsNone(decide("acme-cli config push"))
+        self.assertIsNone(decide("acme-cli config push", ["not", "an", "object"]))
 
     def test_built_in_rules_hold_without_the_config_and_with_a_broken_one(self):
         for config in [None, DENY_PUSH, ["not", "an", "object"], {"commands": {"deny": [42]}}, {"commands": "x", "guards": [1]},
@@ -242,7 +242,7 @@ class GuardBash(unittest.TestCase):
 
     def test_a_broken_deny_entry_does_not_hide_a_valid_one_after_it(self):
         config = {"commands": {"deny": [42, {"match": 3}, {"reason": "no match key"}] + DENY_PUSH["commands"]["deny"]}}
-        self.assertEqual(run("supabase config push", config), "deny")
+        self.assertEqual(run("acme-cli config push", config), "deny")
 
     def test_a_project_can_turn_a_built_in_rule_off_by_id(self):
         off = {"guards": {"disable": ["git-stash"]}}
@@ -251,7 +251,7 @@ class GuardBash(unittest.TestCase):
         self.assertIsNone(decide("git stash", off))
         self.assertEqual(run("git stash", {"guards": {"disable": ["no-such-rule"]}}), "deny")
         self.assertEqual(run("git stash", {**DENY_PUSH, **off}), "allow")
-        self.assertEqual(run("supabase config push", {**DENY_PUSH, **off}), "deny")
+        self.assertEqual(run("acme-cli config push", {**DENY_PUSH, **off}), "deny")
 
     def test_the_reason_of_a_built_in_rule_starts_with_its_id(self):
         decision = decide("git stash")
