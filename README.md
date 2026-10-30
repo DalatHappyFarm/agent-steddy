@@ -5,9 +5,11 @@ Guardrails, gates and a learning loop for a team of Claude Code agents, packaged
 <!-- diagram source: docs/diagrams/architecture.json -->
 ![agent-steddy: Claude Code fires its events at the plugin's hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which reads the project config, keeps that clock and writes the project's records under docs/agents; agents read the skills, and the templates are copied into the project's agents and role cards.](docs/diagrams/architecture.svg)
 
-> Status: early build, not published yet. Built step by step; each step is one small commit.
+> Status: version 0.1.0, early.
+> Tested with Claude Code 2.1.314 on macOS; it needs `python3` 3.9 or later and `git` on the PATH.
+> It works in Claude Code only: the `bin/` folder keeps it out of Claude.ai and Cowork.
 
-## What it will do
+## What it does
 
 - Stop the commands that break shared work (destructive git, reading secrets, deploying from a subagent) with hooks, so the rule holds even when a prompt forgets it.
 - Give every task the same seven gates: intake, recall, shape, act, prove, record, deliver.
@@ -35,7 +37,7 @@ Hooks fire on events, not on gates:
 
 ```text
 agent-steddy/
-├── .claude-plugin/plugin.json   plugin manifest
+├── .claude-plugin/              plugin.json, and marketplace.json so this repo is its own marketplace
 ├── bin/agent-steddy             the command for metrics and records (on the Bash PATH while the plugin is enabled)
 ├── hooks/hooks.json             which script runs on which Claude Code event
 ├── scripts/                     the hook scripts and the command's code (Python, standard library only)
@@ -43,8 +45,19 @@ agent-steddy/
 ├── templates/                   agent, role card and brief templates for a project to copy
 ├── examples/acme/               an example project: config, agents and role cards
 ├── docs/                        config reference, roadmap and the diagrams
+├── .github/workflows/test.yml   the tests and the lint on every push and pull request
 └── tests/                       unit tests for the scripts, the hooks run on the example project, and a check that the docs agree with the code
 ```
+
+## Install
+
+```bash
+claude plugin marketplace add DalatHappyFarm/agent-steddy
+claude plugin install agent-steddy@agent-steddy
+```
+
+Inside a Claude Code session, `/plugin marketplace add DalatHappyFarm/agent-steddy` does the first step.
+Then copy [examples/acme/.claude/agent-steddy.json](examples/acme/.claude/agent-steddy.json) into your project's `.claude/` folder and edit it; the next section says how.
 
 ## Configure
 
@@ -134,7 +147,7 @@ The gates skill marks which walls a hook enforces and which ones a person has to
 `tests/test_example_project.py` runs the real hook scripts and the command against it, so the config, the agents and the hooks are proved together.
 Copy it as a starting point, and read it next to the [config reference](docs/config.md).
 
-## Try it locally
+## Develop
 
 ```bash
 claude plugin validate .

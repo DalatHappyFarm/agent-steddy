@@ -1,0 +1,12 @@
+{
+  "name": "agent-steddy",
+  "description": "The agent-steddy plugin: guardrails, gates and a learning loop for a team of Claude Code agents.",
+  "owner": { "name": "DalatHappyFarm" },
+  "plugins": [
+    {
+      "name": "agent-steddy",
+      "source": "./",
+      "description": "Guardrails, gates and a learning loop for a team of Claude Code agents."
+    }
+  ]
+}

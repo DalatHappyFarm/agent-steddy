@@ -35,3 +35,12 @@ A new session picks up at the first unticked step.
   Change the JSON and redraw, never the SVG by hand; `tests/test_diagrams.py` keeps each spec, its SVG and the README alt text equal.
 - Decided 2026-10-29: `examples/acme` is the config, four agents and their role cards, with no product code and no Makefile.
   Its demo deny rule uses a made-up command (`acme-cli config push`), and `tests/test_example_project.py` runs the real hooks and the command against it.
+- Checked 2026-10-30 for step 8: the repo is its own marketplace.
+  `.claude-plugin/marketplace.json` lists the one plugin with `"source": "./"`, which the Claude Code docs (plugin marketplaces) allow, and the entry name equals the `name` in `plugin.json`.
+  With Claude Code 2.1.314, `claude plugin validate .` and `claude plugin validate .claude-plugin/marketplace.json` both pass; the first only warns that the plugin has no icon, which is optional.
+  A live `marketplace add` and `install` from GitHub is not checked yet; it needs the repository to exist.
+- Checked 2026-10-30: gitleaks 8.30.1 finds nothing in the history (`gitleaks git .`) or in the files (`gitleaks dir .`).
+  Python folds `"a" + "b"` into one string when it compiles, so a `__pycache__` folder holds the synthetic test keys whole; `.gitleaks.toml` skips those git-ignored folders and `.gitleaksignore` holds the one old finding in the history.
+- Checked 2026-10-30: the unit tests pass on Python 3.9.6 and 3.14 on macOS.
+  They use no macOS-only tool: every test repo is made with `git init -b` and an explicit `-c user.name` identity, so they do not read the machine's git config.
+  Linux has not been run locally; `.github/workflows/test.yml` runs the tests on Ubuntu and macOS with Python 3.9 and 3.13, and ruff 0.8.4 once.
