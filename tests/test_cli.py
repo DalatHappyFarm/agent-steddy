@@ -175,6 +175,8 @@ class Records(unittest.TestCase):
             self.assertEqual(git(root, "branch", "--format=%(refname:short)").split(), ["main"])
 
 
+CARD = "# Role: Web\n\nMission: build pages.\n\n## Pitfalls\n\n- None recorded yet; the second time a mistake happens, add it here as a rule.\n\n## Tools\n\n- rg\n"
+
 
 def lesson(task, rule, key=None, roles="web"):
     return ["record", "lesson", "--task", task, "--roles", roles, "--worked", "w", "--exposed", "e", "--rule", rule, *(["--key", key] if key else [])]
@@ -217,6 +219,50 @@ class LearningLoop(unittest.TestCase):
             self.assertIn("bad key 'Bad Key'", done.stderr)
             done = agent_steddy(["record", "lesson", "--task", "t", "--roles", "web", "--worked", "w", "--exposed", "", "--rule", "none"], root)
             self.assertEqual(done.returncode, 1)
+
+    def test_check_is_a_report_that_exits_0_and_quiet_prints_one_line_or_nothing(self):
+        with project() as root:
+            done = agent_steddy(["lessons", "check"], root)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual([line for line in done.stdout.splitlines() if not line.startswith(" ")][:1], ["Due: rules seen 2 or more times and not promoted"])
+            self.assertEqual(done.stdout.count("  none\n"), 3)
+            self.assertEqual(agent_steddy(["lessons", "check", "--quiet"], root).stdout, "")
+            for task in ("t1", "t2"):
+                agent_steddy(lesson(task, "commit by path", "commit-by-path"), root)
+            done = agent_steddy(["lessons", "check"], root)
+            self.assertIn("  commit-by-path: seen 2 times", done.stdout)
+            quiet = agent_steddy(["lessons", "check", "--quiet"], root)
+            self.assertEqual((quiet.returncode, quiet.stdout), (0, "Learning loop: 1 rule(s) seen twice and not promoted (commit-by-path); run agent-steddy lessons check.\n"))
+
+    def test_promote_writes_the_card_marks_the_lines_and_refuses_with_exit_2(self):
+        with project() as root:
+            (root / "docs/agents/roles").mkdir(parents=True)
+            (root / "docs/agents/roles/web.md").write_text(CARD)
+            for task in ("t1", "t2"):
+                agent_steddy(lesson(task, "commit by path", "commit-by-path"), root)
+            done = agent_steddy(["lessons", "promote", "commit-by-path", "--to", "ops"], root)
+            self.assertEqual((done.returncode, done.stdout), (2, ""))
+            self.assertIn("agent-steddy: refused: the role card docs/agents/roles/ops.md does not exist; copy templates/roles/role-card.md", done.stderr)
+            done = agent_steddy(["lessons", "promote", "commit-by-path", "--to", "web", "--text", "Commit by path, always."], root)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertRegex(done.stdout.splitlines()[0], r"^added to docs/agents/roles/web\.md: - Commit by path, always\. \(lessons: \d{4}-\d\d-\d\d, \d{4}-\d\d-\d\d\)$")
+            self.assertIn("as [promoted -> docs/agents/roles/web.md]", done.stdout.splitlines()[1])
+            self.assertEqual((root / "docs/agents/roles/web.md").read_text().count("- Commit by path, always."), 1)
+            self.assertNotIn("None recorded yet", (root / "docs/agents/roles/web.md").read_text())
+            self.assertEqual(agent_steddy(["lessons", "check", "--quiet"], root).stdout, "")
+            again = agent_steddy(["lessons", "promote", "commit-by-path", "--to", "walls"], root)
+            self.assertEqual(again.returncode, 2)
+            self.assertIn("already promoted", again.stderr)
+            self.assertFalse((root / "docs/agents/walls.md").exists())
+
+    def test_promote_to_walls_and_a_missing_to_option(self):
+        with project() as root:
+            agent_steddy(lesson("t1", "never print secrets", "no-secrets"), root)
+            self.assertEqual(agent_steddy(["lessons", "promote", "no-secrets", "--to", "walls"], root).returncode, 2)  # seen once
+            done = agent_steddy(["lessons", "promote", "no-secrets", "--to", "walls", "--force"], root)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertTrue((root / "docs/agents/walls.md").read_text().startswith("# Walls\n"))
+            self.assertEqual(agent_steddy(["lessons", "promote", "no-secrets"], root).returncode, 2)  # argparse: --to is required
 
 
 if __name__ == "__main__":

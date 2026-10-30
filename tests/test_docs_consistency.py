@@ -65,11 +65,12 @@ class Frontmatter(unittest.TestCase):
 
 
 class Commands(unittest.TestCase):
-    MENTION = re.compile(r"agent-steddy (metrics|record) ([a-z]+)")
+    MENTION = re.compile(r"agent-steddy (metrics|record|lessons) ([a-z]+)")
 
     def test_every_agent_steddy_command_mentioned_names_a_real_subcommand(self):
         known = subcommands()
         self.assertIn(("metrics", "log"), known)  # the parser was read
+        self.assertIn(("lessons", "promote"), known)
         mentions = [(path, match.group(1), match.group(2)) for path in METHOD_DOCS for match in self.MENTION.finditer(path.read_text(encoding="utf-8"))]
         self.assertTrue(mentions)
         for path, group, command in mentions:

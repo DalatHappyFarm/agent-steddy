@@ -13,6 +13,10 @@
   agent-steddy record finish <branch> [--full] [--no-verify]
                                                     verify the branch, fast-forward the working branch onto it, delete it; never pushes
 
+  agent-steddy lessons check [--quiet]              rules seen twice and not promoted, rules with no key, role cards to prune
+  agent-steddy lessons promote <key> --to <role|walls> [--text T] [--force]
+                                                    write a repeated rule into a role card's Pitfalls or the walls file, and mark its lines
+
 The project is `CLAUDE_PROJECT_DIR` when set, else the nearest folder from the cwd up that has `.claude/agent-steddy.json` or `.git`.
 Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused and 2 when the learning loop wants another key or target, with the reason on stderr.
 """
@@ -65,6 +69,14 @@ def build_parser():
     finish.add_argument("branch")
     finish.add_argument("--full", action="store_true", help="append --full to verifyCommand")
     finish.add_argument("--no-verify", action="store_true", help="merge without proof; only when the project has no verifyCommand")
+    loop = groups.add_parser("lessons", help="the learning loop: rules that repeat, and moving them up").add_subparsers(dest="command", required=True)
+    check = loop.add_parser("check", help="rules seen twice and not promoted, rules with no key, role cards to prune")
+    check.add_argument("--quiet", action="store_true", help="print one summary line, and nothing when no rule is due")
+    promote = loop.add_parser("promote", help="write a repeated rule into a role card or the walls file, and mark its lines")
+    promote.add_argument("key")
+    promote.add_argument("--to", required=True, help="a role (the file name of its card without .md), or walls")
+    promote.add_argument("--text", help="the final wording; default is the rule text of the newest entry")
+    promote.add_argument("--force", action="store_true", help="promote a rule seen only once")
     return parser
 
 
@@ -97,12 +109,22 @@ def run_record(args, project, config):
     return []
 
 
+def run_lessons(args, project, config):
+    if args.command == "check":
+        line = lessons.nudge(Path(project) / project_config.get(config, "records", "lessons"))
+        return ([line] if line else []) if args.quiet else lessons.check(project, config)
+    return lessons.promote(project, config, args.key, args.to, args.text, args.force)
+
+
 def main(argv=None):
     args = build_parser().parse_args(argv)
     project = local_state.project_dir()
     try:
         config = project_config.load(project)
-        lines = run_metrics(args, project, config, local_state.state_dir(project)) if args.group == "metrics" else run_record(args, project, config)
+        if args.group == "metrics":
+            lines = run_metrics(args, project, config, local_state.state_dir(project))
+        else:
+            lines = (run_record if args.group == "record" else run_lessons)(args, project, config)
         for line in lines:
             print(line)
     except Refuse as error:
