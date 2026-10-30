@@ -10,7 +10,7 @@ A new session picks up at the first unticked step.
 - [x] 5. Tool timing, secret output scan, the per-prompt gate reminder, and the metrics and record scripts.
 - [x] 6. The gates document, agent and role card templates, the brief template, and a `finish` skill.
 - [x] 7. Architecture and flow diagrams in the README, and an example project the tests run against.
-- [ ] 8. Open-source audit (secrets, private names, git history), then publish when the owner says so.
+- [x] 8. Open-source audit (secrets, private names, git history), then publish when the owner says so.
 
 ## Facts found on the way
 
@@ -43,6 +43,10 @@ A new session picks up at the first unticked step.
   The config rule denied `acme-cli config push`, the built-in rule denied `git stash`, and `agent-steddy` ran from the Bash `PATH` and wrote the decision to the project's `docs/agents/decisions.md`.
   `marketplace add` refuses a `file://` URL, and a remote served over plain HTTP fails because Claude Code clones it shallow.
   `claude plugin uninstall` leaves the copy under `~/.claude/plugins/cache/`.
+- Checked 2026-10-30 after the first push: `claude plugin marketplace add DalatHappyFarm/agent-steddy --scope project` and `claude plugin install agent-steddy@agent-steddy --scope project` installed the plugin from GitHub into a throwaway copy of `examples/acme`.
+  A live Claude Code session (Haiku) loaded it from `~/.claude/plugins/cache/agent-steddy/agent-steddy/0.1.0` and gave the same four results as the local install check.
+- Checked 2026-10-30: the first CI run passed every job, the tests on Ubuntu and macOS with Python 3.9 and 3.13, and ruff.
+  It is the first run of the tests on Linux.
 - Checked 2026-10-30: gitleaks 8.30.1 finds nothing in the history (`gitleaks git .`) or in the files (`gitleaks dir .`).
   Python folds `"a" + "b"` into one string when it compiles, so a `__pycache__` folder holds the synthetic test keys whole; `.gitleaks.toml` skips those git-ignored folders and `.gitleaksignore` holds the one old finding in the history.
 - Checked 2026-10-30: the unit tests pass on Python 3.9.6 and 3.14 on macOS.
