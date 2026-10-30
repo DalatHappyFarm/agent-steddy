@@ -182,10 +182,51 @@ class WholeTask(unittest.TestCase):
                              {"task": "add the pricing page", "type": "new", "size": "S", "roles": ["acme-web"], "agents": 1, "minutes": 7, "exposed": 0, "verify_first_pass": True})
             self.assertFalse(clock.exists(), "metrics log closes the task clock")
 
+    def test_a_rule_recorded_twice_is_noticed_nudged_and_promoted_into_a_role_card(self):
+        records = CONFIG["records"]
+        key = "commit-by-path"
+        with copy_of_example() as project:
+            self.assertTrue((project / records["roles"]).is_dir())
+            first = agent_steddy("record", "lesson", "--task", "add the pricing page", "--roles", "web", "--worked", "w", "--exposed", "a commit took a neighbor's file",
+                                 "--rule", "commit by path, never git add all", "--key", key, cwd=project)
+            self.assertEqual(len(first.stdout.splitlines()), 1)  # only the heading: seen once
+            second = agent_steddy("record", "lesson", "--task", "fix the footer", "--roles", "web,docs-writer", "--worked", "w", "--exposed", "the same slip again",
+                                  "--rule", "commit by path, never git add all", "--key", key, cwd=project)
+            self.assertEqual(second.stdout.splitlines()[1:], [
+                f"{key} is now seen 2 times",
+                f"agent-steddy lessons promote {key} --to web",
+                "roles in these entries, most common first: web (2), docs-writer (1)",
+                "a rule about safety, data or money goes --to walls instead",
+            ])
+            nudge = f"Learning loop: 1 rule(s) seen twice and not promoted ({key}); run agent-steddy lessons check."
+            prompt = {"hook_event_name": "UserPromptSubmit", "prompt": "add a page"}
+            self.assertEqual(run_hook("gate_reminder.py", prompt, project)["hookSpecificOutput"]["additionalContext"], CONFIG["reminder"]["text"] + "\n" + nudge)
+            self.assertEqual(agent_steddy("lessons", "check", "--quiet", cwd=project).stdout.strip(), nudge)
+            report = agent_steddy("lessons", "check", cwd=project).stdout
+            self.assertIn(f"  {key}: seen 2 times", report)
+            self.assertIn(f"    agent-steddy lessons promote {key} --to web", report)
+
+            done = agent_steddy("lessons", "promote", key, "--to", "web", cwd=project)
+            self.assertEqual(done.stdout.splitlines()[0].split(" (lessons:")[0], "added to docs/agents/roles/web.md: - commit by path, never git add all")
+            card = (project / "docs/agents/roles/web.md").read_text(encoding="utf-8")
+            self.assertEqual(card.count("- commit by path, never git add all (lessons: "), 1)
+            self.assertNotIn("None recorded yet", card)
+            self.assertEqual(card.split("## Pitfalls")[1].split("## Tools")[0].strip().count("\n"), 0)  # the one bullet; the next section is untouched
+            self.assertEqual(card.count("## Tools"), 1)
+            lessons = (project / records["lessons"]).read_text(encoding="utf-8")
+            self.assertEqual(lessons.count(f"- Rule [{key}]: commit by path, never git add all [promoted -> docs/agents/roles/web.md]\n"), 2)
+
+            report = agent_steddy("lessons", "check", cwd=project).stdout
+            self.assertEqual(report.splitlines()[:2], ["Due: rules seen 2 or more times and not promoted", "  none"])
+            self.assertEqual(agent_steddy("lessons", "check", "--quiet", cwd=project).stdout, "")
+            self.assertEqual(run_hook("gate_reminder.py", prompt, project)["hookSpecificOutput"]["additionalContext"], CONFIG["reminder"]["text"])
+            self.assertFalse((project / records["walls"]).exists())
+
     def test_the_example_itself_is_left_clean(self):
         self.assertFalse((EXAMPLE / "docs" / "agents" / "decisions.md").exists())
         self.assertFalse((EXAMPLE / "docs" / "agents" / "lessons.md").exists())
         self.assertFalse((EXAMPLE / "docs" / "agents" / "metrics.jsonl").exists())
+        self.assertFalse((EXAMPLE / "docs" / "agents" / "walls.md").exists())
 
 
 def frontmatter(text):

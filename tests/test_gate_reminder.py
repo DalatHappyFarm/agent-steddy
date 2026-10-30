@@ -66,6 +66,78 @@ class Reminder(unittest.TestCase):
             self.assertEqual(gate_reminder.reminder(config)["hookSpecificOutput"]["additionalContext"], default, config)
 
 
+LINE = "Learning loop: {n} rule(s) seen twice and not promoted ({keys}); run agent-steddy lessons check."
+
+
+def lessons_file(root, *keys, path="docs/agents/lessons.md"):
+    """A lessons file with two entries for each key."""
+    text = "# Lessons\n\n"
+    for day, key in [(day, key) for key in keys for day in (1, 2)]:
+        text += f"## 2026-10-0{day} - task {key} {day} - roles: web\n- Worked: w\n- Exposed: e\n- Rule [{key}]: r\n\n"
+    target = pathlib.Path(root) / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text)
+
+
+class LearningLoopLine(unittest.TestCase):
+    def test_a_due_rule_adds_one_line_after_the_reminder_text(self):
+        cases = [(["a"], "a"), (["a", "b", "c"], "a, b, c"), (["a", "b", "c", "d"], "a, b, c, ...")]
+        for keys, shown in cases:
+            with repo() as root:
+                lessons_file(root, *keys)
+                text = gate_reminder.reminder(project_config.load(root), root)["hookSpecificOutput"]["additionalContext"]
+                self.assertEqual(text, project_config.DEFAULT_REMINDER + "\n" + LINE.format(n=len(keys), keys=shown), keys)
+
+    def test_nothing_is_added_when_no_rule_is_due_or_there_is_no_lessons_file(self):
+        with repo() as root:
+            self.assertEqual(gate_reminder.reminder(project_config.load(root), root)["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER)
+            (root / "docs/agents").mkdir(parents=True)
+            (root / "docs/agents/lessons.md").write_text("# Lessons\n\n## 2026-10-01 - t - roles: web\n- Rule [a]: r\n\n## 2026-10-02 - u - roles: web\n- Rule: none\n")
+            self.assertEqual(gate_reminder.reminder(project_config.load(root), root)["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER)
+            lessons_file(root, "a")
+            (root / "docs/agents/lessons.md").write_text((root / "docs/agents/lessons.md").read_text().replace("Rule [a]: r\n\n## 2026-10-02", "Rule [a]: r [promoted -> docs/agents/roles/web.md]\n\n## 2026-10-02"))
+            self.assertNotIn("Learning loop", gate_reminder.reminder(project_config.load(root), root)["hookSpecificOutput"]["additionalContext"])
+
+    def test_the_line_needs_the_reminder_to_be_on(self):
+        with repo() as root:
+            lessons_file(root, "a")
+            for config in [{"reminder": {"enabled": False}}, {"reminder": {"text": ""}}]:
+                self.assertIsNone(gate_reminder.reminder({**project_config.DEFAULTS, **config}, root), config)
+
+    def test_the_project_text_and_the_lessons_path_come_from_the_config(self):
+        with repo() as root:
+            lessons_file(root, "a", path="notes/l.md")
+            config = {"reminder": {"text": "Read AGENTS.md first."}, "records": {"lessons": "notes/l.md"}}
+            write_config(root, config)
+            out = run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit"}, root)
+            self.assertEqual(out["hookSpecificOutput"]["additionalContext"], "Read AGENTS.md first.\n" + LINE.format(n=1, keys="a"))
+
+    def test_the_hook_prints_the_line_and_still_prints_the_reminder_when_the_lessons_file_is_malformed(self):
+        with repo() as root:
+            lessons_file(root, "a", "b")
+            out = run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit"}, root)
+            self.assertEqual(out["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER + "\n" + LINE.format(n=2, keys="a, b"))
+            path = root / "docs/agents/lessons.md"
+            for content in [b"\xff\xfe\x00 not utf-8", b"## \n- Rule [: \n```", b"", b"\x00" * 50]:
+                path.write_bytes(content)
+                out = run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit"}, root)
+                self.assertEqual(out["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER, content)
+            path.unlink()
+            path.mkdir()  # a folder where the file should be
+            self.assertEqual(run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit"}, root)["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER)
+
+    def test_a_failure_while_reading_the_lessons_is_ignored(self):
+        with repo() as root:
+            with mock.patch.object(gate_reminder.lessons, "nudge", side_effect=RuntimeError("boom")):
+                self.assertEqual(gate_reminder.reminder(project_config.load(root), root)["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER)
+
+    def test_the_line_does_not_start_or_change_the_task_clock(self):
+        with repo() as root:
+            lessons_file(root, "a")
+            run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit"}, root)
+            self.assertTrue(pending(root)["task"].startswith("auto 20"))
+
+
 class Clock(unittest.TestCase):
     def test_a_prompt_with_no_pending_task_starts_an_auto_task_at_the_prompt_time(self):
         with repo() as root:
