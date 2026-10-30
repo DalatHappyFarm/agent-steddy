@@ -58,4 +58,7 @@ A new session picks up at the first unticked step.
   The commands pick nothing that is a judgment: which target (a role card, the walls file, a check as well) and the final wording stay with the person or the agent.
   The method also says the main session is the loop and a role becomes a subagent only when it earns it, with the docs writer as the first fold candidate; the token cost of folding a cheaper-model agent is a trade-off to measure, not a measured number.
 - Checked 2026-10-30 for step 9: the unit tests (307) pass on Python 3.9 and 3.14, and the example project runs the whole loop end to end on a temporary copy: two lessons with one key, the notice, the reminder line, `lessons promote` into an Acme role card, and `lessons check` with nothing due.
-  Not yet checked in a live Claude Code session: that the reminder line reaches the agent and that an agent follows the notice.
+- Checked 2026-10-30 in four live Claude Code sessions (Haiku, `--plugin-dir`, a throwaway copy of `examples/acme`): `record lesson` with no key wrote nothing and exited 2; with `--key` it wrote the entry, and the second entry with the same key printed the notice and the promote command.
+  A new session quoted the reminder line `Learning loop: 1 rule(s) seen twice and not promoted (stage-by-path); run agent-steddy lessons check.` from its prompt context.
+  `lessons promote stage-by-path --to web` replaced the placeholder in the Pitfalls of `web.md` and marked both Rule lines, `lessons check` then showed nothing due, and the next session found no reminder line.
+  Not checked: that an agent promotes a due rule on its own; in these sessions the prompt told it to.
