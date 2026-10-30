@@ -39,6 +39,10 @@ A new session picks up at the first unticked step.
   `.claude-plugin/marketplace.json` lists the one plugin with `"source": "./"`, which the Claude Code docs (plugin marketplaces) allow, and the entry name equals the `name` in `plugin.json`.
   With Claude Code 2.1.314, `claude plugin validate .` and `claude plugin validate .claude-plugin/marketplace.json` both pass; the first only warns that the plugin has no icon, which is optional.
   A live `marketplace add` and `install` from GitHub is not checked yet; it needs the repository to exist.
+- Checked 2026-10-30 in a live Claude Code session (Haiku, a throwaway copy of `examples/acme`, no `--plugin-dir`): the plugin was installed from a fresh clone of the repo with `claude plugin marketplace add <clone> --scope project` and `claude plugin install agent-steddy@agent-steddy --scope project`.
+  The config rule denied `acme-cli config push`, the built-in rule denied `git stash`, and `agent-steddy` ran from the Bash `PATH` and wrote the decision to the project's `docs/agents/decisions.md`.
+  `marketplace add` refuses a `file://` URL, and a remote served over plain HTTP fails because Claude Code clones it shallow.
+  `claude plugin uninstall` leaves the copy under `~/.claude/plugins/cache/`.
 - Checked 2026-10-30: gitleaks 8.30.1 finds nothing in the history (`gitleaks git .`) or in the files (`gitleaks dir .`).
   Python folds `"a" + "b"` into one string when it compiles, so a `__pycache__` folder holds the synthetic test keys whole; `.gitleaks.toml` skips those git-ignored folders and `.gitleaksignore` holds the one old finding in the history.
 - Checked 2026-10-30: the unit tests pass on Python 3.9.6 and 3.14 on macOS.
