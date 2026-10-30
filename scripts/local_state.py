@@ -21,7 +21,7 @@ STALE_AUTO_HOURS = 12
 class Refuse(Exception):
     """A command of the `agent-steddy` CLI that will not run; the message says why and the CLI exits with `code`.
 
-    The code is 1 by default, and 2 for the learning loop's refusals that ask the caller for another key or target.
+    The code is 1 by default, and 2 for the refusals that ask the caller for another key, target or task name (the learning loop, `metrics log`).
     """
 
     def __init__(self, message, code=1):

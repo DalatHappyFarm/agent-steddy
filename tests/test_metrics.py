@@ -94,11 +94,33 @@ class Log(unittest.TestCase):
                                    "minutes": 10, "prompt_minutes": 30, "exposed": 1, "verify_first_pass": False})
             self.assertFalse((state / local_state.PENDING).exists())
 
-    def test_an_auto_start_that_was_never_named_is_both_clocks(self):
+    def test_a_task_that_still_has_its_auto_name_is_refused_without_a_task_and_nothing_changes(self):
+        for name, minutes_ago in [("a fresh auto start", 5), ("a stale one", 13 * 60), ("one named exactly `auto `", 0)]:
+            with workspace() as (state, log_file):
+                put(state, task=f"auto {ago(minutes_ago)}" if minutes_ago else "auto ", start=ago(minutes_ago))
+                before = pending(state)
+                for given in (None, ""):  # no --task, and an empty one
+                    with self.assertRaises(Refuse) as raised:
+                        finish(state, log_file, task=given)
+                    self.assertEqual(raised.exception.code, 2, name)
+                    message = str(raised.exception)
+                    self.assertIn(f'the pending task is still named "{before["task"]}"', message)
+                    self.assertIn('pass --task "<what was done>"', message)
+                    self.assertIn('`agent-steddy metrics start "<task>"`', message)
+                    self.assertIn("nothing was written and the clock is kept", message)
+                    self.assertFalse(log_file.exists(), name)
+                    self.assertEqual(pending(state), before, name)
+                row = finish(state, log_file, task="named at log")  # the same clock logs once it is named
+                self.assertEqual(row["task"], "named at log", name)
+                self.assertFalse((state / local_state.PENDING).exists(), name)
+
+    def test_a_named_task_logs_without_task_and_a_missing_task_keeps_its_own_refusal(self):
         with workspace() as (state, log_file):
-            put(state, task=f"auto {ago(5)}", start=ago(5))
-            row = finish(state, log_file)
-            self.assertEqual((row["task"], row["minutes"], row["prompt_minutes"]), (f"auto {ago(5)}", 5, 5))
+            put(state, task="named", start=ago(3))
+            self.assertEqual(finish(state, log_file)["task"], "named")
+            with self.assertRaises(Refuse) as raised:  # no clock at all: the old refusal, with its exit code 1
+                finish(state, log_file)
+            self.assertEqual((raised.exception.code, str(raised.exception).startswith("no task")), (1, True))
 
     def test_an_auto_start_named_only_at_log_is_still_the_prompt_time(self):
         with workspace() as (state, log_file):

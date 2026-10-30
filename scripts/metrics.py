@@ -69,15 +69,20 @@ def start(state, task, force=False, now=None):
 
 
 def log(state, log_file, size, task_type, verify_first_pass, task=None, roles="", agents=0, minutes=None, exposed=0, now=None):
-    """Append one line for a finished task to `log_file` and close the clock. Returns the line as a dict."""
+    """Append one line for a finished task to `log_file` and close the clock. Returns the line as a dict.
+
+    A row is named for what was done: while the pending task still has its auto name (`auto <time>`, from the prompt hook) and `task` is not given, nothing is written, the clock is kept and the refusal has code 2.
+    """
     now = now or dt.datetime.now()
     pending = local_state.read_pending(state) if state else {}
+    is_auto = str(pending.get("task", "")).startswith("auto ")
+    if is_auto and not task:
+        raise Refuse(f'the pending task is still named "{pending["task"]}": pass --task "<what was done>" (or name it earlier with `agent-steddy metrics start "<task>"`); nothing was written and the clock is kept', code=2)
     task = task or pending.get("task")
     if not task:
         raise Refuse("no task: run `agent-steddy metrics start` first or pass --task")
     # a fresh auto start (renamed by --task or not) is itself the prompt time and the start of the work; a stale one is neither
     auto = local_state.auto_start(pending, now)
-    is_auto = str(pending.get("task", "")).startswith("auto ")
     began = auto if is_auto else _when(pending.get("start"))
     prompt_began = auto or _when(pending.get("prompt_start"))
     row = {
@@ -358,4 +363,10 @@ def selftest():
         row = log(state, log_file, "S", "new", "yes", now=now)
         assert (row["task"], row["minutes"], row["prompt_minutes"]) == ("named", 0, 30), row
         assert not (state / local_state.PENDING).exists()
+        (state / local_state.PENDING).write_text(json.dumps({"task": f"auto {ago(5)}", "start": ago(5)}))
+        try:
+            log(state, log_file, "S", "new", "yes", now=now)
+            raise AssertionError("an auto-named task was logged without --task")
+        except Refuse as refused:
+            assert refused.code == 2 and (state / local_state.PENDING).exists() and not log_file.read_text().count("auto"), refused
     assert "no timing rows" in slow_tables({}, 5)[0]

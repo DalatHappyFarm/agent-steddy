@@ -262,7 +262,7 @@ The Bash tool does not give `CLAUDE_PROJECT_DIR` to the commands it runs.
 So the command finds the project itself: `CLAUDE_PROJECT_DIR` when it is set, else the nearest folder from the working directory up that has `.claude/agent-steddy.json` or `.git`.
 It reads the project config from there, and every path it writes comes from that config.
 A command that is refused prints the reason on stderr after `agent-steddy: refused:` and exits 1.
-The learning loop's refusals that ask for another key or target (a rule with no key, a bad key, a promotion that is not allowed) exit 2, the code of a usage error, so a caller can tell them from a failed record.
+The refusals that ask for another key, target or task name (a rule with no key, a bad key, a promotion that is not allowed, and a `metrics log` of a task that still has its auto name) exit 2, the code of a usage error, so a caller can tell them from a failed record.
 `pause` and `resume` exit 2 as well when there is no branch or repo to work with: a detached HEAD, a repo with no commit, a project that is not a git repo, a `resume.folder` outside the project.
 
 ## Metrics
@@ -273,7 +273,7 @@ It writes to `records.metrics`, a JSON lines file that the project commits, and 
 | Command | What it does |
 | --- | --- |
 | `metrics start "<task>" [--force]` | Names the task and starts its clock. It refuses when a named task is already running, so a sub-agent that reads the gates does not restart the clock of the task it works for; `--force` replaces it. |
-| `metrics log --size S\|M\|L --type new\|feedback --verify-first-pass yes\|no [--task T] [--roles a,b] [--agents N] [--minutes N] [--exposed N]` | Appends one line to the metrics file and deletes the clock. `--task` defaults to the name given to `start`; `--minutes` replaces the clock. |
+| `metrics log --size S\|M\|L --type new\|feedback --verify-first-pass yes\|no [--task T] [--roles a,b] [--agents N] [--minutes N] [--exposed N]` | Appends one line to the metrics file and deletes the clock. `--task` defaults to the name given to `start`, and is required while the task still has its auto name: the command then [refuses](#named-rows); `--minutes` replaces the clock. |
 | `metrics report [--weeks 8]` | Prints a table per week of tasks (count, average minutes by size, average prompt minutes, defects found by the owner per task, share of first-pass verifications), a table per week of commits by conventional prefix, with the share of fixes as rework, and then [verdicts](#verdicts) on the last two weeks that have tasks. |
 | `metrics slow [--days 7] [--top 10]` | Prints the Bash commands of the [tool timing](#tool-timing) log grouped by key, by total time and by count. A command line is keyed by its heaviest known step, else by the chain of its steps. |
 | `metrics selftest` | Checks the installed scripts on temporary files and prints `selftest ok`. |
@@ -283,9 +283,9 @@ A line of the metrics file has these fields: `date`, `task`, `type` (`new` for a
 There are two clocks, both in local time:
 
 - `minutes` runs from `start` to `log`, which is the work itself.
-  When `start` was never called it runs from the auto start that the [prompt hook](#gate-reminder) wrote.
+  When `start` was never called it runs from the auto start that the [prompt hook](#gate-reminder) wrote, and `log` then needs `--task` to name the row.
 - `prompt_minutes` runs from the prompt that began the work to `log`, so it includes the discussion before `start`.
-  It starts at the auto start, which `start` keeps as `prompt_start`, and an auto start that only `log` names is still the prompt time.
+  It starts at the auto start, which `start` keeps as `prompt_start`, and an auto start that only `log --task` names is still the prompt time.
   It is `null` when there was no auto start, as for a second task of the same prompt (`log` deletes the clock), and when the auto start is older than 12 hours: that was a prompt that never reached `log`, and it is not the prompt of the task being logged now.
   A stale auto start also gives a `null` for `minutes`, unless `--minutes` is given.
 - The report averages `prompt_minutes` over the lines that have it.
@@ -293,6 +293,19 @@ There are two clocks, both in local time:
 `metrics log` does not need the clock: with `--task` and `--minutes` it works in a project that has no local state.
 `start` needs it and refuses without one.
 A line that is not a JSON object with a `date` is skipped by the report.
+
+### Named rows
+
+A row of the metrics file is named for what was done, so `metrics log` refuses a row that would carry the placeholder name.
+When the pending task still has its auto name (`auto <time>`, from the [prompt hook](#gate-reminder)) and `--task` is missing or empty, the command writes nothing, keeps the clock, exits 2 and says:
+
+```text
+agent-steddy: refused: the pending task is still named "auto <time>": pass --task "<what was done>" (or name it earlier with `agent-steddy metrics start "<task>"`); nothing was written and the clock is kept
+```
+
+Run it again with `--task`, or after `metrics start`, and the same clock logs the row.
+A task named by `start` logs without `--task`, and `--task` is accepted whatever the pending name is.
+A project with no clock at all and no `--task` gets the older refusal, `no task: ...`, with exit 1.
 
 ### Verdicts
 

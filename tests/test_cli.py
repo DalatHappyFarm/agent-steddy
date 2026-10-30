@@ -87,16 +87,37 @@ class Refusals(unittest.TestCase):
             self.assertIn("no task", done.stderr)
             self.assertFalse((root / "docs").exists())
 
-    def test_a_task_that_is_still_the_auto_name_is_logged_with_a_note(self):
+    def test_a_task_that_still_has_its_auto_name_is_refused_with_exit_2_and_logs_once_it_is_named(self):
+        with project() as root:
+            state = root / ".git" / "agent-steddy"
+            state.mkdir()
+            stamp = dt.datetime.now().isoformat(timespec="seconds")
+            clock = state / "pending-task.json"
+            clock.write_text(json.dumps({"task": f"auto {stamp}", "start": stamp}))
+            for extra in ([], ["--task", ""]):
+                done = agent_steddy([*LOG, *extra], root)
+                self.assertEqual((done.returncode, done.stdout), (2, ""))
+                self.assertTrue(done.stderr.startswith(f'agent-steddy: refused: the pending task is still named "auto {stamp}": pass --task "<what was done>"'), done.stderr)
+                self.assertIn('name it earlier with `agent-steddy metrics start "<task>"`', done.stderr)
+                self.assertFalse((root / "docs").exists())  # nothing was written
+                self.assertEqual(json.loads(clock.read_text()), {"task": f"auto {stamp}", "start": stamp})  # and the clock is kept
+            done = agent_steddy([*LOG, "--task", "the pricing page"], root)
+            self.assertEqual((done.returncode, done.stderr), (0, ""))
+            self.assertTrue(done.stdout.startswith('logged: {"date"'), done.stdout)
+            self.assertNotIn("note:", done.stdout)
+            self.assertEqual(json.loads((root / "docs/agents/metrics.jsonl").read_text())["task"], "the pricing page")
+            self.assertFalse(clock.exists())
+
+    def test_naming_the_task_earlier_with_start_logs_without_task(self):
         with project() as root:
             state = root / ".git" / "agent-steddy"
             state.mkdir()
             stamp = dt.datetime.now().isoformat(timespec="seconds")
             (state / "pending-task.json").write_text(json.dumps({"task": f"auto {stamp}", "start": stamp}))
+            self.assertEqual(agent_steddy(["metrics", "start", "the footer"], root).returncode, 0)
             done = agent_steddy(LOG, root)
-            self.assertEqual(done.returncode, 0)
-            self.assertIn("note: the task name is still the auto name", done.stdout)
-            self.assertIn(f'"task": "auto {stamp}"', done.stdout)
+            self.assertEqual((done.returncode, done.stderr), (0, ""))
+            self.assertEqual(json.loads((root / "docs/agents/metrics.jsonl").read_text())["task"], "the footer")
 
 
 class Reports(unittest.TestCase):

@@ -1,6 +1,6 @@
 """The docs that teach the method (the skills, the templates and the README) must agree with the code they name.
 
-Twelve checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
+Thirteen checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
 every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the README and the config reference;
 every key of the config defaults has a row in the config reference;
 the README status line names the manifest's version;
@@ -9,6 +9,7 @@ the method rules that must stand in more than one place (the two questions befor
 the rules inside the gates are grouped by gate and each names its pstack principle, and the three that an implementer meets most stand in the implementer template and its example too;
 the premise nudge's text, threshold and switch in the config reference and the README are the code's, and the text points at a rule the gates skill has;
 the pstack companion (the README section with its install command, gate 2 loading principle skills, a `Principles:` line in every role card with names that pstack has);
+named metrics rows (the refusal the config reference quotes is the code's, the finish skill and the README say it, no doc logs a row without `--task`, and the old after-the-fact note is gone);
 every backticked built-in rule id is listed in the README table;
 every relative link resolves, and its #anchor exists when the target is a Markdown file.
 """
@@ -18,11 +19,13 @@ import json
 import pathlib
 import re
 import sys
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 import cli  # noqa: E402
+import local_state  # noqa: E402
 import metrics  # noqa: E402
 import project_config  # noqa: E402
 import tool_timing  # noqa: E402
@@ -313,6 +316,44 @@ class PstackCompanion(unittest.TestCase):
         cited = re.findall(r"\(pstack: ([a-z-]+)\)", gates)
         self.assertEqual(len(cited), 7)
         self.assertLessEqual(set(cited), self.PRINCIPLES)
+
+
+class NamedRows(unittest.TestCase):
+    def refusal(self):
+        """The message `metrics log` refuses with while the pending task has an auto name, for the task name `auto <time>`."""
+        with tempfile.TemporaryDirectory() as folder:
+            state = pathlib.Path(folder)
+            (state / local_state.PENDING).write_text(json.dumps({"task": "auto <time>", "start": "2026-10-29T11:00:00"}))
+            with self.assertRaises(local_state.Refuse) as raised:
+                metrics.log(state, state / "m.jsonl", "S", "new", "yes")
+            self.assertEqual(raised.exception.code, 2)
+            return str(raised.exception)
+
+    def test_the_config_reference_quotes_the_refusal_of_the_code(self):
+        config = squash((ROOT / "docs" / "config.md").read_text(encoding="utf-8"))
+        self.assertIn(f"agent-steddy: refused: {squash(self.refusal())}", config)
+        self.assertIn("exits 2", config)
+
+    def test_the_skills_and_the_readme_say_that_the_task_name_is_required_while_it_is_an_auto_name(self):
+        for relative, phrases in [
+            ("skills/finish/SKILL.md", ["the command refuses without `--task`", "exits 2, writes nothing and keeps the clock"]),
+            ("skills/gates/SKILL.md", ["`--task` names the row for what was done", "refuses with exit 2, writes nothing and keeps the clock"]),
+            ("README.md", ["`--task` is required", "refuses (exit 2), writes nothing and keeps the clock"]),
+        ]:
+            text = squash((ROOT / relative).read_text(encoding="utf-8"))
+            for phrase in phrases:
+                self.assertIn(phrase, text, relative)
+
+    def test_no_doc_logs_a_row_without_a_task_and_the_old_note_is_gone(self):
+        docs = [*METHOD_DOCS, ROOT / "docs" / "config.md"]
+        commands = [(path, match.group(0)) for path in docs for match in re.finditer(r"agent-steddy metrics log[^\n`|]*", path.read_text(encoding="utf-8"))]
+        self.assertTrue(commands)
+        for path, command in commands:
+            self.assertTrue(command.strip() == "agent-steddy metrics log" or "--task" in command, f"{path.relative_to(ROOT)}: {command}")  # a bare mention names the command; any other line shows a full call
+        sources = [*docs, *sorted((ROOT / "scripts").glob("*.py")), ROOT / "examples" / "acme" / "README.md"]
+        for path in sources:
+            self.assertNotIn("the task name is still the auto name", path.read_text(encoding="utf-8"), path.name)
+            self.assertNotIn("a row still named", path.read_text(encoding="utf-8"), path.name)
 
 
 class RuleIds(unittest.TestCase):

@@ -2,7 +2,7 @@
 
   agent-steddy metrics start "<task>" [--force]     name the task and start its clock
   agent-steddy metrics log --size S|M|L --type new|feedback --verify-first-pass yes|no [--task T] [--roles a,b] [--agents N] [--minutes N] [--exposed N]
-                                                    append one line to the metrics file and close the clock
+                                                    append one line to the metrics file and close the clock; --task is required while the task has its auto name
   agent-steddy metrics report [--weeks 8]           weekly tables: tasks, and git rework by commit prefix
   agent-steddy metrics slow [--days 7] [--top 10]   Bash commands by total time and count
   agent-steddy metrics selftest                     a quick check of the installed scripts
@@ -22,7 +22,7 @@
                                                     write a repeated rule into a role card's Pitfalls or the walls file, and mark its lines
 
 The project is `CLAUDE_PROJECT_DIR` when set, else the nearest folder from the cwd up that has `.claude/agent-steddy.json` or `.git`.
-Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused and 2 when the learning loop wants another key or target or `pause` and `resume` have no branch or repo to work with, with the reason on stderr.
+Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused and 2 when the learning loop wants another key or target, `metrics log` has only an auto task name, or `pause` and `resume` have no branch or repo to work with, with the reason on stderr.
 """
 import argparse
 import json
@@ -48,7 +48,7 @@ def build_parser():
     start.add_argument("task")
     start.add_argument("--force", action="store_true", help="replace a running named task")
     log = commands.add_parser("log", help="append one line for a finished task and close the clock")
-    log.add_argument("--task", help="the task name; default is the name given to `start`")
+    log.add_argument("--task", help="what was done; default is the name given to `start`, and it is required while the task still has its auto name")
     log.add_argument("--size", choices=["S", "M", "L"], required=True)
     log.add_argument("--type", dest="task_type", choices=["new", "feedback"], required=True, help="new for a fresh request, feedback for an owner round on earlier work")
     log.add_argument("--roles", default="", help="comma separated")
@@ -102,8 +102,7 @@ def run_metrics(args, project, config, state):
         return [metrics.start(state, args.task, args.force)]
     if args.command == "log":
         row = metrics.log(state, log_file, args.size, args.task_type, args.verify_first_pass, args.task, args.roles, args.agents, args.minutes, args.exposed)
-        note = ["note: the task name is still the auto name; pass --task next time"] if str(row["task"]).startswith("auto ") else []
-        return [*note, f"logged: {json.dumps(row, ensure_ascii=False)}"]
+        return [f"logged: {json.dumps(row, ensure_ascii=False)}"]
     if args.command == "report":
         return metrics.report(log_file, project_config.get(config, "records", "metrics"), project, args.weeks)
     if args.command == "slow":

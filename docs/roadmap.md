@@ -92,3 +92,12 @@ A new session picks up at the first unticked step.
 - Decided 2026-10-30 for step 11: the premise nudge counts the failures of one normalized command by one session and one agent, newest first, until a success; the threshold is the constant `PREMISE_FAILS` (2) in `scripts/tool_timing.py`, and the hook reads only the last 256 KB of the timing log.
   It counts failures, not premises, so it can be wrong about a command that fails for a new reason each time; the text says "if the fixes rest on one premise" for that reason.
   Verified by unit tests and the hook process only; not checked in a live Claude Code session yet.
+- Checked 2026-10-30 with the GitHub API: `backnotprop/pstack` is MIT licensed and has 24 skills named `principle-*`, which are the names the `Principles:` lines of the role cards use; `tests/test_docs_consistency.py` keeps a copy of the list and checks the cards against it.
+  `npx skills add backnotprop/pstack` was not run, and whether an agent loads the principle skills at gate 2 is not checked in a live session.
+- Decided 2026-10-30 for step 11: a role card names its principles on one `Principles:` line under Standards, by name and without links, so a copy in a project resolves; the kit does not depend on pstack and the line is deleted when a project has no principle skills.
+  The orchestrator card gets one too (`never-block-on-the-human`, `guard-the-context-window`, the two delegation principles), so every card has the shape of the template.
+- Decided 2026-10-30 for step 11: `metrics log` refuses a row whose pending task still has its auto name when `--task` is missing or empty.
+  The first project that tried the kit logged a row named `auto <time>`, because its agent ran `metrics log` without `--task` and the kit only printed a note after it had written the row.
+  The refusal exits 2 like the other refusals that ask for another input, writes nothing and keeps the clock, so the same clock logs once the task is named, with `--task` or earlier with `metrics start`.
+  A project with no clock and no `--task` keeps the older refusal, exit 1, and rows that were already logged under an auto name are left as they are.
+  Verified by unit tests, the command run as the Bash tool runs it, and the example project; not checked in a live session yet.

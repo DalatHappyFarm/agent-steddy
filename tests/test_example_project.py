@@ -187,6 +187,24 @@ class WholeTask(unittest.TestCase):
                              {"task": "add the pricing page", "type": "new", "size": "S", "roles": ["acme-web"], "agents": 1, "minutes": 7, "exposed": 0, "verify_first_pass": True})
             self.assertFalse(clock.exists(), "metrics log closes the task clock")
 
+    def test_a_row_is_named_for_what_was_done_even_when_only_the_prompt_hook_started_the_clock(self):
+        records = CONFIG["records"]
+        log = ["metrics", "log", "--size", "S", "--type", "new", "--verify-first-pass", "yes"]
+        with copy_of_example() as project:
+            run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit", "prompt": "add a page"}, project)
+            clock = project / ".git" / "agent-steddy" / "pending-task.json"
+            before = clock.read_text(encoding="utf-8")
+            with self.assertRaises(subprocess.CalledProcessError) as refused:
+                agent_steddy(*log, cwd=project)
+            self.assertEqual(refused.exception.returncode, 2)
+            self.assertRegex(refused.exception.stderr, r'^agent-steddy: refused: the pending task is still named "auto [^"]+": pass --task "<what was done>"')
+            self.assertFalse((project / records["metrics"]).exists())
+            self.assertEqual(clock.read_text(encoding="utf-8"), before)
+            agent_steddy(*log, "--task", "add the pricing page", cwd=project)
+            row = json.loads((project / records["metrics"]).read_text(encoding="utf-8"))
+            self.assertEqual((row["task"], isinstance(row["minutes"], int), isinstance(row["prompt_minutes"], int)), ("add the pricing page", True, True))
+            self.assertFalse(clock.exists())
+
     def test_a_rule_recorded_twice_is_noticed_nudged_and_promoted_into_a_role_card(self):
         records = CONFIG["records"]
         key = "commit-by-path"

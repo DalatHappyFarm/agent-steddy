@@ -125,7 +125,7 @@ The data and the notes are local state in the git common dir (`.git/agent-steddy
 | Command | What it does |
 | --- | --- |
 | `agent-steddy metrics start "<task>"` | Names the task and starts its clock; a running named task is kept. |
-| `agent-steddy metrics log --size M --type new --verify-first-pass yes` | Appends one line (minutes, minutes since the prompt, defects found, first-pass verification) to `records.metrics`. |
+| `agent-steddy metrics log --task T --size M --type new --verify-first-pass yes` | Appends one line (minutes, minutes since the prompt, defects found, first-pass verification) to `records.metrics`. While the task still has its auto name, `--task` is required: the command refuses (exit 2), writes nothing and keeps the clock. |
 | `agent-steddy metrics report` | Weekly tables of tasks and of git rework, then a verdict on the last two weeks that have tasks: minutes by size and the first-pass share are faster or slower, better or worse, no measurable difference, or inconclusive, with the number of tasks of each week. |
 | `agent-steddy metrics slow` | The Bash commands that take the most time, grouped. |
 | `agent-steddy record decision "<area>" "<text>"` | Appends a line to `records.decisions`. |
