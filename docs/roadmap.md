@@ -12,6 +12,7 @@ A new session picks up at the first unticked step.
 - [x] 7. Architecture and flow diagrams in the README, and an example project the tests run against.
 - [x] 8. Open-source audit (secrets, private names, git history), then publish when the owner says so.
 - [x] 9. Learning loop automation (rule keys, repeat notice, lessons check and promote, the reminder line) and the single-agent-loop defaults in the method.
+- [ ] 10. Ideas from pstack: resume notes, rules for checks and lessons, the brief budget, auditor re-run commands, the hand-back status and metric verdicts.
 
 ## Facts found on the way
 
@@ -62,3 +63,12 @@ A new session picks up at the first unticked step.
   A new session quoted the reminder line `Learning loop: 1 rule(s) seen twice and not promoted (stage-by-path); run agent-steddy lessons check.` from its prompt context.
   `lessons promote stage-by-path --to web` replaced the placeholder in the Pitfalls of `web.md` and marked both Rule lines, `lessons check` then showed nothing due, and the next session found no reminder line.
   Not checked: that an agent promotes a due rule on its own; in these sessions the prompt told it to.
+- Checked 2026-10-30 against the Claude Code hooks reference (https://code.claude.com/docs/en/hooks) for step 10: `SessionStart` has the sources `startup`, `resume`, `clear`, `compact` and `fork` (the docs give no version for `compact` or `fork`), and a hook with no matcher runs for all of them.
+  It accepts `hookSpecificOutput.additionalContext` with `hookEventName` set to `SessionStart`, which "adds context for Claude" at the start of the conversation, before the first prompt; plain stdout is added as context too, and the event has no blocking or decision control.
+  The docs say it runs on every session, so a hook must be fast; the default timeout of a command hook is 600 seconds, and the kit sets 5.
+  Not checked in a live session: that the one line reaches the agent after a compaction.
+- Decided 2026-10-30 for step 10: a resume note is a claim, so `resume` ends with the reminder to check Done against git and the verify command, and the note stores the full HEAD hash, which is what `git log <head>..HEAD` needs.
+  The date has the time, since two pauses of one day differ.
+  The notes live in the git common dir (shared by the worktrees) or in `resume.folder`; the kit commits neither, and `record finish` leaves the deletion of a committed note to the person, since it never commits.
+  A note kept in the repo does not make the tree dirty for `record finish`, or no in-repo note could ever be merged.
+  `feat/x` and `feat__x` map to one file name; the `Branch:` line of the note decides which branch it belongs to, so the other branch sees no note.
