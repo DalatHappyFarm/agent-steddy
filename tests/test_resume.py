@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import record  # noqa: E402
 import resume  # noqa: E402
+import secret_patterns  # noqa: E402
 from hook_runner import SCRIPTS, git, make_repo, run_hook, write_config  # noqa: E402
 from local_state import Refuse  # noqa: E402
 
@@ -223,6 +224,17 @@ class Pause(unittest.TestCase):
             for change in bad:
                 with self.assertRaises(Refuse, msg=change):
                     paused(root, **change)
+            self.assertFalse((root / ".git" / "agent-steddy").exists())
+
+    def test_a_value_that_holds_a_secret_is_refused_without_repeating_it_and_nothing_is_written(self):
+        secret = "ghp_" + "Ab1" * 12  # synthetic, built at run time
+        self.assertEqual(secret_patterns.find(secret), ["github-token"])
+        with repo() as root:
+            for change in [{"intent": f"use {secret}"}, {"done": secret}, {"next_step": f"set it to {secret}"}, {"open_decisions": secret}, {"pitfalls": secret}, {"files": f"a.txt,{secret}"}]:
+                with self.assertRaises(Refuse, msg=change) as raised:
+                    paused(root, **change)
+                self.assertIn("github-token", str(raised.exception))
+                self.assertNotIn(secret, str(raised.exception))
             self.assertFalse((root / ".git" / "agent-steddy").exists())
 
     def test_a_folder_outside_the_project_is_refused_and_writes_nothing(self):

@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script directory off the path
 import local_state  # noqa: E402
 import project_config  # noqa: E402
+import secret_patterns  # noqa: E402
 from local_state import Refuse, git, one_line  # noqa: E402
 
 MAX_STAT_LINES = 40  # a longer `git diff --stat` keeps its first lines and its summary line
@@ -147,7 +148,7 @@ def pause(project, config, intent, done, next_step, open_decisions=None, pitfall
     """Write the note of the checked out branch, replacing its older note. Returns the lines to print.
 
     Intent, done (what is done and how it was verified, with the ladder level) and next are required single lines.
-    It commits nothing, even when the notes live in the repo.
+    It commits nothing, even when the notes live in the repo, and it refuses a value that holds a secret (the patterns of the secret output scan).
     """
     project = Path(project)
     branch = need_branch(project)
@@ -155,6 +156,9 @@ def pause(project, config, intent, done, next_step, open_decisions=None, pitfall
     open_decisions = NONE if open_decisions is None else one_line("open", open_decisions)
     pitfalls = NONE if pitfalls is None else one_line("pitfalls", pitfalls)
     key_files = [name.strip() for name in (files or "").split(",") if name.strip()]
+    secrets = secret_patterns.find("\n".join([intent, done, next_step, open_decisions, pitfalls, *key_files]))
+    if secrets:  # a note can be committed and shared, so a secret never goes into one
+        raise Refuse(f"the note would hold a secret ({', '.join(secrets)}), so nothing was written; say what it is for without the value")
     if git(project, "rev-parse", "--verify", "--quiet", "HEAD", check=False).returncode:
         raise Refuse("this branch has no commit yet, so the note has no HEAD to name", 2)
     folder = note_folder(project, config)

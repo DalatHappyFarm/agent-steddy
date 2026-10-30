@@ -336,7 +336,7 @@ Notes kept in the project are not committed by the kit either; the project commi
 | `resume [--branch B] --clear` | Deletes the note. A branch with no note is not an error. |
 
 `pause` exits 2, writing nothing, on a detached HEAD, in a repo with no commit and outside a git repo; `resume` exits 2 on a detached HEAD without `--branch` and outside a git repo.
-An empty or multi-line value exits 1, like the other commands.
+An empty or multi-line value exits 1, like the other commands, and so does a value that holds a secret (the patterns of the [secret output scan](#secret-output-scan)): a note can be committed and shared, so `pause` names the pattern, never the value, and writes nothing.
 `resume` for a branch with no note prints that and exits 0.
 
 The note has a fixed shape (the date is local time):

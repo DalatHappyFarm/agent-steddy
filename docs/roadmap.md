@@ -72,6 +72,7 @@ A new session picks up at the first unticked step.
   The notes live in the git common dir (shared by the worktrees) or in `resume.folder`; the kit commits neither, and `record finish` leaves the deletion of a committed note to the person, since it never commits.
   A note kept in the repo does not make the tree dirty for `record finish`, or no in-repo note could ever be merged.
   `feat/x` and `feat__x` map to one file name; the `Branch:` line of the note decides which branch it belongs to, so the other branch sees no note.
+  `pause` refuses a value that matches a pattern of the secret output scan, naming the pattern and never the value, since a note kept in the repo can be committed and shared.
 - Decided 2026-10-30 for step 10: the hand-back status is a default `handback.required` item, `\b(?:PASS|ISSUES|BLOCKED)\b`, the first of the list.
   The words are whole and in capitals, like the level pattern next to it (`\bL[0-5]\b`), so `PASSWORD` and `passed` do not count.
   This changes the default for a project that opted in with `handback.agents` and left `handback.required` out: its agents are now blocked once until their hand-back has a status word; a project that sets its own `handback.required` list is not affected.
