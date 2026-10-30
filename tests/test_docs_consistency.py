@@ -1,7 +1,8 @@
 """The docs that teach the method (the skills, the templates and the README) must agree with the code they name.
 
-Four checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
-every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py;
+Six checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
+every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the README and the config reference;
+every key of the config defaults has a row in the config reference;
 every backticked built-in rule id is listed in the README table;
 every relative link resolves, and its #anchor exists when the target is a Markdown file.
 """
@@ -15,6 +16,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 import cli  # noqa: E402
+import project_config  # noqa: E402
 
 README = ROOT / "README.md"
 METHOD_DOCS = sorted([README, *ROOT.glob("skills/**/*.md"), *ROOT.glob("templates/**/*.md")])
@@ -36,6 +38,17 @@ def subcommands():
                     if isinstance(inner, argparse._SubParsersAction):
                         pairs.update((group, command) for command in inner.choices)
     return pairs
+
+
+def top_level_commands():
+    """The commands of scripts/cli.py that take no subcommand, such as `pause` and `resume`."""
+    names = set()
+    for action in cli.build_parser()._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for name, parser in action.choices.items():
+                if not any(isinstance(inner, argparse._SubParsersAction) for inner in parser._actions):
+                    names.add(name)
+    return names
 
 
 def rule_table():
@@ -75,6 +88,24 @@ class Commands(unittest.TestCase):
         self.assertTrue(mentions)
         for path, group, command in mentions:
             self.assertIn((group, command), known, f"{path.relative_to(ROOT)}: agent-steddy {group} {command}")
+
+
+    def test_every_command_without_a_subcommand_is_in_the_readme_the_config_reference_and_the_gates_skill(self):
+        names = top_level_commands()
+        self.assertEqual(names, {"pause", "resume"})
+        for path in [README, ROOT / "docs" / "config.md", ROOT / "skills" / "gates" / "SKILL.md"]:
+            text = path.read_text(encoding="utf-8")
+            for name in names:
+                self.assertTrue(f"agent-steddy {name}" in text, f"{path.relative_to(ROOT)}: agent-steddy {name}")
+
+
+class ConfigKeys(unittest.TestCase):
+    def test_every_default_key_has_a_row_in_the_config_reference(self):
+        rows = set(re.findall(r"^\| `([A-Za-z.]+)` \|", (ROOT / "docs" / "config.md").read_text(encoding="utf-8"), re.M))
+        keys = [f"{section}.{key}" if isinstance(value, dict) else section for section, value in project_config.DEFAULTS.items() for key in (value if isinstance(value, dict) else [None])]
+        self.assertIn("resume.folder", keys)
+        for key in keys:
+            self.assertIn(key, rows, f"docs/config.md has no row for {key}")
 
 
 class RuleIds(unittest.TestCase):

@@ -31,6 +31,7 @@ DEFAULTS = {
         ],
     },
     "commands": {"deny": [], "askFromSubagent": [], "alwaysAsk": []},
+    "resume": {"folder": None},  # None keeps the resume notes in the local state; a project-relative folder keeps them in the repo
     "reminder": {"enabled": True, "text": DEFAULT_REMINDER},
     "records": {
         "lessons": "docs/agents/lessons.md",
@@ -48,6 +49,12 @@ def get(config, section, key):
     value = config.get(section)
     value = value.get(key) if isinstance(value, dict) else None
     return value if isinstance(value, type(default)) else copy.deepcopy(default)
+
+
+def working_branch(config):
+    """The branch agents work on and merge into: `workingBranch`, else the default."""
+    branch = config.get("workingBranch")
+    return branch if isinstance(branch, str) and branch else DEFAULTS["workingBranch"]
 
 
 def load(project_dir=None):

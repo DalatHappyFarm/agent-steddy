@@ -13,12 +13,16 @@
   agent-steddy record finish <branch> [--full] [--no-verify]
                                                     verify the branch, fast-forward the working branch onto it, delete it; never pushes
 
+  agent-steddy pause --intent I --done D --next N [--open O] [--pitfalls P] [--files a,b]
+                                                    write the resume note of the current branch (what to know to carry on); commits nothing
+  agent-steddy resume [--branch B] [--clear]        print the resume note and what changed since it; --clear deletes it
+
   agent-steddy lessons check [--quiet]              rules seen twice and not promoted, rules with no key, role cards to prune
   agent-steddy lessons promote <key> --to <role|walls> [--text T] [--force]
                                                     write a repeated rule into a role card's Pitfalls or the walls file, and mark its lines
 
 The project is `CLAUDE_PROJECT_DIR` when set, else the nearest folder from the cwd up that has `.claude/agent-steddy.json` or `.git`.
-Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused and 2 when the learning loop wants another key or target, with the reason on stderr.
+Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused and 2 when the learning loop wants another key or target or `pause` and `resume` have no branch or repo to work with, with the reason on stderr.
 """
 import argparse
 import json
@@ -32,6 +36,7 @@ import local_state  # noqa: E402
 import metrics  # noqa: E402
 import project_config  # noqa: E402
 import record  # noqa: E402
+import resume  # noqa: E402
 from local_state import Refuse  # noqa: E402
 
 
@@ -69,6 +74,16 @@ def build_parser():
     finish.add_argument("branch")
     finish.add_argument("--full", action="store_true", help="append --full to verifyCommand")
     finish.add_argument("--no-verify", action="store_true", help="merge without proof; only when the project has no verifyCommand")
+    pause = groups.add_parser("pause", help="write the resume note of the current branch; commits nothing")
+    pause.add_argument("--intent", required=True, help="one line: what the task is for")
+    pause.add_argument("--done", required=True, help="one line: what is done and how it was verified, with the ladder level")
+    pause.add_argument("--next", dest="next_step", required=True, help="one line: the first thing to do when work resumes")
+    pause.add_argument("--open", dest="open_decisions", help="one line: decisions still open (default none)")
+    pause.add_argument("--pitfalls", help="one line: what to watch for (default none)")
+    pause.add_argument("--files", help="comma separated: the files that matter")
+    pick_up = groups.add_parser("resume", help="print the resume note of a branch and what changed since it")
+    pick_up.add_argument("--branch", help="the branch; default is the checked out one")
+    pick_up.add_argument("--clear", action="store_true", help="delete the note instead of printing it")
     loop = groups.add_parser("lessons", help="the learning loop: rules that repeat, and moving them up").add_subparsers(dest="command", required=True)
     check = loop.add_parser("check", help="rules seen twice and not promoted, rules with no key, role cards to prune")
     check.add_argument("--quiet", action="store_true", help="print one summary line, and nothing when no rule is due")
@@ -123,6 +138,10 @@ def main(argv=None):
         config = project_config.load(project)
         if args.group == "metrics":
             lines = run_metrics(args, project, config, local_state.state_dir(project))
+        elif args.group == "pause":
+            lines = resume.pause(project, config, args.intent, args.done, args.next_step, args.open_decisions, args.pitfalls, args.files)
+        elif args.group == "resume":
+            lines = (resume.clear if args.clear else resume.show)(project, config, args.branch)
         else:
             lines = (run_record if args.group == "record" else run_lessons)(args, project, config)
         for line in lines:

@@ -50,6 +50,35 @@ A rule matches the usual forms of a command, not every way around it; [the limit
 Gate 7 never deploys, publishes or pushes unless the owner asked for that exact action.
 The commands of gates 6 and 7 are in the [finish skill](../finish/SKILL.md).
 
+## Pause and pick up
+
+An M or L task that stops before gate 7 leaves a resume note, so the next session carries on from what is on disk and does not redo it.
+The note is a short file for one branch; the [config reference](../../docs/config.md#resume-notes) has its shape and where it lives.
+
+Pause when the session is about to end, when the context is about to be summarized, or when the owner says stop.
+A small task that finishes in one go needs no note.
+
+```text
+agent-steddy pause --intent "<what the task is for>" --done "<what is done, and how it was verified, with the ladder level>" --next "<the first thing to do>" [--open "<decisions still open>"] [--pitfalls "<what to watch for>"] [--files a,b]
+```
+
+- Finish the atomic step you are in, or back out of it, and start nothing new.
+- Commit your own finished units on your task branch by path, as at any other time.
+- Never pause by opening a pull request or by pushing: those are the owner's call (wall 2).
+  Never pause by committing work in progress to a shared branch either: a half-done commit there hands every other agent a broken tree.
+- `pause` writes the note and commits nothing; a note kept in the repo is committed by path when the project wants other machines to see it.
+
+Pick up a task that was paused:
+
+1. Run `agent-steddy resume`.
+   The `SessionStart` hook adds the line `Resume note for <branch> from <date>: run agent-steddy resume before you start.` when the checked out branch has a note, and after the context was summarized that line is the pointer to it.
+2. Read what changed since the note: `resume` lists the commits after the note's HEAD and the uncommitted files, and `git log` and `git diff` against the base (`workingBranch`) show the rest.
+3. Re-check what the note says is done, with a check scoped to that claim: the verify command, or the ladder level the note names.
+   A previous session's self-assessment is not evidence (wall 8), the same as a subagent's report.
+4. Do not redo what git shows is done.
+   Carry on from the note's Next step, and settle the open decisions the note lists.
+5. At gate 7 the note is cleared: `agent-steddy record finish` deletes it, and `agent-steddy resume --clear` does when the task ends without a merge.
+
 ## Sizing a task
 
 - S: one file or a small tweak, under about ten minutes; gates 1 to 3 take one thought, gate 5 is one check at the lowest level that fits, and gate 6 is the retro line.
@@ -172,6 +201,7 @@ The report should move toward fewer feedback rounds and exposed defects per task
 | The walls and the gates | This skill; each agent prompt repeats the walls it needs, because a subagent does not see this conversation. |
 | Role cards and their pitfalls | The project's roles folder, `records.roles` (`docs/agents/roles/` by default). |
 | Lessons | `records.lessons`, newest first; each Rule line carries a key. |
+| Resume notes | One file per branch in `.git/agent-steddy/resume/`, or in `resume.folder` when the project sets one. |
 | The project's walls file | `records.walls`, `docs/agents/walls.md` by default; read at gate 2 with the walls above. |
 | Decisions and assumptions | `records.decisions`. |
 | Metrics lines | `records.metrics`. |

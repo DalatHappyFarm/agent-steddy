@@ -12,7 +12,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script directory off the path
 import lessons  # noqa: E402
 import project_config  # noqa: E402
-from local_state import Refuse  # noqa: E402
+import resume  # noqa: E402
+from local_state import Refuse, git, one_line  # noqa: E402
 
 DECISIONS_HEADER = """# Decisions
 
@@ -38,15 +39,6 @@ A rule with no key is only allowed when its text is `none`.
 A rule seen a second time moves up: `agent-steddy lessons promote <key> --to <role>` writes it into a role card, or `--to walls` into the walls file when it is about safety, data or money, and marks its lines ` [promoted -> <path>]`.
 A rule broken after that becomes a check, so it is enforced and not remembered.
 """
-
-
-def one_line(name, value):
-    value = (value or "").strip()
-    if not value:
-        raise Refuse(f"{name} is empty")
-    if "\n" in value or "\r" in value:
-        raise Refuse(f"{name} must be a single line")
-    return value
 
 
 def decision(path, area, text):
@@ -104,13 +96,6 @@ def lesson(path, task, roles, worked, exposed, rule, today=None, key=None):
     return heading
 
 
-def git(root, *args, check=True):
-    done = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
-    if check and done.returncode:
-        raise Refuse(f"git {' '.join(args)} failed: {done.stderr.strip() or done.stdout.strip()}")
-    return done
-
-
 def finish(root, branch, config, full=False, no_verify=False, say=None):
     """Verify `branch`, fast-forward `workingBranch` onto it and delete it. Never pushes.
 
@@ -119,8 +104,7 @@ def finish(root, branch, config, full=False, no_verify=False, say=None):
     With no `verifyCommand` nothing proves the branch, so it refuses unless `no_verify` is given; with one, `no_verify` is refused so the gate cannot be skipped by accident.
     """
     say = say or (lambda message: print(f"[finish] {message}", flush=True))
-    base = config.get("workingBranch")
-    base = base if isinstance(base, str) and base else project_config.DEFAULTS["workingBranch"]
+    base = project_config.working_branch(config)
     command = config.get("verifyCommand")
     if command is not None and not (isinstance(command, str) and command.strip()):
         raise Refuse("verifyCommand in the project config must be a command string or null")
@@ -133,7 +117,7 @@ def finish(root, branch, config, full=False, no_verify=False, say=None):
     for name in (branch, base):
         if git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{name}", check=False).returncode:
             raise Refuse(f"branch {name} does not exist")
-    if git(root, "status", "--porcelain").stdout.strip():
+    if git(root, "status", "--porcelain", *resume.exclude_note_folder(root, config)).stdout.strip():  # a resume note kept in the repo does not count
         raise Refuse("the working tree is not clean; commit your files by path first")
     if git(root, "merge-base", "--is-ancestor", base, branch, check=False).returncode:
         raise Refuse(f"{branch} does not fast-forward onto {base}; rebase it onto {base} or merge {base} into it first")
@@ -156,4 +140,10 @@ def finish(root, branch, config, full=False, no_verify=False, say=None):
     say("merged: " + (merged[0] if merged else "ok"))
     git(root, "branch", "-d", branch)
     say(f"deleted {branch}")
+    try:
+        if resume.has_note(root, config, branch):
+            for line in resume.clear(root, config, branch):
+                say(line)
+    except Refuse as error:  # the merge is done; a note that cannot be cleared must not look like a failed merge
+        say(f"the resume note was not cleared: {error}")
     say(f"done, on {base} (nothing was pushed)")

@@ -1,6 +1,6 @@
-"""Where the kit keeps its local state, and which project a process belongs to.
+"""Where the kit keeps its local state, and which project a process belongs to, plus the small helpers the commands share (`Refuse`, `git`, `one_line`).
 
-The state is the pending task clock and the tool timing log; it is never committed.
+The state is the pending task clock, the tool timing log and the resume notes; it is never committed.
 It lives in the git common dir (`<repo>/.git/agent-steddy/`), which every worktree of a repo shares.
 Outside a git repo it falls back to `CLAUDE_PLUGIN_DATA`, which Claude Code gives to hook processes and not to the commands the Bash tool runs.
 """
@@ -8,6 +8,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import subprocess
 from pathlib import Path
 
 NAME = "agent-steddy"
@@ -26,6 +27,24 @@ class Refuse(Exception):
     def __init__(self, message, code=1):
         super().__init__(message)
         self.code = code
+
+
+def git(root, *args, check=True):
+    """The finished `git -C root args...`; a failure raises Refuse unless `check` is false."""
+    done = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
+    if check and done.returncode:
+        raise Refuse(f"git {' '.join(args)} failed: {done.stderr.strip() or done.stdout.strip()}")
+    return done
+
+
+def one_line(name, value):
+    """`value` stripped; a Refuse when it is empty or has more than one line."""
+    value = (value or "").strip()
+    if not value:
+        raise Refuse(f"{name} is empty")
+    if "\n" in value or "\r" in value:
+        raise Refuse(f"{name} must be a single line")
+    return value
 
 
 def project_dir():

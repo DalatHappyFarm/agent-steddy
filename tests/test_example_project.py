@@ -21,7 +21,7 @@ EXAMPLE = ROOT / "examples" / "acme"
 CONFIG = json.loads((EXAMPLE / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
 BIN = ROOT / "bin" / "agent-steddy"
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from hook_runner import make_repo, run_hook  # noqa: E402
+from hook_runner import git, make_repo, run_hook  # noqa: E402
 
 
 def bash(command, agent=None):
@@ -222,11 +222,51 @@ class WholeTask(unittest.TestCase):
             self.assertEqual(run_hook("gate_reminder.py", prompt, project)["hookSpecificOutput"]["additionalContext"], CONFIG["reminder"]["text"])
             self.assertFalse((project / records["walls"]).exists())
 
+    def test_a_pause_is_picked_up_with_the_commit_made_after_it_and_then_cleared(self):
+        for folder in [None, "docs/agents/resume"]:  # the example's own setting, then the notes kept in the repo
+            with self.subTest(folder=folder), copy_of_example() as project:
+                if folder:
+                    config = json.loads((project / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
+                    config["resume"]["folder"] = folder
+                    (project / ".claude" / "agent-steddy.json").write_text(json.dumps(config), encoding="utf-8")
+                git(project, "add", "-A")
+                git(project, "commit", "-q", "-m", "docs: the example")
+                git(project, "switch", "-q", "-c", "feat/pricing")
+                (project / "pricing.html").write_text("<h1>Pricing</h1>")
+                git(project, "add", "pricing.html")
+                git(project, "commit", "-q", "-m", "feat: pricing page")
+                (project / "footer.html").write_text("<footer></footer>")
+                tip = git(project, "rev-parse", "HEAD")
+
+                paused = agent_steddy("pause", "--intent", "add the pricing page", "--done", "the page is committed, L1 tests green", "--next", "link it from the footer",
+                                      "--files", "pricing.html,footer.html", cwd=project)
+                where = project / folder if folder else project / ".git" / "agent-steddy" / "resume"
+                self.assertTrue((where / "feat__pricing.md").is_file(), paused.stdout)
+                self.assertEqual(git(project, "rev-parse", "HEAD"), tip, "pause committed nothing")
+                start = {"hook_event_name": "SessionStart", "source": "compact"}
+                pointer = run_hook("session_start.py", start, project)["hookSpecificOutput"]
+                self.assertEqual(pointer["hookEventName"], "SessionStart")
+                self.assertRegex(pointer["additionalContext"], r"^Resume note for feat/pricing from \d{4}-\d{2}-\d{2} \d{2}:\d{2}: run agent-steddy resume before you start\.$")
+
+                git(project, "add", "footer.html")
+                git(project, "commit", "-q", "-m", "feat: footer link", "--", "footer.html")
+                picked = agent_steddy("resume", cwd=project).stdout
+                self.assertIn("## Intent\nadd the pricing page\n", picked)
+                self.assertRegex(picked, r"commits after [0-9a-f]{12} \(1\):\n  [0-9a-f]+ feat: footer link\n")
+                self.assertIn("uncommitted files now (0):\n  none\n", picked)
+                self.assertIn("run the verify command (`make verify`)", picked)
+
+                self.assertTrue(agent_steddy("resume", "--clear", cwd=project).stdout.startswith("cleared: "))
+                self.assertFalse((where / "feat__pricing.md").exists())
+                self.assertIsNone(run_hook("session_start.py", start, project))
+                self.assertTrue(agent_steddy("resume", cwd=project).stdout.startswith("no resume note for feat/pricing"))
+
     def test_the_example_itself_is_left_clean(self):
         self.assertFalse((EXAMPLE / "docs" / "agents" / "decisions.md").exists())
         self.assertFalse((EXAMPLE / "docs" / "agents" / "lessons.md").exists())
         self.assertFalse((EXAMPLE / "docs" / "agents" / "metrics.jsonl").exists())
         self.assertFalse((EXAMPLE / "docs" / "agents" / "walls.md").exists())
+        self.assertFalse((EXAMPLE / "docs" / "agents" / "resume").exists())
 
 
 def frontmatter(text):

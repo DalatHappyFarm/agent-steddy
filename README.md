@@ -14,6 +14,7 @@ Guardrails, gates and a learning loop for a team of Claude Code agents, packaged
 - Stop the commands that break shared work (destructive git, reading secrets, deploying from a subagent) with hooks, so the rule holds even when a prompt forgets it.
 - Give every task the same seven gates: intake, recall, shape, act, prove, record, deliver.
 - Turn repeated mistakes into rules: a short retro per task with a key on each rule, a notice when a rule repeats, and one command that moves it into a role card or the walls file.
+- Stop a task safely and pick it up again: one resume note per branch, and a hook that points at it when a session starts or the context was summarized.
 - Measure the work: minutes per task, first-pass verification, defects the owner found.
 
 ## How a task flows
@@ -28,6 +29,7 @@ At gates 6 and 7 the finish skill records the decisions, a retro and a metrics l
 Every task passes the same seven gates, from a one-line fix to a new feature; the [gates skill](skills/gates/SKILL.md) says what each gate asks for.
 Hooks fire on events, not on gates:
 
+- The session start hook (`session_start.py`) runs when a session starts, resumes or is compacted: when the branch has a resume note it points at it.
 - The gate reminder (`gate_reminder.py`) runs on every prompt: it adds the gates to the prompt and starts the task clock.
 - When the work is delegated, `guard_agent.py` checks a subagent when it starts, `guard_write.py` keeps a fenced agent inside its paths, and `stop_check.py` blocks an incomplete hand-back once.
 - The Bash hooks run on every command, in the main session and in a subagent: `guard_bash.py` checks it, `tool_timing.py` times it and `secret_output_scan.py` hides a secret in its output.
@@ -38,7 +40,7 @@ Hooks fire on events, not on gates:
 ```text
 agent-steddy/
 ├── .claude-plugin/              plugin.json, and marketplace.json so this repo is its own marketplace
-├── bin/agent-steddy             the command for metrics, records and lessons (on the Bash PATH while the plugin is enabled)
+├── bin/agent-steddy             the command for metrics, records, lessons and resume notes (on the Bash PATH while the plugin is enabled)
 ├── hooks/hooks.json             which script runs on which Claude Code event
 ├── scripts/                     the hook scripts and the command's code (Python, standard library only)
 ├── skills/                      the method: the gates skill and the finish skill
@@ -109,13 +111,15 @@ See [docs/config.md](docs/config.md) for the keys and the matching rules.
 
 ## Measure and record
 
-Three more hooks collect the data, and the `agent-steddy` command turns it into numbers and keeps the record of decisions and lessons.
-The data is local state in the git common dir (`.git/agent-steddy/`), shared by every worktree and never committed.
+Four more hooks run around the work: three collect the data, one points at a resume note.
+The `agent-steddy` command turns the data into numbers and keeps the record of decisions and lessons, and the resume notes for a task that stops early.
+The data and the notes are local state in the git common dir (`.git/agent-steddy/`), shared by every worktree and never committed.
 
 | Hook | Runs | What it does |
 | --- | --- | --- |
 | `tool_timing.py` | before and after every Bash command | Logs how long the command took, the agent type and whether it failed, with the command normalized (no `cd` prefix, relative paths, no heredoc body, secrets redacted). |
 | `secret_output_scan.py` | after every Bash command | Replaces a secret in the output the agent reads with `[REDACTED:<pattern>]` and tells the agent to report it. After a failed command it can only warn. It never prints the value. |
+| `session_start.py` | when a session starts, resumes, is cleared, is compacted or is forked (`SessionStart`) | When the checked out branch has a resume note, adds the line `Resume note for <branch> from <date>: run agent-steddy resume before you start.` to the context, and nothing otherwise. |
 | `gate_reminder.py` | when a prompt is submitted | Adds the seven gates (or `reminder.text`) to the prompt context, with one more line while a rule is seen twice and not promoted, and starts the task clock when no task is pending. |
 
 | Command | What it does |
@@ -126,12 +130,14 @@ The data is local state in the git common dir (`.git/agent-steddy/`), shared by 
 | `agent-steddy metrics slow` | The Bash commands that take the most time, grouped. |
 | `agent-steddy record decision "<area>" "<text>"` | Appends a line to `records.decisions`. |
 | `agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R --key K` | Puts a dated entry at the top of `records.lessons`. A rule other than `none` needs a key, a slug such as `commit-by-path`; without one nothing is written and the closest recorded rules are listed. A key recorded a second time prints a notice with the promote command. |
-| `agent-steddy record finish <branch>` | Runs `verifyCommand` on the branch, fast-forwards `workingBranch` onto it and deletes it; it refuses when the verify fails and never pushes. |
+| `agent-steddy record finish <branch>` | Runs `verifyCommand` on the branch, fast-forwards `workingBranch` onto it, deletes it and its resume note; it refuses when the verify fails and never pushes. |
+| `agent-steddy pause --intent I --done D --next N [--open O] [--pitfalls P] [--files a,b]` | Writes the resume note of the current branch: the date, the HEAD commit, the diff against the base, the uncommitted files, then the intent, what is done and verified, the open decisions, the next step, the key files and the pitfalls. It commits nothing. |
+| `agent-steddy resume [--branch B] [--clear]` | Prints the branch's resume note, the commits and uncommitted files since it, and a reminder that the note is a claim, not evidence; `--clear` deletes the note. |
 | `agent-steddy lessons check [--quiet]` | Lists the rules seen twice and not promoted, the Rule lines with no key (with a suggested key) and the role cards to prune; `--quiet` prints the one reminder line, or nothing. |
 | `agent-steddy lessons promote <key> --to <role\|walls> [--text T] [--force]` | Writes a repeated rule as the last bullet of the role card's Pitfalls, or into `records.walls`, and marks its Rule lines ` [promoted -> <path>]`. |
 
 Claude Code puts the plugin's `bin/` folder on the Bash tool's `PATH` while the plugin is enabled; Claude.ai and Cowork do not install a plugin that has one.
-See [docs/config.md](docs/config.md) for the clocks, the file formats, `finish`, the learning loop and the keys.
+See [docs/config.md](docs/config.md) for the clocks, the file formats, `finish`, the resume notes, the learning loop and the keys.
 
 ## Method
 
@@ -142,6 +148,11 @@ The method for a task has three parts.
 - The [templates](templates/README.md) hold an orchestrator role card, the shape of a role card, an agent file for each kind of agent and the brief for a subagent; a project copies them and fills in the placeholders.
 
 The gates skill marks which walls a hook enforces and which ones a person has to keep.
+
+### Ideas from
+
+Several ideas in the method come from [pstack](https://github.com/cursor/plugins/tree/main/pstack), a skill pack for coding agents by Lauren Tan (MIT license): stopping a task with a resume note and picking it up from the note and git, rules for turning a lesson into a check, a budget in the brief, findings that carry the command that shows them, and numbers that come with a verdict.
+The kit's code and wording are its own.
 
 ## Example project
 

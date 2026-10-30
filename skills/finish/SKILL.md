@@ -91,6 +91,7 @@ The command runs in this order:
 1. It refuses unless the branch exists, is not `workingBranch`, fast-forwards onto `workingBranch`, and the working tree is clean.
 2. It switches to the branch, runs `verifyCommand` on it through a shell in the project root, and switches back.
 3. When the command passes, it merges the branch with `git merge --ff-only` and deletes the branch.
+4. It deletes the branch's resume note, when `agent-steddy pause` left one, and says so.
 
 It never pushes.
 
@@ -98,10 +99,12 @@ It never pushes.
 - `--no-verify` is refused when `verifyCommand` is set; with no `verifyCommand` the command refuses unless `--no-verify` is given, because nothing else would prove the branch.
 - When the verify command fails, nothing is merged, the branch stays, and the last 40 lines of its output are printed.
 - The command switches the checkout between branches, so no other agent may work in the same checkout while it runs.
-- When the owner said they will review the task first, skip this step and name the branch in the report.
+- When the owner said they will review the task first, skip this step and name the branch in the report; the task is done, so clear its resume note with `agent-steddy resume --clear`.
+- A resume note kept in the repo (`resume.folder`) is deleted too; when it was committed, the deletion is left for you to commit by path.
 
 ## 7. Release what the task started
 
+Clearing the resume note is part of gate 7, and step 6 did it; with no merge, run `agent-steddy resume --clear`, so that a later session does not pick up a task that is done.
 Stop the dev servers, simulators, headless browsers, watchers and background polls that this task started.
 Check what still listens with `lsof -nP -iTCP -sTCP:LISTEN`.
 Delete throwaway copies and temp folders, unless the report needs them as evidence.

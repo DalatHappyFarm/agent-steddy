@@ -31,6 +31,9 @@
     "askFromSubagent": ["git push", "make deploy", "make deploy-web"],
     "alwaysAsk": ["npm publish", "pnpm publish"]
   },
+  "resume": {
+    "folder": null
+  },
   "reminder": {
     "enabled": true,
     "text": "Pass the seven gates for this request, record decisions with `agent-steddy record decision`, and commit only when asked."

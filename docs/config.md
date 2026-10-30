@@ -31,6 +31,7 @@ Unknown keys are kept and are not an error.
 | `commands.deny` | `[]` | `scripts/guard_bash.py` |
 | `commands.askFromSubagent` | `[]` | `scripts/guard_bash.py` |
 | `commands.alwaysAsk` | `[]` | `scripts/guard_bash.py` |
+| `resume.folder` | `null` | `scripts/resume.py`, `scripts/session_start.py`, `scripts/record.py` |
 | `reminder.enabled` | `true` | `scripts/gate_reminder.py` |
 | `reminder.text` | the seven gates | `scripts/gate_reminder.py` |
 | `records.lessons` | `"docs/agents/lessons.md"` | `scripts/record.py`, `scripts/lessons.py`, `scripts/gate_reminder.py` |
@@ -61,6 +62,8 @@ Unknown keys are kept and are not an error.
   The main session runs the same command without asking.
   A subagent is a hook input with a non-empty `agent_type`.
 - `commands.alwaysAsk` is a list of `"<words>"` patterns; a matching command makes the owner confirm it, whoever runs it.
+- `resume.folder` is where the [resume notes](#resume-notes) live: `null` keeps them in the local state, a folder relative to the project root (for example `docs/agents/resume`) keeps them in the repo, where the project can commit them by path so that other machines see them.
+  An absolute path, or one with `..`, is refused.
 - `reminder.enabled` turns the per-prompt reminder off when it is `false`; the task clock still starts.
 - `reminder.text` is the text added to the context of every prompt; the default lists the seven gates.
   An empty text adds nothing.
@@ -161,15 +164,17 @@ The same fail-open rule applies: any internal error prints nothing and the outpu
 
 ## Local state
 
-The kit keeps a little state per project, and none of it is committed: the pending task clock and the tool timing log.
+The kit keeps a little state per project, and none of it is committed: the pending task clock, the tool timing log and the resume notes.
 It lives in the `agent-steddy` folder inside the git common dir, for example `.git/agent-steddy/`, so every worktree of a repo shares it.
 The files:
 
 - `pending-task.json` is the task clock, written by the prompt hook and read by `agent-steddy metrics`.
 - `tool-times.jsonl` is the tool timing log, one line per Bash command.
 - `tool-marks/` holds the start time of each Bash command that has not finished.
+- `resume/` holds the [resume notes](#resume-notes), one file per branch, unless `resume.folder` puts them in the project.
 
 Outside a git repo the hooks use a folder per project under `CLAUDE_PLUGIN_DATA`, and with neither they keep no state.
+The resume notes are the exception: they live in the git common dir only, so a project that is not a git repo has no resume notes in the local state.
 Claude Code gives `CLAUDE_PLUGIN_DATA` to hook processes and not to commands that the Bash tool runs.
 So in a project that is not a git repo the hooks can write the state and the `agent-steddy` command cannot find it.
 
@@ -225,6 +230,7 @@ So the command finds the project itself: `CLAUDE_PROJECT_DIR` when it is set, el
 It reads the project config from there, and every path it writes comes from that config.
 A command that is refused prints the reason on stderr after `agent-steddy: refused:` and exits 1.
 The learning loop's refusals that ask for another key or target (a rule with no key, a bad key, a promotion that is not allowed) exit 2, the code of a usage error, so a caller can tell them from a failed record.
+`pause` and `resume` exit 2 as well when there is no branch or repo to work with: a detached HEAD, a repo with no commit, a project that is not a git repo, a `resume.folder` outside the project.
 
 ## Metrics
 
@@ -263,7 +269,7 @@ A line that is not a JSON object with a `date` is skipped by the report.
 | --- | --- |
 | `record decision "<area>" "<text>"` | Appends `- [area] text` to `records.decisions`. The area is a short tag of letters, digits, spaces and `_ . / -`; the area and the text are one line each. A missing file is created with a short header. |
 | `record lesson --task T --roles a,b --worked W --exposed E --rule R [--key K]` | Puts an entry at the top of `records.lessons`, above the older ones: a heading `## <date> - <task> - roles: a, b` and the three lines Worked, Exposed and Rule. A rule other than `none` takes a key, see [Learning loop](#learning-loop). A missing file is created from a template: a title, the entry format in a code fence, and how a repeated rule moves up. A heading inside a code fence is not an entry. |
-| `record finish <branch> [--full] [--no-verify]` | Verifies a branch and merges it into `workingBranch`, see below. |
+| `record finish <branch> [--full] [--no-verify]` | Verifies a branch and merges it into `workingBranch`, and deletes the branch's [resume note](#resume-notes), see below. |
 
 `record finish` is the merge at the end of a task, and it never pushes.
 It refuses when the branch does not exist, is the working branch, or does not fast-forward onto it, and when the working tree has uncommitted or untracked files.
@@ -273,10 +279,74 @@ Then:
    `--full` appends ` --full` to the command, for a verify script that scopes itself to what the branch changed and checks everything with that flag.
 2. When the command fails it merges nothing, keeps the branch, and prints the last 40 lines of the output.
 3. When it passes it checks out `workingBranch`, merges the branch with `git merge --ff-only`, and deletes the branch with `git branch -d`.
+4. It then deletes the branch's [resume note](#resume-notes) when there is one, and says so.
+   A note kept in the repo (`resume.folder`) does not count as an uncommitted file in the clean-tree check, so it never blocks the merge.
+   When that note was committed, the deletion is left uncommitted and the output says to commit it by path.
+   A note that cannot be deleted never undoes the merge; the output says it was not cleared.
 
 With no `verifyCommand` nothing proves the branch, so the command refuses unless `--no-verify` is given.
 With a `verifyCommand`, `--no-verify` is refused: a gate the project set is not skipped by a flag.
 The command runs git itself and not through the Bash tool, so the Bash rules do not see it; it uses only `switch`, `merge --ff-only` and `branch -d`.
+
+## Resume notes
+
+A task that stops before it is done leaves a resume note, so the next session carries on from what is on disk and does not redo it.
+`agent-steddy pause` writes the note, `agent-steddy resume` reads it, and a `SessionStart` hook points at it.
+The method for when to pause and how to pick up is in the [gates skill](../skills/gates/SKILL.md#pause-and-pick-up).
+
+There is one note per branch, in the file `<branch with "/" replaced by "__">.md`, so the note of `feat/x` is `feat__x.md`.
+Two branch names that map to the same file name (`feat/x` and `feat__x`) share it, and a note is shown only for the branch its `Branch:` line names, so the other branch sees no note.
+The folder is `resume.folder` of the project, else `resume/` in the [local state](#local-state): never committed and shared by every worktree of the repo.
+Notes kept in the project are not committed by the kit either; the project commits them by path when other machines should see them.
+
+| Command | What it does |
+| --- | --- |
+| `pause --intent I --done D --next N [--open O] [--pitfalls P] [--files a,b]` | Writes the note of the checked out branch and replaces the branch's older one. `--intent`, `--done` and `--next` are required single lines; `--done` says what is done and how it was verified, with the ladder level. `--open` and `--pitfalls` are single lines, `--files` is a comma separated list, and each one left out reads `none`. It commits nothing, and for a note kept in the repo it says to commit the file by path. |
+| `resume [--branch B]` | Prints the note of the branch (the checked out one by default), then what changed since it, then a reminder that the note is a claim. |
+| `resume [--branch B] --clear` | Deletes the note. A branch with no note is not an error. |
+
+`pause` exits 2, writing nothing, on a detached HEAD, in a repo with no commit and outside a git repo; `resume` exits 2 on a detached HEAD without `--branch` and outside a git repo.
+An empty or multi-line value exits 1, like the other commands.
+`resume` for a branch with no note prints that and exits 0.
+
+The note has a fixed shape (the date is local time):
+
+```text
+# Resume note: feat/x
+
+- Date: 2026-10-30 14:05
+- Branch: feat/x
+- HEAD: <the full commit hash> <its subject>
+- Base: main (merge base <12 characters of the hash>)
+
+## Committed since the base
+<git diff --stat from the merge base to HEAD, or none>
+
+## Uncommitted files
+- M path
+- ?? path
+
+## Intent
+## Done and verified
+## Open decisions
+## Next step
+## Key files
+## Pitfalls
+```
+
+- The base is `workingBranch`.
+  When that branch does not exist the note says so and has no diff.
+  A long `git diff --stat` keeps its first lines and its summary line.
+- The uncommitted files are the `git status --porcelain` lines, untracked files included, and the note folder itself is left out when it is in the repo.
+- `resume` prints the note as written, then `Since the note`: the commits after the note's HEAD (`git log --oneline <head>..<branch>`) and the uncommitted files now, then one closing line: the note is a claim, not evidence; check Done against git and run the verify command (`verifyCommand` when set); do not redo what git shows is done.
+  When the note's HEAD is not an ancestor of the branch (a rebase or a reset), or is not in the repo at all, it says so and names `git log <workingBranch>..<branch>` instead.
+  For another branch than the checked out one (`--branch`) the uncommitted files are not listed, since they belong to the checkout.
+- The note is written by `pause` and meant to be read by `resume`; a note edited by hand still prints, and one with no `HEAD:` line has no `Since the note` list.
+
+`scripts/session_start.py` runs on `SessionStart`, for every source (`startup`, `resume`, `clear`, `compact` and `fork`); `compact` is the one that matters most, since the context was just summarized.
+When the checked out branch has a note it adds one line to the context: `Resume note for <branch> from <date>: run agent-steddy resume before you start.`
+It prints nothing otherwise, and it calls git only when the note folder holds a note.
+It fails open: an error, a broken config, an unusable `resume.folder`, a detached HEAD and a project that is not a git repo all print nothing, and it exits 0 whatever happens.
 
 ## Learning loop
 
