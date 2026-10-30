@@ -9,11 +9,14 @@ Two clocks, both local time:
                   It includes the discussion before `start`.
                   It is null when no auto start existed (a second task of one prompt, since `log` deletes the clock) or when it is older than 12 hours (a prompt that never reached `log`).
 The report averages `prompt_minutes` over the rows that have it.
+
+The report ends with verdicts for the last two weeks that have tasks (see `verdicts`); the two constants below are the whole rule.
 """
 import datetime as dt
 import json
 import os
 import re
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -24,6 +27,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I lea
 import local_state  # noqa: E402
 import tool_timing  # noqa: E402
 from local_state import Refuse  # noqa: E402
+
+
+# The verdict rule, in one place (docs/config.md states it): fewer than MIN_TASKS tasks in either week is inconclusive;
+# otherwise a gap between the two weeks' medians under IQR_SHARE of the larger week's interquartile range is no measurable difference.
+MIN_TASKS = 5  # at least 2, since an interquartile range needs two values
+IQR_SHARE = 0.5
 
 
 def _when(value):
@@ -152,12 +161,55 @@ def git_table(pairs, weeks):
     return out
 
 
+def verdict(old, new, center, lower_is_better, words):
+    """The verdict on two weeks of values, `old` the earlier week: inconclusive, no measurable difference, or one of `words` (the word for a move in the good direction, then for the bad one).
+
+    Fewer than MIN_TASKS values in either week is inconclusive.
+    Otherwise the two weeks' centers (`center` of the values) are compared, and a gap under IQR_SHARE of the larger week's interquartile range (`statistics.quantiles`, n=4) is no measurable difference; equal centers never are a difference.
+    """
+    if min(len(old), len(new)) < MIN_TASKS:
+        return "inconclusive"
+    gap = center(new) - center(old)
+    spread = max(q[2] - q[0] for q in (statistics.quantiles(old, n=4), statistics.quantiles(new, n=4)))
+    if gap == 0 or abs(gap) < IQR_SHARE * spread:
+        return "no measurable difference"
+    return words[0] if (gap < 0) == lower_is_better else words[1]
+
+
+def verdicts(rows, weeks):
+    """Lines that compare the last two weeks that have tasks, among the `weeks` the tables show: minutes by size, and the first-pass share."""
+    by_week = defaultdict(list)
+    for row in rows:
+        by_week[week_of(row["date"])].append(row)
+    shown = sorted(by_week)[-weeks:]
+    if len(shown) < 2:
+        return ["Verdicts, the last two weeks that have tasks", "  needs two weeks with tasks"]
+    old_week, new_week = shown[-2:]
+    old, new = by_week[old_week], by_week[new_week]
+    rule = (f"inconclusive when either week has fewer than {MIN_TASKS} tasks of that size; otherwise the medians are compared, and a gap under {IQR_SHARE:g} x the larger week's "
+            "interquartile range is no measurable difference, else faster or slower, better or worse for the share")
+    out = [f"Verdicts, {old_week} vs {new_week} (rule: {rule})", f"  {'metric':<18}{old_week:<20}{new_week:<20}verdict"]
+
+    def line(name, old_values, new_values, center, shown_as, lower_is_better, words):
+        cells = [f"{shown_as(center(values))} (n={len(values)})" if values else "- (n=0)" for values in (old_values, new_values)]
+        out.append(f"  {name:<18}{cells[0]:<20}{cells[1]:<20}{verdict(old_values, new_values, center, lower_is_better, words)}")
+
+    for size in ("S", "M", "L"):
+        minutes = [[r["minutes"] for r in week if r.get("size") == size and isinstance(r.get("minutes"), (int, float)) and not isinstance(r.get("minutes"), bool)] for week in (old, new)]
+        line(f"minutes {size}", *minutes, statistics.median, lambda value: f"median {value:g}", True, ("faster", "slower"))
+    passed = [[1 if r.get("verify_first_pass") else 0 for r in week] for week in (old, new)]
+    line("first-pass share", *passed, statistics.mean, lambda value: f"{value:.0%}", False, ("better", "worse"))
+    out.append("  (for the share each task counts 1 or 0, and the share stands where the median stands)")
+    return out
+
+
 def report(log_file, label, root, weeks):
-    """The weekly task table and the weekly git rework table, as lines."""
+    """The weekly task table, the weekly git rework table and the verdicts on the last two weeks, as lines."""
     rows = read_rows(log_file)
     pairs = git_rows(root, weeks)
     return [f"Tasks ({label})", *(task_table(rows, weeks) if rows else ["  no rows yet"]),
-            "", "Git rework (conventional commit prefixes)", *(git_table(pairs, weeks) if pairs else ["  no commits in this range"])]
+            "", "Git rework (conventional commit prefixes)", *(git_table(pairs, weeks) if pairs else ["  no commits in this range"]),
+            "", *verdicts(rows, weeks)]
 
 
 # Commands whose second word names the work (`git commit`, `make test`), so it is part of the key.

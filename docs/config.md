@@ -243,7 +243,7 @@ It writes to `records.metrics`, a JSON lines file that the project commits, and 
 | --- | --- |
 | `metrics start "<task>" [--force]` | Names the task and starts its clock. It refuses when a named task is already running, so a sub-agent that reads the gates does not restart the clock of the task it works for; `--force` replaces it. |
 | `metrics log --size S\|M\|L --type new\|feedback --verify-first-pass yes\|no [--task T] [--roles a,b] [--agents N] [--minutes N] [--exposed N]` | Appends one line to the metrics file and deletes the clock. `--task` defaults to the name given to `start`; `--minutes` replaces the clock. |
-| `metrics report [--weeks 8]` | Prints a table per week of tasks (count, average minutes by size, average prompt minutes, defects found by the owner per task, share of first-pass verifications) and a table per week of commits by conventional prefix, with the share of fixes as rework. |
+| `metrics report [--weeks 8]` | Prints a table per week of tasks (count, average minutes by size, average prompt minutes, defects found by the owner per task, share of first-pass verifications), a table per week of commits by conventional prefix, with the share of fixes as rework, and then [verdicts](#verdicts) on the last two weeks that have tasks. |
 | `metrics slow [--days 7] [--top 10]` | Prints the Bash commands of the [tool timing](#tool-timing) log grouped by key, by total time and by count. A command line is keyed by its heaviest known step, else by the chain of its steps. |
 | `metrics selftest` | Checks the installed scripts on temporary files and prints `selftest ok`. |
 
@@ -262,6 +262,34 @@ There are two clocks, both in local time:
 `metrics log` does not need the clock: with `--task` and `--minutes` it works in a project that has no local state.
 `start` needs it and refuses without one.
 A line that is not a JSON object with a `date` is skipped by the report.
+
+### Verdicts
+
+The averages of the weekly table move from week to week even when nothing changed, so the report ends with a verdict on the last two weeks that have tasks (among the `--weeks` the tables show; they need not be neighbors).
+It compares minutes for each size, S, M and L, and the share of tasks whose first verification run was green:
+
+```text
+Verdicts, 2026-W43 vs 2026-W44 (rule: ...)
+  metric            2026-W43            2026-W44            verdict
+  minutes S         median 12 (n=6)     median 9 (n=7)      faster
+  minutes M         median 30 (n=3)     median 25 (n=5)     inconclusive
+  minutes L         - (n=0)             - (n=0)             inconclusive
+  first-pass share  67% (n=9)           80% (n=10)          no measurable difference
+```
+
+The rule is printed in the header line of the section, and it is the whole rule:
+
+1. A week with fewer than 5 tasks of that size makes the verdict inconclusive.
+   For minutes, a task counts when it has a number of minutes; for the share, every task of the week counts.
+2. Otherwise the two weeks' medians are compared.
+   When they differ by less than 0.5 x the larger of the two weeks' interquartile ranges (`statistics.quantiles` with `n=4`, its default exclusive method), the verdict is no measurable difference; equal medians are never a difference.
+3. Otherwise the verdict is faster or slower for minutes (lower is faster), and better or worse for the share (higher is better).
+
+The two numbers, 5 and 0.5, are the constants `MIN_TASKS` and `IQR_SHARE` at the top of `scripts/metrics.py`; the rule is written nowhere else.
+For the share, each task counts 1 (first pass green) or 0, and the share itself stands where the median stands, because the median of a column of 0 and 1 only says which side of a half the share is on.
+The interquartile range of those 0 and 1 values is about 1 when the share lies between a quarter and three quarters, and 0 or a small fraction outside that band (computed for 5, 10, 20 and 40 tasks), so a share in the middle needs a big move before it is called better or worse, and a share near an edge needs a small one.
+The verdict says nothing about why the numbers moved, and with 5 or 6 tasks a week one slow task can still decide it; read it next to the table.
+A section with fewer than two weeks that have tasks says `needs two weeks with tasks`.
 
 ## Records
 

@@ -106,6 +106,7 @@ class Reports(unittest.TestCase):
             self.assertEqual(report.returncode, 0, report.stderr)
             self.assertIn("Tasks (docs/agents/metrics.jsonl)", report.stdout)
             self.assertIn("no rows yet", report.stdout)
+            self.assertTrue(report.stdout.endswith("Verdicts, the last two weeks that have tasks\n  needs two weeks with tasks\n"), report.stdout)
             slow = agent_steddy(["metrics", "slow", "--days", "3", "--top", "5"], root)
             self.assertEqual(slow.returncode, 0, slow.stderr)
             self.assertIn("last 3 days", slow.stdout)

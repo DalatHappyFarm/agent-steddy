@@ -195,7 +195,8 @@ A rule that is broken after its promotion needs a check that a machine runs, not
 
 - `metrics start "<task>"` names the task and starts its clock; a running named task is kept, and `--force` replaces it.
 - `metrics log --size S|M|L --type new|feedback --verify-first-pass yes|no` appends one line and closes the clock; `log` also takes `--task`, `--roles`, `--agents`, `--exposed` and `--minutes`.
-- `metrics report` prints a weekly table of tasks (count, new and feedback, average minutes by size, average prompt minutes, defects the owner found per task, and the share of first-pass verifications) and a weekly table of commits by prefix with the share of fixes.
+- `metrics report` prints a weekly table of tasks (count, new and feedback, average minutes by size, average prompt minutes, defects the owner found per task, and the share of first-pass verifications), a weekly table of commits by prefix with the share of fixes, and a verdict on the last two weeks that have tasks.
+  Read the verdict before you say a number moved: with fewer than 5 tasks of a size in a week it says inconclusive, and a gap smaller than half the spread of the weeks is no measurable difference.
 - `metrics slow` prints the Bash commands with the most total time, grouped.
 
 Two clocks run: `minutes` covers the work from `start` to `log`, and `prompt_minutes` runs from the prompt that began the work, so it includes the discussion before `start`.

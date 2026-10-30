@@ -4,8 +4,10 @@ import json
 import os
 import pathlib
 import sys
+import statistics
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -180,7 +182,8 @@ class Report(unittest.TestCase):
     def test_the_report_joins_both_tables_and_tolerates_no_data(self):
         with workspace() as (state, log_file), tempfile.TemporaryDirectory() as plain, tempfile.TemporaryDirectory() as repo:
             self.assertEqual(metrics.report(log_file, "docs/agents/metrics.jsonl", plain, 8),
-                             ["Tasks (docs/agents/metrics.jsonl)", "  no rows yet", "", "Git rework (conventional commit prefixes)", "  no commits in this range"])
+                             ["Tasks (docs/agents/metrics.jsonl)", "  no rows yet", "", "Git rework (conventional commit prefixes)", "  no commits in this range",
+                              "", "Verdicts, the last two weeks that have tasks", "  needs two weeks with tasks"])
             make_repo(repo)
             git(repo, "commit", "-q", "--allow-empty", "-m", "feat: a thing")
             git(repo, "commit", "-q", "--allow-empty", "-m", "fix: the thing")
@@ -188,8 +191,117 @@ class Report(unittest.TestCase):
             lines = metrics.report(log_file, "docs/agents/metrics.jsonl", repo, 8)
             self.assertEqual(lines[0], "Tasks (docs/agents/metrics.jsonl)")
             self.assertIn("  5/", "\n".join(lines))  # the average of size S
-            self.assertIn("50%", lines[-1])  # one fix of one feat and one fix
+            self.assertIn("50%", lines[lines.index("Git rework (conventional commit prefixes)") + 2])  # one fix of one feat and one fix
             self.assertEqual(sum(1 for line in lines if line.startswith("2")), 2)
+            self.assertEqual(lines[-2:], ["Verdicts, the last two weeks that have tasks", "  needs two weeks with tasks"])  # one week only
+
+
+A = [10, 20, 30, 40, 50]  # median 30, interquartile range 30 (statistics.quantiles, n=4)
+C = [5, 10, 15, 20, 25]  # median 15, range 15
+D = [10, 15, 20, 25, 30]  # median 20, range 15
+E = [6, 11, 16, 21, 26]  # median 16, range 15
+FASTER = ("faster", "slower")
+BETTER = ("better", "worse")
+NO_DIFFERENCE, INCONCLUSIVE = "no measurable difference", "inconclusive"
+
+
+def share(passed, total):
+    return [1] * passed + [0] * (total - passed)
+
+
+class Verdict(unittest.TestCase):
+    def test_the_numbers_the_cases_rely_on(self):
+        for values, median, spread in [(A, 30, 30), (C, 15, 15), (D, 20, 15), (E, 16, 15)]:
+            q = statistics.quantiles(values, n=4)
+            self.assertEqual((statistics.median(values), q[2] - q[0]), (median, spread), values)
+
+    def test_minutes_are_compared_by_median_against_half_the_larger_interquartile_range(self):
+        cases = [
+            ("a gap under half the range is no difference", A, [11, 21, 31, 41, 51], NO_DIFFERENCE),
+            ("a gap of exactly half the range is a difference", A, C, "faster"),  # 15 is not less than 0.5 x 30
+            ("a gap just under half the range is not", A, E, NO_DIFFERENCE),  # 14 < 15
+            ("the larger range counts, not the smaller", A, D, NO_DIFFERENCE),  # 10 < 15 here, and 10 > 7.5 with the smaller range
+            ("and in the other order", D, A, NO_DIFFERENCE),
+            ("a long way up is slower", A, [60, 70, 80, 90, 100], "slower"),
+            ("a long way down is faster", [60, 70, 80, 90, 100], A, "faster"),
+            ("equal medians are no difference", A, A, NO_DIFFERENCE),
+            ("no spread at all and the same value", [10] * 5, [10] * 5, NO_DIFFERENCE),
+            ("no spread and a higher value is slower", [10] * 5, [12] * 5, "slower"),
+            ("no spread and a lower value is faster", [12] * 5, [10] * 5, "faster"),
+        ]
+        for name, old, new, expected in cases:
+            self.assertEqual(metrics.verdict(old, new, statistics.median, True, FASTER), expected, name)
+
+    def test_fewer_than_five_tasks_in_either_week_is_inconclusive(self):
+        cases = [([10] * 4, [10] * 10), ([10] * 10, [1] * 4), ([], A), (A, []), ([10] * 4, [10] * 4), ([10, 20], [30, 40])]
+        for old, new in cases:
+            self.assertEqual(metrics.verdict(old, new, statistics.median, True, FASTER), INCONCLUSIVE, (old, new))
+        self.assertNotEqual(metrics.verdict(A, A, statistics.median, True, FASTER), INCONCLUSIVE)  # five and five is enough
+
+    def test_the_share_is_better_when_higher_and_compared_the_same_way(self):
+        cases = [
+            ("a small spread and a big move", share(2, 10), share(8, 10), "better"),  # gap 0.6, ranges 0.25: threshold 0.125
+            ("and back", share(8, 10), share(2, 10), "worse"),
+            ("a middle share has a wide range, so 50% to 80% is no difference", share(5, 10), share(8, 10), NO_DIFFERENCE),  # gap 0.3, range 1: threshold 0.5
+            ("equal shares", share(5, 10), share(5, 10), NO_DIFFERENCE),
+            ("under five tasks", share(1, 4), share(4, 4), INCONCLUSIVE),
+        ]
+        for name, old, new, expected in cases:
+            self.assertEqual(metrics.verdict(old, new, statistics.mean, False, BETTER), expected, name)
+
+    def test_the_two_constants_are_the_whole_rule(self):
+        self.assertEqual((metrics.MIN_TASKS, metrics.IQR_SHARE), (5, 0.5))
+        self.assertEqual(metrics.verdict(A, E, statistics.median, True, FASTER), NO_DIFFERENCE)
+        with mock.patch.object(metrics, "IQR_SHARE", 0.25):  # the threshold is now 7.5, and the gap is 14
+            self.assertEqual(metrics.verdict(A, E, statistics.median, True, FASTER), "faster")
+        with mock.patch.object(metrics, "MIN_TASKS", 6):
+            self.assertEqual(metrics.verdict(A, A, statistics.median, True, FASTER), INCONCLUSIVE)
+
+
+class Verdicts(unittest.TestCase):
+    def rows(self, day, size, minutes, first_pass=True):
+        return [{"date": day, "task": "t", "type": "new", "size": size, "minutes": value, "verify_first_pass": first_pass} for value in minutes]
+
+    def test_it_compares_the_last_two_weeks_that_have_tasks_and_says_n_for_each(self):
+        rows = [*self.rows("2026-09-07", "S", [1] * 6),  # an older week, not compared
+                *self.rows("2026-10-05", "S", A), *self.rows("2026-10-05", "M", [30, 40, 50]), *self.rows("2026-10-05", "L", [60] * 5),  # W41
+                *self.rows("2026-10-26", "S", [60, 70, 80, 90, 100]), *self.rows("2026-10-26", "M", [20] * 6), *self.rows("2026-10-27", "L", [60] * 5, first_pass=False)]  # W44, W42 and W43 are empty
+        lines = metrics.verdicts(rows, 8)
+        self.assertEqual(lines[0], "Verdicts, 2026-W41 vs 2026-W44 (rule: inconclusive when either week has fewer than 5 tasks of that size; otherwise the medians are compared, "
+                                   "and a gap under 0.5 x the larger week's interquartile range is no measurable difference, else faster or slower, better or worse for the share)")
+        table = [line.split() for line in lines[1:-1]]
+        self.assertEqual(table[0], ["metric", "2026-W41", "2026-W44", "verdict"])
+        self.assertEqual(lines[2], "  minutes S         median 30 (n=5)     median 80 (n=5)     slower")
+        self.assertEqual(lines[3], "  minutes M         median 40 (n=3)     median 20 (n=6)     inconclusive")
+        self.assertEqual(lines[4], "  minutes L         median 60 (n=5)     median 60 (n=5)     no measurable difference")
+        self.assertEqual(lines[5], "  first-pass share  100% (n=13)         69% (n=16)          no measurable difference")  # 11 of 16 passed: the gap 0.31 is under half of the range 1
+        self.assertEqual(lines[-1], "  (for the share each task counts 1 or 0, and the share stands where the median stands)")
+
+    def test_the_share_counts_every_task_of_the_week_and_the_minutes_only_those_that_have_them(self):
+        week = self.rows("2026-10-12", "S", A) + [{"date": "2026-10-12", "size": "S", "minutes": None, "verify_first_pass": False},
+                                                    {"date": "2026-10-12", "size": "S", "minutes": "9", "verify_first_pass": False},
+                                                    {"date": "2026-10-12", "size": "S", "minutes": True, "verify_first_pass": False},
+                                                    {"date": "2026-10-12", "size": "S", "verify_first_pass": False}]
+        lines = metrics.verdicts([*week, *self.rows("2026-10-19", "S", A)], 8)
+        self.assertIn("median 30 (n=5)     median 30 (n=5)     no measurable difference", lines[2])
+        self.assertIn("(n=9)", lines[5])  # all nine tasks of the first week count for the share
+
+    def test_a_size_with_no_tasks_shows_n_0_and_is_inconclusive(self):
+        lines = metrics.verdicts([*self.rows("2026-10-12", "S", A), *self.rows("2026-10-19", "S", A)], 8)
+        self.assertIn("  minutes L         - (n=0)             - (n=0)             inconclusive", lines)
+
+    def test_fewer_than_two_weeks_say_so_and_the_weeks_option_limits_the_pair(self):
+        for rows, weeks in [([], 8), (self.rows("2026-10-12", "S", A), 8), ([*self.rows("2026-10-05", "S", A), *self.rows("2026-10-12", "S", A)], 1)]:
+            self.assertEqual(metrics.verdicts(rows, weeks), ["Verdicts, the last two weeks that have tasks", "  needs two weeks with tasks"], (len(rows), weeks))
+
+    def test_the_command_prints_the_verdicts_after_both_tables(self):
+        with workspace() as (_, log_file), tempfile.TemporaryDirectory() as plain:
+            log_file.parent.mkdir(parents=True)
+            log_file.write_text("".join(json.dumps(row) + "\n" for row in [*self.rows("2026-10-12", "S", A), *self.rows("2026-10-19", "S", [60, 70, 80, 90, 100])]))
+            lines = metrics.report(log_file, "m.jsonl", plain, 8)
+            self.assertEqual([line for line in lines if line.startswith("Verdicts")][0][:36], "Verdicts, 2026-W42 vs 2026-W43 (rule")
+            self.assertGreater(lines.index("Git rework (conventional commit prefixes)"), lines.index("Tasks (m.jsonl)"))
+            self.assertIn("slower", "\n".join(lines))
 
 
 class Slow(unittest.TestCase):
