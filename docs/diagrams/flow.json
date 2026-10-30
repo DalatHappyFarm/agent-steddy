@@ -1,5 +1,5 @@
 {
-  "title": "agent-steddy: one task passes seven gates, Intake, Recall, Shape, Act, Prove, Record and Deliver. The gate reminder fires on every prompt, adds the gates to it and starts the task clock. When the work is delegated, the agent guard checks a subagent when it starts, the write fence keeps a fenced agent inside its paths, the Bash guard checks every command while timing and the secret scan watch it, and the stop check blocks a hand-back that misses a required item, once. At gates 6 and 7 the finish skill records the decisions, a retro and a metrics line, the record files are committed by path, and record finish verifies the branch and merges it without pushing.",
+  "title": "agent-steddy: one task passes seven gates, Intake, Recall, Shape, Act, Prove, Record and Deliver. The gate reminder fires on every prompt, adds the gates to it and starts the task clock. The Bash guard checks every command, in the main session and in a subagent, while timing and the secret scan watch it. When the work is delegated, the agent guard checks a subagent when it starts, the write fence keeps a fenced agent inside its paths, and the stop check blocks a hand-back that misses a required item, once. At gates 6 and 7 the finish skill records the decisions, a retro and a metrics line, the record files are committed by path, and record finish verifies the branch and merges it without pushing.",
   "width": 900,
   "sections": [
     {
@@ -11,20 +11,25 @@
       ]
     },
     {
-      "label": "Gates 1 to 5: the hooks, when the work is delegated",
+      "label": "Gates 1 to 5: the hooks of every session, main and subagent",
       "columns": [
-        [{"id": "reminder", "title": "Gate reminder", "sub": "each prompt, clock"}],
-        [{"id": "agent", "title": "Agent guard", "sub": "a subagent starts"}],
-        [{"id": "fence", "title": "Write fence", "sub": "fenced agent writes"},
-         {"id": "bash", "title": "Bash guard", "sub": "timing, secret scan"}],
-        [{"id": "stop", "title": "Stop check", "sub": "on a hand-back"}]
+        [{"id": "reminder", "title": "Gate reminder", "sub": "every prompt, clock"}],
+        [{"id": "bash", "title": "Bash hooks", "sub": "every command"}]
       ],
       "edges": [
-        {"from": "reminder", "to": "agent", "label": "delegates"},
+        {"from": "reminder", "to": "bash", "label": "commands", "under": "guard, timing, secret scan"}
+      ]
+    },
+    {
+      "label": "Gates 1 to 5, when the work is delegated: the hooks of a subagent only",
+      "columns": [
+        [{"id": "agent", "title": "Agent guard", "sub": "a subagent starts"}],
+        [{"id": "fence", "title": "Write fence", "sub": "a fenced agent writes"}],
+        [{"id": "stop", "title": "Stop check", "sub": "a hand-back, once"}]
+      ],
+      "edges": [
         {"from": "agent", "to": "fence", "label": "works"},
-        {"from": "agent", "to": "bash", "label": "works"},
-        {"from": "fence", "to": "stop", "label": "hand-back"},
-        {"from": "bash", "to": "stop", "label": "hand-back"}
+        {"from": "fence", "to": "stop", "label": "hand-back"}
       ]
     },
     {

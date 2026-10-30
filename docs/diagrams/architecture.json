@@ -1,5 +1,5 @@
 {
-  "title": "agent-steddy: Claude Code fires its events at the plugin's hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which keeps that clock and writes the project's records under docs/agents; agents read the skills, and the templates are copied into the project's agents and role cards.",
+  "title": "agent-steddy: Claude Code fires its events at the plugin's hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which reads the project config, keeps that clock and writes the project's records under docs/agents; agents read the skills, and the templates are copied into the project's agents and role cards.",
   "width": 900,
   "theme": {"light": {"hub": "#8C8F97"}, "dark": {"hub": "#7E8188"}},
   "sections": [
@@ -7,20 +7,21 @@
       "label": "How it fits",
       "columns": [
         [{"id": "claude", "title": "Claude Code", "sub": "prompts, tools, stops"},
-         {"id": "agents", "title": "Agents", "sub": "main and subagents"}],
-        [{"id": "hooks", "title": "Hooks", "sub": "plugin: hooks.json, scripts", "hub": true},
+         {"id": "state", "title": "Local state", "sub": ".git/agent-steddy/"},
+         {"id": "agents", "title": "Agents", "sub": "main and subagents"},
+         {"id": "roles", "title": "Agents, role cards", "sub": "your files, from templates"}],
+        [{"id": "hooks", "title": "Hooks", "sub": "plugin: deny, ask, block", "hub": true},
          {"id": "cmd", "title": "agent-steddy", "sub": "plugin: the command", "hub": true},
          {"id": "method", "title": "Skills, templates", "sub": "plugin: the method", "hub": true}],
         [{"id": "config", "title": "Project config", "sub": ".claude/agent-steddy.json"},
-         {"id": "state", "title": "Local state", "sub": ".git/agent-steddy/"},
-         {"id": "records", "title": "Records", "sub": "docs/agents/"},
-         {"id": "roles", "title": "Agents, role cards", "sub": "yours, from the templates"}]
+         {"id": "records", "title": "Records", "sub": "docs/agents/"}]
       ],
       "edges": [
-        {"from": "claude", "to": "hooks", "label": "events", "under": "deny, ask, block", "both": true},
+        {"from": "claude", "to": "hooks", "label": "events", "both": true},
         {"from": "agents", "to": "cmd", "label": "run"},
         {"from": "agents", "to": "method", "label": "read"},
         {"from": "hooks", "to": "config", "label": "read"},
+        {"from": "cmd", "to": "config", "label": "read"},
         {"from": "hooks", "to": "state", "label": "clock, timings"},
         {"from": "cmd", "to": "state", "label": "clock", "both": true},
         {"from": "cmd", "to": "records", "label": "writes"},

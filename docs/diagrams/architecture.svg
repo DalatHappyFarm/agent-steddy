@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 408" width="900" height="408" role="img" aria-label="agent-steddy: Claude Code fires its events at the plugin&#x27;s hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which keeps that clock and writes the project&#x27;s records under docs/agents; agents read the skills, and the templates are copied into the project&#x27;s agents and role cards.">
-<title>agent-steddy: Claude Code fires its events at the plugin&#x27;s hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which keeps that clock and writes the project&#x27;s records under docs/agents; agents read the skills, and the templates are copied into the project&#x27;s agents and role cards.</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 408" width="900" height="408" role="img" aria-label="agent-steddy: Claude Code fires its events at the plugin&#x27;s hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which reads the project config, keeps that clock and writes the project&#x27;s records under docs/agents; agents read the skills, and the templates are copied into the project&#x27;s agents and role cards.">
+<title>agent-steddy: Claude Code fires its events at the plugin&#x27;s hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which reads the project config, keeps that clock and writes the project&#x27;s records under docs/agents; agents read the skills, and the templates are copied into the project&#x27;s agents and role cards.</title>
 <style>
   .t{font:600 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .s{font:13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .lbl{font:12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .cmd{font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
   .row{font:500 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;letter-spacing:.08em} .p{font:600 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif} .ln{stroke-width:1.5;fill:none}
@@ -9,48 +9,49 @@
 <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0 0L10 5L0 10z"/></marker></defs>
 <rect class="bg" width="900" height="408" rx="16"/>
 <text class="row" x="28" y="40">HOW IT FITS</text>
-<rect class="node" x="28.0" y="144.0" width="161.8" height="70" rx="12"/>
-<text class="t" x="108.9" y="176.0" text-anchor="middle">Claude Code</text>
-<text class="s" x="108.9" y="195.0" text-anchor="middle">prompts, tools, stops</text>
-<rect class="node" x="28.0" y="228.0" width="161.8" height="70" rx="12"/>
-<text class="t" x="108.9" y="260.0" text-anchor="middle">Agents</text>
-<text class="s" x="108.9" y="279.0" text-anchor="middle">main and subagents</text>
-<rect class="hub" x="337.3" y="102.0" width="200.0" height="70" rx="12" stroke-width="1.5"/>
-<text class="t" x="437.3" y="134.0" text-anchor="middle">Hooks</text>
-<text class="s" x="437.3" y="153.0" text-anchor="middle">plugin: hooks.json, scripts</text>
-<rect class="hub" x="337.3" y="186.0" width="200.0" height="70" rx="12" stroke-width="1.5"/>
-<text class="t" x="437.3" y="218.0" text-anchor="middle">agent-steddy</text>
-<text class="s" x="437.3" y="237.0" text-anchor="middle">plugin: the command</text>
-<rect class="hub" x="337.3" y="270.0" width="200.0" height="70" rx="12" stroke-width="1.5"/>
-<text class="t" x="437.3" y="302.0" text-anchor="middle">Skills, templates</text>
-<text class="s" x="437.3" y="321.0" text-anchor="middle">plugin: the method</text>
-<rect class="node" x="684.8" y="60.0" width="187.2" height="70" rx="12"/>
-<text class="t" x="778.4" y="92.0" text-anchor="middle">Project config</text>
-<text class="s" x="778.4" y="111.0" text-anchor="middle">.claude/agent-steddy.json</text>
+<rect class="node" x="28.0" y="60.0" width="193.6" height="70" rx="12"/>
+<text class="t" x="124.8" y="92.0" text-anchor="middle">Claude Code</text>
+<text class="s" x="124.8" y="111.0" text-anchor="middle">prompts, tools, stops</text>
+<rect class="node" x="28.0" y="144.0" width="193.6" height="70" rx="12"/>
+<text class="t" x="124.8" y="176.0" text-anchor="middle">Local state</text>
+<text class="s" x="124.8" y="195.0" text-anchor="middle">.git/agent-steddy/</text>
+<rect class="node" x="28.0" y="228.0" width="193.6" height="70" rx="12"/>
+<text class="t" x="124.8" y="260.0" text-anchor="middle">Agents</text>
+<text class="s" x="124.8" y="279.0" text-anchor="middle">main and subagents</text>
+<rect class="node" x="28.0" y="312.0" width="193.6" height="70" rx="12"/>
+<text class="t" x="124.8" y="344.0" text-anchor="middle">Agents, role cards</text>
+<text class="s" x="124.8" y="363.0" text-anchor="middle">your files, from templates</text>
+<rect class="hub" x="362.7" y="102.0" width="180.9" height="70" rx="12" stroke-width="1.5"/>
+<text class="t" x="453.2" y="134.0" text-anchor="middle">Hooks</text>
+<text class="s" x="453.2" y="153.0" text-anchor="middle">plugin: deny, ask, block</text>
+<rect class="hub" x="362.7" y="186.0" width="180.9" height="70" rx="12" stroke-width="1.5"/>
+<text class="t" x="453.2" y="218.0" text-anchor="middle">agent-steddy</text>
+<text class="s" x="453.2" y="237.0" text-anchor="middle">plugin: the command</text>
+<rect class="hub" x="362.7" y="270.0" width="180.9" height="70" rx="12" stroke-width="1.5"/>
+<text class="t" x="453.2" y="302.0" text-anchor="middle">Skills, templates</text>
+<text class="s" x="453.2" y="321.0" text-anchor="middle">plugin: the method</text>
 <rect class="node" x="684.8" y="144.0" width="187.2" height="70" rx="12"/>
-<text class="t" x="778.4" y="176.0" text-anchor="middle">Local state</text>
-<text class="s" x="778.4" y="195.0" text-anchor="middle">.git/agent-steddy/</text>
+<text class="t" x="778.4" y="176.0" text-anchor="middle">Project config</text>
+<text class="s" x="778.4" y="195.0" text-anchor="middle">.claude/agent-steddy.json</text>
 <rect class="node" x="684.8" y="228.0" width="187.2" height="70" rx="12"/>
 <text class="t" x="778.4" y="260.0" text-anchor="middle">Records</text>
 <text class="s" x="778.4" y="279.0" text-anchor="middle">docs/agents/</text>
-<rect class="node" x="684.8" y="312.0" width="187.2" height="70" rx="12"/>
-<text class="t" x="778.4" y="344.0" text-anchor="middle">Agents, role cards</text>
-<text class="s" x="778.4" y="363.0" text-anchor="middle">yours, from the templates</text>
-<path class="ln" d="M195.8 158.0H331.3" marker-end="url(#a)" marker-start="url(#a)"/>
-<text class="lbl" x="263.5" y="150.0" text-anchor="middle">events</text>
-<text class="lbl" x="263.5" y="177.0" text-anchor="middle">deny, ask, block</text>
-<path class="ln" d="M195.8 242.0H331.3" marker-end="url(#a)"/>
-<text class="lbl" x="263.5" y="234.0" text-anchor="middle">run</text>
-<path class="ln" d="M195.8 284.0H331.3" marker-end="url(#a)"/>
-<text class="lbl" x="263.5" y="276.0" text-anchor="middle">read</text>
-<path class="ln" d="M543.3 116.0H678.8" marker-end="url(#a)"/>
-<text class="lbl" x="611.0" y="108.0" text-anchor="middle">read</text>
-<path class="ln" d="M543.3 158.0H678.8" marker-end="url(#a)"/>
-<text class="lbl" x="611.0" y="150.0" text-anchor="middle">clock, timings</text>
-<path class="ln" d="M543.3 200.0H678.8" marker-end="url(#a)" marker-start="url(#a)"/>
-<text class="lbl" x="611.0" y="192.0" text-anchor="middle">clock</text>
-<path class="ln" d="M543.3 242.0H678.8" marker-end="url(#a)"/>
-<text class="lbl" x="611.0" y="234.0" text-anchor="middle">writes</text>
-<path class="ln" d="M543.3 326.0H678.8" marker-end="url(#a)"/>
-<text class="lbl" x="611.0" y="318.0" text-anchor="middle">templates copied</text>
+<path class="ln" d="M227.6 116.0H356.7" marker-end="url(#a)" marker-start="url(#a)"/>
+<text class="lbl" x="292.2" y="108.0" text-anchor="middle">events</text>
+<path class="ln" d="M227.6 242.0H356.7" marker-end="url(#a)"/>
+<text class="lbl" x="292.2" y="234.0" text-anchor="middle">run</text>
+<path class="ln" d="M227.6 284.0H356.7" marker-end="url(#a)"/>
+<text class="lbl" x="292.2" y="276.0" text-anchor="middle">read</text>
+<path class="ln" d="M549.6 158.0H678.8" marker-end="url(#a)"/>
+<text class="lbl" x="614.2" y="150.0" text-anchor="middle">read</text>
+<path class="ln" d="M549.6 200.0H678.8" marker-end="url(#a)"/>
+<text class="lbl" x="614.2" y="192.0" text-anchor="middle">read</text>
+<path class="ln" d="M356.7 158.0H227.6" marker-end="url(#a)"/>
+<text class="lbl" x="292.2" y="150.0" text-anchor="middle">clock, timings</text>
+<path class="ln" d="M356.7 200.0H227.6" marker-end="url(#a)" marker-start="url(#a)"/>
+<text class="lbl" x="292.2" y="192.0" text-anchor="middle">clock</text>
+<path class="ln" d="M549.6 242.0H678.8" marker-end="url(#a)"/>
+<text class="lbl" x="614.2" y="234.0" text-anchor="middle">writes</text>
+<path class="ln" d="M356.7 326.0H227.6" marker-end="url(#a)"/>
+<text class="lbl" x="292.2" y="318.0" text-anchor="middle">templates copied</text>
 </svg>
