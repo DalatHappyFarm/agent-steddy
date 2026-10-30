@@ -50,6 +50,43 @@ A rule matches the usual forms of a command, not every way around it; [the limit
 Gate 7 never deploys, publishes or pushes unless the owner asked for that exact action.
 The commands of gates 6 and 7 are in the [finish skill](../finish/SKILL.md).
 
+## Rules inside the gates
+
+How to work inside a gate, grouped by the gate each rule applies to.
+Each rule comes from one of the principle skills of pstack (see [Ideas from](../../README.md#ideas-from)), and the `(pstack: <name>)` at its end names that principle.
+They are judgment, and no hook enforces them.
+
+### Act
+
+- **Delete before you build.**
+  Dead code, stale references and speculative guards go first, and no validator or guard goes in that the spec does not ask for. (pstack: subtract-before-you-add)
+- **One place for each decision.**
+  Keep each decision in one place and point to it instead of copying it. (pstack: laziness-protocol)
+- **Build the lever.**
+  For non-trivial repeated work, do the first unit by hand, build the smallest script that does it, and prove it by rerunning it on that unit and comparing the two results.
+  Never fan out subagents to hand-do what a script can do, and commit the script when the work outlives the session. (pstack: build-the-lever)
+
+### Act and Prove
+
+- **Verifiable units.**
+  Each unit of work ends in a state that can be checked, and it is checked before the next one starts.
+  Order the commits as an argument: the failing test first and the fix on top, each commit standing on its own. (pstack: sequence-verifiable-units)
+
+### Prove
+
+- **Fix where the system first went wrong.**
+  Ask why until the answer is a wrong decision in the code, not the effect of an earlier fault.
+  A guard is a fix only when the state it handles is valid; when that state should never exist, find what creates it.
+  Read the real error and the real state instead of guessing, and fix every place with the same pattern. (pstack: fix-root-causes)
+- **Attack the premise.**
+  When two fixes that rest on one premise fail the same check, stop.
+  Write the premise as one sentence, make an observation that would differ if it were false, and follow the evidence; make no third fix before that. (pstack: attack-the-premise)
+
+### Deliver
+
+- **Do not wait for what can be undone.**
+  Reversible work (code, notes, splitting work) goes ahead and is presented after; only irreversible actions wait for the owner, the ones walls 2 and 9 name. (pstack: never-block-on-the-human)
+
 ## Pause and pick up
 
 An M or L task that stops before gate 7 leaves a resume note, so the next session carries on from what is on disk and does not redo it.

@@ -1,11 +1,12 @@
 """The docs that teach the method (the skills, the templates and the README) must agree with the code they name.
 
-Nine checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
+Ten checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
 every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the README and the config reference;
 every key of the config defaults has a row in the config reference;
 the README status line names the manifest's version;
 the metric verdict rule in the config reference states the two constants of scripts/metrics.py;
 the method rules that must stand in more than one place (the two questions before a Rule line, a check that counts as enforced only after it failed, the brief budget, the auditor's re-run commands, the hand-back status) do;
+the rules inside the gates are grouped by gate and each names its pstack principle, and the three that an implementer meets most stand in the implementer template and its example too;
 every backticked built-in rule id is listed in the README table;
 every relative link resolves, and its #anchor exists when the target is a Markdown file.
 """
@@ -186,6 +187,43 @@ class MethodRules(unittest.TestCase):
         default = project_config.DEFAULTS["handback"]["required"]
         self.assertEqual(default[0], {"id": "status", "pattern": r"\b(?:PASS|ISSUES|BLOCKED)\b", "hint": "a status: PASS, ISSUES or BLOCKED"})
         self.assertEqual(example["handback"]["required"][:len(default)], default)
+
+
+class RulesInsideTheGates(unittest.TestCase):
+    PRINCIPLES = ["subtract-before-you-add", "laziness-protocol", "build-the-lever", "sequence-verifiable-units", "fix-root-causes", "attack-the-premise", "never-block-on-the-human"]
+    GROUPS = ["Act", "Act and Prove", "Prove", "Deliver"]
+    # the three rules an implementer meets most: a phrase of each, as the gates skill and the agent files both say it
+    IMPLEMENTER = ["ask why until the answer is a wrong decision in the code", "failing test first and the fix on top", "write the premise as one sentence"]
+    AGENTS = ["templates/agents/implementer.md", "examples/acme/.claude/agents/acme-web.md"]
+
+    def section(self):
+        text = (ROOT / "skills" / "gates" / "SKILL.md").read_text(encoding="utf-8")
+        match = re.search(r"^## Rules inside the gates\n(.*?)(?=^## )", text, re.M | re.S)
+        self.assertTrue(match, "the gates skill has no section 'Rules inside the gates'")
+        return match.group(1)
+
+    def test_the_rules_are_grouped_by_gate_and_each_names_its_principle(self):
+        section = self.section()
+        self.assertEqual(re.findall(r"^### (.+)$", section, re.M), self.GROUPS)
+        bullets = re.findall(r"^- (.*?)(?=^- |^### |\Z)", section, re.M | re.S)
+        self.assertEqual(len(bullets), len(self.PRINCIPLES))
+        self.assertEqual([re.search(r"\(pstack: ([a-z-]+)\)\s*\Z", bullet).group(1) for bullet in bullets], self.PRINCIPLES)
+        for bullet in bullets:
+            self.assertTrue(bullet.startswith("**"), bullet[:40])  # a bold lead, then the sentences, one to a line
+
+    def test_the_three_rules_an_implementer_meets_most_stand_in_the_agent_files_and_point_to_the_section(self):
+        section = squash(self.section()).lower()
+        for phrase in self.IMPLEMENTER:
+            self.assertIn(phrase, section, phrase)
+        for relative in self.AGENTS:
+            text = squash((ROOT / relative).read_text(encoding="utf-8"))
+            for phrase in self.IMPLEMENTER:
+                line = next((line for line in text.split(" - ") if phrase in line.lower()), None)
+                self.assertTrue(line and "gates skill, Rules inside the gates" in line, f"{relative}: {phrase}")
+
+    def test_the_readme_credit_line_names_the_principles_that_became_rules(self):
+        credit = squash((ROOT / "README.md").read_text(encoding="utf-8"))
+        self.assertIn("seven principles that became the rules inside the gates", credit)
 
 
 class RuleIds(unittest.TestCase):

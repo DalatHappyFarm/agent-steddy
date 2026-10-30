@@ -151,7 +151,7 @@ The gates skill marks which walls a hook enforces and which ones a person has to
 
 ### Ideas from
 
-Several ideas in the method come from [pstack](https://github.com/cursor/plugins/tree/main/pstack), a skill pack for coding agents by Lauren Tan (MIT license): pausing a task with a resume note and picking it up from the note and git, a green test that proves only what it measures, a check that counts as enforced only after it failed on the recorded error, two questions before a rule is written, a budget in the brief, auditor findings that carry the command that shows them, a status at the top of a hand-back, and a verdict that comes with a metric.
+Several ideas in the method come from [pstack](https://github.com/cursor/plugins/tree/main/pstack), a skill pack for coding agents by Lauren Tan (MIT license): pausing a task with a resume note and picking it up from the note and git, a green test that proves only what it measures, a check that counts as enforced only after it failed on the recorded error, two questions before a rule is written, a budget in the brief, auditor findings that carry the command that shows them, a status at the top of a hand-back, a verdict that comes with a metric, and seven principles that became the rules inside the gates (delete before you build, one place for each decision, build the lever, verifiable units, fix where the system first went wrong, attack the premise, do not wait for what can be undone).
 The kit's code and wording are its own.
 
 ## Example project

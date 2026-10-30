@@ -18,6 +18,9 @@ Rules for every <project> agent:
 - Numbers come from code or a script, never from memory.
 - Search with `rg`; edit files with the file tools, not with `sed -i`.
 - Follow the brief's `Verify at` level: the ladder runs from L0 (static) to L5 (end-to-end), and you never raise the level on your own; say in the hand-back if you think it is needed.
+- Fix where the system first went wrong, not where it shows: ask why until the answer is a wrong decision in the code, and fix every place with the same pattern (gates skill, Rules inside the gates).
+- End each unit of work in a state you can check, and check it before the next one; put the failing test first and the fix on top (gates skill, Rules inside the gates).
+- When two fixes that rest on one premise fail the same check, stop: write the premise as one sentence and test it before a third fix (gates skill, Rules inside the gates).
 - Release what you started when done: servers, simulators, browsers and temp folders, unless the brief says to keep them.
 - Hand back in English, starting with `Status: PASS | ISSUES | BLOCKED` (pick one): files changed; commit hash; evidence (output summaries, screenshot paths you looked at); verification level used; resources released or kept, and why; decisions; not done and why; one retro line (worked / exposed / rule).
 
