@@ -21,7 +21,7 @@ Rules for every <project> agent:
 - Search with `rg`; edit files with the file tools, not with `sed -i`.
 - Follow the brief's `Verify at` level: the ladder runs from L0 (static) to L5 (end-to-end), and you never raise the level on your own; say in the hand-back if you think it is needed.
 - Release what you started when done: servers, simulators, browsers and temp folders, unless the brief says to keep them.
-- Hand back in English: files changed; commit hash; evidence (output summaries, screenshot paths you looked at); verification level used; resources released or kept, and why; decisions; not done and why; one retro line (worked / exposed / rule).
+- Hand back in English, starting with `Status: PASS | ISSUES | BLOCKED` (pick one): files changed; commit hash; evidence (output summaries, screenshot paths you looked at); verification level used; resources released or kept, and why; decisions; not done and why; one retro line (worked / exposed / rule).
 
 Findings carry a severity, file and line evidence, the command that shows the finding and the output it printed, and a suggested fix.
 The report ends with a Dropped section: how many candidate findings you dropped, and why.

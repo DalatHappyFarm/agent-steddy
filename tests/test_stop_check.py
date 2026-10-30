@@ -11,7 +11,8 @@ import stop_check  # noqa: E402
 from hook_runner import run_hook, write_config  # noqa: E402
 
 OPT_IN = {"handback": {"agents": ["acme-*"]}}
-FULL = "Done. Files changed: a.ts. Verification level used: L1, tests green. Retro: worked tests / exposed none / rule none."
+FULL = "Status: PASS. Done. Files changed: a.ts. Verification level used: L1, tests green. Retro: worked tests / exposed none / rule none."
+STATUS_HINT, LEVEL_HINT, RETRO_HINT = "a status: PASS, ISSUES or BLOCKED", "the verification level used", "a one line retro"
 
 
 def stop(message, config=OPT_IN, agent="acme-web", active=False):
@@ -21,32 +22,49 @@ def stop(message, config=OPT_IN, agent="acme-web", active=False):
 
 
 class DefaultItems(unittest.TestCase):
-    def test_a_hand_back_with_a_verification_level_and_a_retro_may_stop(self):
-        for message in [FULL, "verified at L2. retro: x.", "Verified. Retro line: x", "L3 and RETRO", "Checked at L0. Retro: none."]:
+    def test_the_default_items_are_a_status_a_verification_level_and_a_retro_in_that_order(self):
+        self.assertEqual([item["id"] for item in project_config.DEFAULTS["handback"]["required"]], ["status", "verification", "retro"])
+        self.assertEqual([item["hint"] for item in project_config.DEFAULTS["handback"]["required"]], [STATUS_HINT, LEVEL_HINT, RETRO_HINT + " (worked / exposed / rule)"])
+
+    def test_a_hand_back_with_a_status_a_verification_level_and_a_retro_may_stop(self):
+        for message in [FULL, "PASS verified at L2. retro: x.", "ISSUES. Verified. Retro line: x", "L3 and RETRO and BLOCKED", "Status: BLOCKED. Checked at L0. Retro: none."]:
             self.assertIsNone(stop(message), message)
 
     def test_a_hand_back_that_misses_one_is_blocked_with_its_hint(self):
-        cases = [("Done. Verification L1.", {"retro"}), ("Done. Retro: x.", {"verification"}), ("Done. Verified. nothing else", {"retro"}),
-                 ("verification: l2. retro: x.", set()),  # "verif" is enough, so the lowercase l2 does not matter
-                 ("Done, L6, retro.", {"verification"}), ("Done, FL1, retro.", {"verification"})]
+        cases = [("PASS. Verification L1.", {"retro"}), ("PASS. Retro: x.", {"verification"}), ("PASS. Verified. nothing else", {"retro"}),
+                 ("Verification L1. Retro: x.", {"status"}), ("Done. Verified. Retro: x.", {"status"}),
+                 ("PASS. verification: l2. retro: x.", set()),  # "verif" is enough, so the lowercase l2 does not matter
+                 ("PASS, L6, retro.", {"verification"}), ("PASS, FL1, retro.", {"verification"}), ("Done, L1, retro.", {"status"}), ("Done, L6, retro.", {"status", "verification"})]
         for message, missing in cases:
             reason = stop(message)
             if not missing:
                 self.assertIsNone(reason, message)
                 continue
-            self.assertEqual("the verification level used" in reason, "verification" in missing, message)
-            self.assertEqual("a one line retro" in reason, "retro" in missing, message)
+            self.assertEqual(STATUS_HINT in reason, "status" in missing, message)
+            self.assertEqual(LEVEL_HINT in reason, "verification" in missing, message)
+            self.assertEqual(RETRO_HINT in reason, "retro" in missing, message)
 
-    def test_a_hand_back_that_misses_both_lists_both_hints_in_order(self):
+    def test_a_hand_back_that_misses_all_lists_all_hints_in_order(self):
         for message in ["Done.", "", "   "]:
             reason = stop(message)
-            self.assertEqual(reason, "Your hand-back is missing: the verification level used; a one line retro (worked / exposed / rule). "
+            self.assertEqual(reason, f"Your hand-back is missing: {STATUS_HINT}; {LEVEL_HINT}; {RETRO_HINT} (worked / exposed / rule). "
                                      "Fix this in your final message; this check blocks only once.", message)
 
     def test_the_level_must_be_a_whole_word_and_case_sensitive(self):
-        self.assertIn("verification", stop("retro. level L1x"))
-        self.assertIn("verification", stop("retro. level l1"))
-        self.assertIsNone(stop("retro. (L1)"))
+        self.assertIn("verification", stop("PASS retro. level L1x"))
+        self.assertIn("verification", stop("PASS retro. level l1"))
+        self.assertIsNone(stop("PASS retro. (L1)"))
+
+    def test_the_status_is_one_of_three_whole_words_in_capitals(self):
+        for status in ["Status: PASS", "Status: ISSUES", "Status: BLOCKED", "PASS", "(BLOCKED)", "Status: PASS | ISSUES | BLOCKED", "status: PASS.", "ISSUES;", "x-PASS-y"]:
+            self.assertIsNone(stop(f"{status}. verified, retro"), status)
+        for status in ["Status: pass", "Status: Blocked", "passed", "PASSWORD", "BYPASS", "ISSUE", "UNBLOCKED", "NOISSUES", "PASS_", "Status:", ""]:
+            self.assertIn(STATUS_HINT, stop(f"{status}. verified, retro") or "", status)
+
+    def test_a_project_that_only_opted_in_gets_the_status_item_and_one_with_its_own_list_does_not(self):
+        self.assertIn(STATUS_HINT, stop("Verified at L1. Retro: x."))  # the default list changed in 0.3.0
+        own = {"handback": {"agents": ["acme-*"], "required": [{"id": "retro", "pattern": "(?i:retro)", "hint": RETRO_HINT}]}}
+        self.assertIsNone(stop("Verified at L1. Retro: x.", own))
 
 
 class WhoIsChecked(unittest.TestCase):
@@ -130,6 +148,7 @@ class ExampleConfig(unittest.TestCase):
             (pathlib.Path(tmp) / ".claude" / "agent-steddy.json").write_text((ROOT / "examples" / "acme" / ".claude" / "agent-steddy.json").read_text())
             config = project_config.load(tmp)
         self.assertEqual(config["handback"]["agents"], ["acme-*"])
+        self.assertEqual([item["id"] for item in config["handback"]["required"]][:3], ["status", "verification", "retro"])
         self.assertIsNone(stop(FULL + " Resources released: nothing started.", config))
         reason = stop("Done.", config)
         for hint in [item["hint"] for item in config["handback"]["required"]]:
@@ -152,6 +171,7 @@ class Hook(unittest.TestCase):
         self.assertEqual(set(out), {"decision", "reason"})
         self.assertEqual(out["decision"], "block")
         self.assertIn("verification level", out["reason"])
+        self.assertIn("PASS, ISSUES or BLOCKED", out["reason"])
         self.assertIn("blocks only once", out["reason"])
 
     def test_lets_a_complete_hand_back_and_an_agent_that_is_not_opted_in_stop(self):

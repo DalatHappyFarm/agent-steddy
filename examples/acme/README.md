@@ -14,7 +14,7 @@ The config sets these rules:
 
 - Only agent types that match `acme-*` start, and each runs on the model its file names: `sonnet`, except `acme-docs` on `haiku`.
 - `acme-auditor` writes only under `docs/reviews/`.
-- Every `acme-*` hand-back must name a verification level, a retro line and a resources line, or it is blocked once.
+- Every `acme-*` hand-back must name a status (`PASS`, `ISSUES` or `BLOCKED`), a verification level, a retro line and a resources line, or it is blocked once.
 - `git push`, `make deploy` and `make deploy-web` need the owner's confirmation when a subagent runs them, `npm publish` and `pnpm publish` always do, and `acme-cli config push` is denied.
 - The resume notes of `agent-steddy pause` stay in the local state, since `resume.folder` is `null`; set it to a folder such as `docs/agents/resume` to keep them in the repo.
 - The records go to `docs/agents/`, which does not exist until the first `agent-steddy record` or `agent-steddy metrics log` creates it; a rule promoted with `agent-steddy lessons promote` goes into a card of `docs/agents/roles/`, or into `docs/agents/walls.md` with `--to walls`.

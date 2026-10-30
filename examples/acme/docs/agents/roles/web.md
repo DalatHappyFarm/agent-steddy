@@ -24,4 +24,4 @@ Reads: the walls and the gates in the gates skill, `docs/agents/walls.md` and `d
 
 ## Handoff
 
-The hand-back lists the files changed, the commit hash, the evidence, the verification level used and a one line retro.
+The hand-back starts with its status (`PASS`, `ISSUES` or `BLOCKED`) and lists the files changed, the commit hash, the evidence, the verification level used and a one line retro.

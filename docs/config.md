@@ -27,7 +27,7 @@ Unknown keys are kept and are not an error.
 | `agents.writeFences` | `{}` | `scripts/guard_write.py` |
 | `guards.disable` | `[]` | `scripts/guard_bash.py` |
 | `handback.agents` | `[]` | `scripts/stop_check.py` |
-| `handback.required` | a verification level and a retro line | `scripts/stop_check.py` |
+| `handback.required` | a status, a verification level and a retro line | `scripts/stop_check.py` |
 | `commands.deny` | `[]` | `scripts/guard_bash.py` |
 | `commands.askFromSubagent` | `[]` | `scripts/guard_bash.py` |
 | `commands.alwaysAsk` | `[]` | `scripts/guard_bash.py` |
@@ -54,7 +54,9 @@ Unknown keys are kept and are not an error.
 - `handback.agents` is a list of agent type patterns whose final message is checked when they stop.
   The default `[]` checks no agent, so a project opts in.
 - `handback.required` is a list of `{"id": "<name>", "pattern": "<regular expression>", "hint": "<text>"}` objects: what the final message of a checked agent must contain.
-  The default asks for a verification level (the text `verif` in any case, or `L0` to `L5`) and a retro line (the text `retro` in any case).
+  The default asks for a status (one of the words `PASS`, `ISSUES` and `BLOCKED`, whole and in capitals), a verification level (the text `verif` in any case, or `L0` to `L5`) and a retro line (the text `retro` in any case).
+  The templates have the agents start their hand-back with `Status: PASS | ISSUES | BLOCKED`, and the orchestrator reads that word first.
+  This default changed in 0.3.0: a project that opted in with `handback.agents` and left `handback.required` out now also needs the status word, and a project that sets its own `handback.required` list is not affected.
   A list in the config replaces the default list.
 - `commands.deny` is a list of `{"match": "<words>", "reason": "<text>"}` objects; a matching command is always blocked and the agent sees the reason.
   A rule without a `reason` still blocks and says which rule matched.

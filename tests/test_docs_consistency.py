@@ -3,12 +3,13 @@
 Seven checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
 every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the README and the config reference;
 every key of the config defaults has a row in the config reference;
-the method rules that must stand in more than one place (the two questions before a Rule line, a check that counts as enforced only after it failed, the brief budget, the auditor's re-run commands) do;
+the method rules that must stand in more than one place (the two questions before a Rule line, a check that counts as enforced only after it failed, the brief budget, the auditor's re-run commands, the hand-back status) do;
 every backticked built-in rule id is listed in the README table;
 every relative link resolves, and its #anchor exists when the target is a Markdown file.
 """
 
 import argparse
+import json
 import pathlib
 import re
 import sys
@@ -152,6 +153,20 @@ class MethodRules(unittest.TestCase):
             text = self.read(relative)
             self.assertIn("the command that shows the finding and the output it printed", text, relative)
             self.assertIn("The report ends with a Dropped section: how many candidate findings you dropped, and why.", text, relative)
+
+
+    def test_every_agent_template_example_agent_and_the_brief_start_the_hand_back_with_the_status(self):
+        files = [*sorted(ROOT.glob("templates/agents/*.md")), *sorted(ROOT.glob("examples/acme/.claude/agents/*.md")), ROOT / "templates" / "brief.md"]
+        self.assertEqual(len(files), 9)
+        for path in files:
+            self.assertIn("starts with `Status: PASS | ISSUES | BLOCKED`" if path.name == "brief.md" else "starting with `Status: PASS | ISSUES | BLOCKED`",
+                          squash(path.read_text(encoding="utf-8")), path.name)
+
+    def test_the_example_config_asks_for_the_default_status_item_first(self):
+        example = json.loads((ROOT / "examples" / "acme" / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
+        default = project_config.DEFAULTS["handback"]["required"]
+        self.assertEqual(default[0], {"id": "status", "pattern": r"\b(?:PASS|ISSUES|BLOCKED)\b", "hint": "a status: PASS, ISSUES or BLOCKED"})
+        self.assertEqual(example["handback"]["required"][:len(default)], default)
 
 
 class RuleIds(unittest.TestCase):

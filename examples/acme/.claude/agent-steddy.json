@@ -19,6 +19,7 @@
   "handback": {
     "agents": ["acme-*"],
     "required": [
+      { "id": "status", "pattern": "\\b(?:PASS|ISSUES|BLOCKED)\\b", "hint": "a status: PASS, ISSUES or BLOCKED" },
       { "id": "verification", "pattern": "(?i:verif)|\\bL[0-5]\\b", "hint": "the verification level used" },
       { "id": "retro", "pattern": "(?i:retro)", "hint": "a one line retro (worked / exposed / rule)" },
       { "id": "resources", "pattern": "(?i:resource|released|kept)", "hint": "a resources line (released or kept, and why)" }

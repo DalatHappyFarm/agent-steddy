@@ -23,8 +23,9 @@ Verify at: <L0 to L5> (<why this level>).
 Screens or pages to check: <list, or none>.
 ```
 
-The hand-back, in English, carries: files changed; commit hash; evidence; the verification level used; resources released or kept, and why; decisions; what was not done and why; one retro line (worked / exposed / rule).
-For the agent types listed in `handback.agents`, the kit's `stop_check` hook checks the items in `handback.required`; by default those are a verification level and a retro line.
+The hand-back, in English, starts with `Status: PASS | ISSUES | BLOCKED` (pick one) and then carries: files changed; commit hash; evidence; the verification level used; resources released or kept, and why; decisions; what was not done and why; one retro line (worked / exposed / rule).
+The status is `PASS` when every Done item is met and verified, `ISSUES` when the work is delivered but something is red, unverified or left out, and `BLOCKED` when the agent could not finish; the orchestrator reads that word first.
+For the agent types listed in `handback.agents`, the kit's `stop_check` hook checks the items in `handback.required`; by default those are a status (`PASS`, `ISSUES` or `BLOCKED`), a verification level and a retro line.
 
 Notes for the orchestrator:
 

@@ -25,4 +25,4 @@ Reads: the walls (in the gates skill and in `docs/agents/walls.md` once it exist
 
 ## Handoff
 
-The hand-back lists the checks run with their results, the screenshots looked at, the bugs found, what was released and a one line retro.
+The hand-back starts with its status (`PASS`, `ISSUES` or `BLOCKED`) and lists the checks run with their results, the screenshots looked at, the bugs found, what was released and a one line retro.

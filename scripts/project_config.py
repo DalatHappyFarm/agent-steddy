@@ -26,6 +26,7 @@ DEFAULTS = {
     "handback": {
         "agents": [],
         "required": [
+            {"id": "status", "pattern": r"\b(?:PASS|ISSUES|BLOCKED)\b", "hint": "a status: PASS, ISSUES or BLOCKED"},
             {"id": "verification", "pattern": r"(?i:verif)|\bL[0-5]\b", "hint": "the verification level used"},
             {"id": "retro", "pattern": r"(?i:retro)", "hint": "a one line retro (worked / exposed / rule)"},
         ],

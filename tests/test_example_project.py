@@ -115,7 +115,7 @@ class WriteFence(unittest.TestCase):
             self.assertIsNone(write(agent, str(EXAMPLE / "web" / "index.html")), agent)
 
 
-COMPLETE = "Files: web/index.html. Commit abc123. Verification: L1, unit tests green. Resources: released the dev server. Retro: worked / exposed / rule."
+COMPLETE = "Status: PASS. Files: web/index.html. Commit abc123. Verification: L1, unit tests green. Resources: released the dev server. Retro: worked / exposed / rule."
 
 
 class StopCheck(unittest.TestCase):
@@ -125,10 +125,15 @@ class StopCheck(unittest.TestCase):
             self.assertIn(item["hint"], reason)
 
     def test_blocks_only_the_items_that_are_missing(self):
-        reason = stop("acme-docs", "Verified at L0. Retro: worked / exposed / rule.")
-        self.assertIn(CONFIG["handback"]["required"][2]["hint"], reason)
-        self.assertNotIn(CONFIG["handback"]["required"][0]["hint"], reason)
-        self.assertNotIn(CONFIG["handback"]["required"][1]["hint"], reason)
+        hints = {item["id"]: item["hint"] for item in CONFIG["handback"]["required"]}
+        self.assertEqual(list(hints), ["status", "verification", "retro", "resources"])
+        reason = stop("acme-docs", "Status: PASS. Verified at L0. Retro: worked / exposed / rule.")
+        self.assertIn(hints["resources"], reason)
+        for item in ["status", "verification", "retro"]:
+            self.assertNotIn(hints[item], reason)
+        reason = stop("acme-docs", "Verified at L0. Retro: worked / exposed / rule. Resources: none started.")
+        self.assertIn(hints["status"], reason)
+        self.assertNotIn(hints["resources"], reason)
 
     def test_lets_a_complete_hand_back_stop(self):
         self.assertIsNone(stop("acme-web", COMPLETE))

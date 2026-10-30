@@ -25,4 +25,4 @@ Reads: the walls and the gates in the gates skill, `docs/agents/walls.md` and `d
 
 ## Handoff
 
-The hand-back names the report, the findings by severity, the verification level used and a one line retro.
+The hand-back starts with its status (`PASS`, `ISSUES` or `BLOCKED`) and names the report, the findings by severity, the verification level used and a one line retro.
