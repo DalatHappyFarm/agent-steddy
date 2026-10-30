@@ -5,6 +5,7 @@ When a rule of the lessons file is due for promotion (seen twice and not promote
 It also starts the task clock that `agent-steddy metrics` reads: when no task is pending, the time of this prompt becomes the start of an auto task named `auto <time>`.
 A pending task is never replaced, except an auto task older than 12 hours, which is a prompt that never reached `metrics log`.
 The clock starts whether or not the reminder is on.
+A turn that only carries a background task's notification (its prompt starts with `<task-notification>`) also fires this hook; it gets the reminder but starts no clock, since no one asked for anything.
 The hook never blocks and exits 0 whatever happens, and a problem with the clock does not hide the reminder.
 """
 import datetime as dt
@@ -52,10 +53,20 @@ def reminder(config, project=None):
     return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}
 
 
+def is_notification(raw):
+    """True when the hook input is a turn that Claude Code opened for a background task's notification, not a prompt someone typed."""
+    try:
+        prompt = json.loads(raw).get("prompt")
+    except Exception:
+        return False
+    return isinstance(prompt, str) and prompt.lstrip().startswith("<task-notification>")
+
+
 def main():
     project = local_state.project_dir()
     try:
-        start_clock(project, dt.datetime.now())
+        if not is_notification(sys.stdin.read()):
+            start_clock(project, dt.datetime.now())
     except Exception:
         pass
     output = reminder(project_config.load(project), project)

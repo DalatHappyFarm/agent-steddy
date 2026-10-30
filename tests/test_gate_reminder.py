@@ -211,6 +211,22 @@ class Hook(unittest.TestCase):
             self.assertIsNone(run_hook("gate_reminder.py", self.PROMPT, root))
             self.assertTrue(pending(root)["task"].startswith("auto 20"))
 
+    def test_a_task_notification_gets_the_reminder_and_starts_no_clock(self):
+        with repo() as root:
+            for prompt in ["<task-notification>\n<task-id>b5nmj1xtq</task-id>\n<status>completed</status>", "\n  <task-notification>x"]:
+                out = run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit", "prompt": prompt}, root)
+                self.assertEqual(out["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER)
+                self.assertFalse(pending_file(root).exists(), prompt)
+            run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit", "prompt": "a prompt that quotes <task-notification> later"}, root)
+            self.assertTrue(pending(root)["task"].startswith("auto 20"))  # only a turn that starts with the tag is a notification
+
+    def test_a_notification_keeps_the_start_of_a_running_auto_task(self):
+        with repo() as root:
+            run_hook("gate_reminder.py", self.PROMPT, root)
+            first = pending(root)
+            run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit", "prompt": "<task-notification>done</task-notification>"}, root)
+            self.assertEqual(pending(root), first)
+
     def test_a_project_outside_a_repo_gets_the_reminder_and_no_clock(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = run_hook("gate_reminder.py", self.PROMPT, tmp, env={"CLAUDE_PLUGIN_DATA": ""})
@@ -224,6 +240,7 @@ class Hook(unittest.TestCase):
                 self.assertEqual(run_hook("gate_reminder.py", self.PROMPT, root)["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER, config)
             for raw in ["", "not json"]:
                 self.assertIn("hookSpecificOutput", run_hook("gate_reminder.py", None, root, raw=raw))  # the input is not needed
+                self.assertTrue(pending(root)["task"].startswith("auto 20"), raw)  # an unreadable input is a prompt, so the clock still starts
 
 
 if __name__ == "__main__":
