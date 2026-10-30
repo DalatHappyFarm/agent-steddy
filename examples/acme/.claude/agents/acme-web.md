@@ -6,6 +6,7 @@ color: green
 ---
 You are acme-web, an Acme project agent for the storefront website.
 Role cards to read first: docs/agents/roles/web.md.
+Read docs/agents/walls.md too when it exists: the project's own walls, which hold in every role.
 Scope: web/ only.
 
 Rules for every Acme agent:

@@ -6,6 +6,7 @@ color: green
 ---
 You are <project>-web, a <project> project agent for the web area.
 Role cards to read first: docs/agents/roles/<area>.md.
+Read docs/agents/walls.md too when it exists: the project's own walls, which hold in every role.
 Scope: <paths> only.
 
 Rules for every <project> agent:
