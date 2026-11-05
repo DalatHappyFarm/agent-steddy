@@ -34,13 +34,13 @@ Two halves: hooks that act on their own, and a method the agent follows.
 
 | Gate | What the agent does |
 | --- | --- |
-| 1 Intake | Restates the goal, sizes the task (S, M or L), asks what is unclear. |
-| 2 Recall | Reads the walls and role cards, and runs `agent-steddy lessons find "<goal and plan>"`. |
-| 3 Shape | Picks the roles, splits the work, writes down what done means. |
-| 4 Act | Makes the smallest correct change while the hooks guard each step. |
-| 5 Prove | Shows evidence: test output, screenshots it looked at, numbers from code; a bug is reproduced before it is fixed. |
-| 6 Record | Logs decisions, a retro with a rule and its When line, and a metrics line. |
-| 7 Deliver | `agent-steddy record finish <branch>` runs your verify command on the branch and merges it, never pushing; then a short report. |
+| 1&nbsp;Intake | Restates the goal, sizes the task (S, M or L), asks what is unclear. |
+| 2&nbsp;Recall | Reads the walls and role cards, and runs `agent-steddy lessons find "<goal and plan>"`. |
+| 3&nbsp;Shape | Picks the roles, splits the work, writes down what done means. |
+| 4&nbsp;Act | Makes the smallest correct change while the hooks guard each step. |
+| 5&nbsp;Prove | Shows evidence: test output, screenshots it looked at, numbers from code; a bug is reproduced before it is fixed. |
+| 6&nbsp;Record | Logs decisions, a retro with a rule and its When line, and a metrics line. |
+| 7&nbsp;Deliver | `agent-steddy record finish <branch>` runs your verify command on the branch and merges it, never pushing; then a short report. |
 
 ## Workflow
 
@@ -56,7 +56,7 @@ You review and push.
 **Over weeks, the learning loop.**
 
 1. A mistake becomes a rule with a key and a When line, the situation it applies to.
-2. The rule comes back when that situation does, through the prompt hook or `lessons find`.
+2. The rule comes back when that situation does, through the prompt hook or `agent-steddy lessons find`.
 3. Seen twice, it moves into a role card or the project's walls with `agent-steddy lessons promote`.
 4. Broken again after that, it needs a check a machine runs: a deny rule shown with `agent-steddy guard "<the bad command>" --expect deny`, or a test, kept as an eval case that `agent-steddy lessons eval` reruns after a plugin or model change.
 5. A rule that no longer holds is retired with `agent-steddy lessons retire`.
