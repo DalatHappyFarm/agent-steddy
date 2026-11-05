@@ -32,19 +32,28 @@ The text is one line.
 Write the retro for every task, even a small one:
 
 ```text
-agent-steddy record lesson --task "<task>" --roles <a>,<b> --worked "<one line>" --exposed "<one line, or none>" --rule "<one line, or none>" --key <slug>
+agent-steddy record lesson --task "<task>" --roles <a>,<b> --worked "<one line>" --exposed "<one line, or none>" --rule "<one line, or none>" --key <slug> --when "<the situation it applies to>" [--from owner|review]
 ```
 
 `--roles` is comma separated, and every value is one line.
+`--rule`, `--key` and `--when` repeat, one of each per rule and in the same order, when the task exposed more than one rule worth keeping.
 Before you write the rule, ask two questions: will it still be true in six months, and would it make a later agent decide differently?
 If the answer to either is no, write `none`; something that happened once is a fact for the Exposed line, not yet a rule.
 Name the roles as the role cards are named: `web` for `docs/agents/roles/web.md`, so that the command can suggest the card to promote a repeated rule into.
 The entry goes to the top of the lessons file, above the older ones.
 
 `--key` names the rule, a lowercase slug such as `commit-by-path`, and the same rule recorded again takes the same key.
-A rule of `none` takes no key.
+A rule of `none` takes no key and no When.
 For any other rule the command refuses without a key: it writes nothing, exits 2 and lists the closest recorded rules.
 Read them, then re-run with `--key <existing>` when it is the same rule, or with a new slug when it is not.
+When the closest recorded rule is promoted, a new key is refused too: if this is the same failure, the promoted rule broke again, so record it under that key; pass `--new` only when it is a different rule.
+
+`--when` is the situation the rule applies to, written the way an agent would put it at that moment, such as "about to report that a test run passed from a command whose output went through a pipe".
+It is what `agent-steddy lessons find` and the prompt hook match, so name the step, the command or the file, not a category.
+`--from owner` marks a rule the owner had to point out, and `--from review` one a review found.
+
+When the command prints `<key> is seen again after its promotion to <path>`, the promoted rule broke again: another note will not hold it.
+Add a check that a machine runs, show that it fails on this case, and keep that run as an eval case in `records.evals` (`- Key: <key>`, `- Kind: seen`, `- Check: <command>`), with a second case of kind `new`; the gates skill's learning loop has the details.
 
 When the command prints `<key> is now seen <n> times`, the rule repeated and is due for promotion:
 
@@ -69,7 +78,7 @@ agent-steddy metrics log --task "<task>" --size S|M|L --type new|feedback --veri
 
 ## 5. Commit the record files by path
 
-The record files are the paths `records.decisions`, `records.lessons` and `records.metrics` in `.claude/agent-steddy.json`.
+The record files are the paths `records.decisions`, `records.lessons` and `records.metrics` in `.claude/agent-steddy.json`, and any eval case added in step 3 under `records.evals`.
 The defaults are `docs/agents/decisions.md`, `docs/agents/lessons.md` and `docs/agents/metrics.jsonl`.
 A promotion in step 3 also changed a role card in `records.roles` or the walls file `records.walls` (`docs/agents/walls.md`).
 Commit them by path, with each path written out in the command:
@@ -131,5 +140,5 @@ A deploy, a publish or a push needs the owner's explicit ask for that exact acti
 ## Each week
 
 When you run `agent-steddy metrics report` for the weekly look at the work, run `agent-steddy lessons check` with it.
-It lists the rules that are due and not yet promoted, the Rule lines with no key (migrate them by adding a key to the line), and the role cards that are due for pruning.
-Act on each section: promote what is due, key or merge the old lines, and merge or drop the pitfalls it names.
+It lists the rules that are due and not yet promoted, the promoted rules that broke again and have no eval case, the rules with no When line and the Rule lines with no key (migrate both by adding the line or the key by hand), and the role cards that are due for pruning.
+Act on each section: promote what is due, add the check and the case for a broken rule, add the When lines, key or merge the old lines, retire what no longer holds, and merge or drop the pitfalls it names.

@@ -95,8 +95,19 @@ class LearningLoopLine(unittest.TestCase):
             (root / "docs/agents/lessons.md").write_text("# Lessons\n\n## 2026-10-01 - t - roles: web\n- Rule [a]: r\n\n## 2026-10-02 - u - roles: web\n- Rule: none\n")
             self.assertEqual(gate_reminder.reminder(project_config.load(root), root)["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER)
             lessons_file(root, "a")
-            (root / "docs/agents/lessons.md").write_text((root / "docs/agents/lessons.md").read_text().replace("Rule [a]: r\n\n## 2026-10-02", "Rule [a]: r [promoted -> docs/agents/roles/web.md]\n\n## 2026-10-02"))
+            (root / "docs/agents/lessons.md").write_text((root / "docs/agents/lessons.md").read_text().replace("Rule [a]: r\n", "Rule [a]: r [promoted -> docs/agents/roles/web.md]\n"))
             self.assertNotIn("Learning loop", gate_reminder.reminder(project_config.load(root), root)["hookSpecificOutput"]["additionalContext"])
+
+    def test_a_promoted_rule_recorded_again_adds_the_line_until_it_has_an_eval_case(self):
+        with repo() as root:
+            lessons_file(root, "a")
+            path = root / "docs/agents/lessons.md"
+            path.write_text(path.read_text().replace("Rule [a]: r\n\n## 2026-10-02", "Rule [a]: r [promoted -> docs/agents/walls.md]\n\n## 2026-10-02"))
+            text = gate_reminder.reminder(project_config.load(root), root)["hookSpecificOutput"]["additionalContext"]
+            self.assertTrue(text.endswith("\nLearning loop: 1 rule(s) broken after promotion (a); run agent-steddy lessons check."), text)
+            (root / "docs/agents/evals").mkdir()
+            (root / "docs/agents/evals/a.md").write_text("- Key: a\n- Kind: seen\n- Check: true\n")
+            self.assertEqual(gate_reminder.reminder(project_config.load(root), root)["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER)
 
     def test_the_line_needs_the_reminder_to_be_on(self):
         with repo() as root:
@@ -226,6 +237,23 @@ class Hook(unittest.TestCase):
             first = pending(root)
             run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit", "prompt": "<task-notification>done</task-notification>"}, root)
             self.assertEqual(pending(root), first)
+
+    def test_the_lessons_that_match_the_prompt_follow_the_reminder_even_when_it_is_off(self):
+        with repo() as root:
+            (root / "docs/agents").mkdir(parents=True)
+            (root / "docs/agents/lessons.md").write_text("## 2026-10-01 - t - roles: web\n- Rule [clear-the-cache]: clear the cache in CI\n  - When: a CI build fails after a dependency changed\n")
+            prompt = {"hook_event_name": "UserPromptSubmit", "prompt": "the CI build fails again"}
+            text = run_hook("gate_reminder.py", prompt, root)["hookSpecificOutput"]["additionalContext"]
+            self.assertEqual(text.split("\n")[1:], ["Lessons that may apply to this prompt (agent-steddy lessons find; read the whole entry in the lessons file before you lean on one):",
+                                                     "- clear-the-cache (seen 1 time): clear the cache in CI", "  when: a CI build fails after a dependency changed"])
+            self.assertEqual(run_hook("gate_reminder.py", self.PROMPT, root)["hookSpecificOutput"]["additionalContext"], project_config.DEFAULT_REMINDER)  # one shared term is not enough
+            write_config(root, {"reminder": {"enabled": False}})
+            self.assertEqual(run_hook("gate_reminder.py", prompt, root)["hookSpecificOutput"]["additionalContext"].split("\n")[0][:30], "Lessons that may apply to this")
+            write_config(root, {"reminder": {"enabled": False}, "recall": {"prompt": False}})
+            self.assertIsNone(run_hook("gate_reminder.py", prompt, root))
+            notification = {"hook_event_name": "UserPromptSubmit", "prompt": "<task-notification>the CI build fails again</task-notification>"}
+            write_config(root, {})
+            self.assertNotIn("Lessons that may apply", run_hook("gate_reminder.py", notification, root)["hookSpecificOutput"]["additionalContext"])
 
     def test_a_project_outside_a_repo_gets_the_reminder_and_no_clock(self):
         with tempfile.TemporaryDirectory() as tmp:

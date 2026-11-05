@@ -9,6 +9,7 @@ It has no product code, only the files that the kit reads and writes.
 | `.claude/agent-steddy.json` | The project config, see the [config reference](../../docs/config.md). |
 | `.claude/agents/` | Four agents filled in from the [templates](../../templates/README.md): `acme-web`, `acme-auditor`, `acme-verifier` and `acme-docs`. |
 | `docs/agents/roles/` | One role card for each agent. |
+| `docs/agents/evals/` | One [lesson eval](../../docs/config.md#lesson-evals) case: a task the agent has not met, for the rule `commit-by-path`, judged by a model against its criteria. |
 
 The config sets these rules:
 
@@ -18,6 +19,7 @@ The config sets these rules:
 - `git push`, `make deploy` and `make deploy-web` need the owner's confirmation when a subagent runs them, `npm publish` and `pnpm publish` always do, and `acme-cli config push` is denied.
 - The resume notes of `agent-steddy pause` stay in the local state, since `resume.folder` is `null`; set it to a folder such as `docs/agents/resume` to keep them in the repo.
 - The premise nudge stays on: `nudges.premise` is `true`, which is the default, so a command that fails twice in a row in a session gets the line that says to test the premise.
+- The prompt hook adds the recorded rules that match each prompt, since `recall.prompt` is `true`, the default.
 - The records go to `docs/agents/`, which does not exist until the first `agent-steddy record` or `agent-steddy metrics log` creates it; a rule promoted with `agent-steddy lessons promote` goes into a card of `docs/agents/roles/`, or into `docs/agents/walls.md` with `--to walls`.
 
 The config names `make verify` as the verify command; the example has no Makefile because it has no product code.

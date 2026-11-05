@@ -211,10 +211,10 @@ class WholeTask(unittest.TestCase):
         with copy_of_example() as project:
             self.assertTrue((project / records["roles"]).is_dir())
             first = agent_steddy("record", "lesson", "--task", "add the pricing page", "--roles", "web", "--worked", "w", "--exposed", "a commit took a neighbor's file",
-                                 "--rule", "commit by path, never git add all", "--key", key, cwd=project)
+                                 "--rule", "commit by path, never git add all", "--key", key, "--when", "about to stage and commit files", cwd=project)
             self.assertEqual(len(first.stdout.splitlines()), 1)  # only the heading: seen once
             second = agent_steddy("record", "lesson", "--task", "fix the footer", "--roles", "web,docs-writer", "--worked", "w", "--exposed", "the same slip again",
-                                  "--rule", "commit by path, never git add all", "--key", key, cwd=project)
+                                  "--rule", "commit by path, never git add all", "--key", key, "--when", "a commit also took files of another agent", "--from", "owner", cwd=project)
             self.assertEqual(second.stdout.splitlines()[1:], [
                 f"{key} is now seen 2 times",
                 f"agent-steddy lessons promote {key} --to web",
@@ -239,11 +239,20 @@ class WholeTask(unittest.TestCase):
             lessons = (project / records["lessons"]).read_text(encoding="utf-8")
             self.assertEqual(lessons.count(f"- Rule [{key}]: commit by path, never git add all [promoted -> docs/agents/roles/web.md]\n"), 2)
 
+            found = agent_steddy("lessons", "find", "stage the files and commit them", cwd=project).stdout.splitlines()
+            self.assertEqual(found, [f"{key} (seen 2 times, promoted -> docs/agents/roles/web.md, from the owner): commit by path, never git add all", "  when: a commit also took files of another agent"])
+            recalled = run_hook("gate_reminder.py", {"hook_event_name": "UserPromptSubmit", "prompt": "commit the files"}, project)["hookSpecificOutput"]["additionalContext"]
+            self.assertIn(f"\n- {key} (seen 2 times, promoted -> docs/agents/roles/web.md, from the owner)", recalled)
+
             report = agent_steddy("lessons", "check", cwd=project).stdout
             self.assertEqual(report.splitlines()[:2], ["Due: rules seen 2 or more times and not promoted", "  none"])
             self.assertEqual(agent_steddy("lessons", "check", "--quiet", cwd=project).stdout, "")
             self.assertEqual(run_hook("gate_reminder.py", prompt, project)["hookSpecificOutput"]["additionalContext"], CONFIG["reminder"]["text"])
             self.assertFalse((project / records["walls"]).exists())
+
+            evaluated = agent_steddy("lessons", "eval", cwd=project).stdout.splitlines()  # the example's case needs a model, so without --judge it is listed for review
+            self.assertEqual(evaluated[0][:72], "REVIEW  commit-by-path (new) docs/agents/evals/commit-by-path-new.md: no")
+            self.assertEqual(evaluated[-1], "summary: new: 0 of 0 passed, 1 to review")
 
     def test_a_command_that_keeps_failing_earns_the_premise_nudge_until_the_example_config_turns_it_off(self):
         self.assertEqual(CONFIG["nudges"], {"premise": True})

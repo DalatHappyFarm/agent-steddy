@@ -1,12 +1,15 @@
-"""The learning loop: rule keys in the lessons file, the repeat notice, `lessons check` and `lessons promote`.
+"""The learning loop: rule keys in the lessons file, the repeat notice, `lessons check`, `find`, `promote` and `retire`.
 
-A lessons entry has a Rule line, `- Rule [commit-by-path]: <text>`; the key, a lowercase slug, names the rule so that the same rule recorded again is counted and not read twice.
+A lessons entry has one or more Rule lines, `- Rule [commit-by-path]: <text>`, each with a `  - When: <situation>` line below it and, for feedback from the owner or a review, a `  - From: owner` line.
+The key, a lowercase slug, names the rule so that the same rule recorded again is counted and not read twice; the When line says when it applies, in the words an agent would use then, so `find` can fetch it.
 A rule seen THRESHOLD times and not promoted is due: it moves up into the Pitfalls of a role card, or into the walls file, and every Rule line with its key then ends with ` [promoted -> <path>]`.
+A promoted rule recorded again broke after its promotion, and needs a check that a machine runs; a rule that no longer holds ends with ` [retired]` or ` [retired -> <key>]`.
 Every function takes the paths it works on, so the tests call them directly.
-Reading is plain file reads and no git, so the prompt hook can call `nudge`.
+Reading is plain file reads and no git, so the prompt hook can call `nudge` and `recall`.
 """
 import collections
 import difflib
+import math
 import os
 import re
 import sys
@@ -22,6 +25,12 @@ MAX_PITFALLS = 12  # a card with more bullets than this is due for pruning
 ALIKE = 0.45  # similarity from which two texts look alike: on sample pairs paraphrases of one rule scored 0.43 to 0.9, unrelated rules 0.15 to 0.25 and different rules in one sentence frame up to 0.8; a crude measure, so the report only proposes
 SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 STOP_WORDS = {"a", "an", "the", "to", "of", "and", "or", "is", "are", "be", "it", "in", "on", "for", "with", "that", "this", "you", "your", "when", "do", "does"}
+# find drops more function words than suggest_key does, since a prompt is longer and looser than a rule
+FIND_STOP = STOP_WORDS | {"i", "we", "my", "our", "me", "as", "by", "at", "from", "not", "no", "so", "if", "then", "than", "its", "into", "was", "were", "has", "have", "had", "can", "will", "would", "should", "could", "please", "let", "us",
+                          "every", "each", "all", "any", "some", "which", "what", "who", "how", "tell", "they", "them", "their", "these", "those", "there", "here", "also", "just"}
+K1, B = 1.5, 0.75  # the usual BM25 constants: how fast repeats of a word stop adding, and how much a long rule is held back
+RECALL_TOP = 3  # rules the prompt hook adds at most
+SOURCES = ("self", "owner", "review")  # who found what a rule is about; self is the default and is not written
 
 WALLS_HEADER = """# Walls
 
@@ -34,12 +43,14 @@ Add them with `agent-steddy lessons promote <key> --to walls`.
 
 HEADING = re.compile(r"## (\S+) - (.*?)(?: - roles: (.*))?")
 RULE = re.compile(r"- Rule(?: \[(%s)\])?: ?(.*)" % SLUG)
-MARK = re.compile(r"(.*) \[promoted -> ([^\]]+)\]")
+DETAIL = re.compile(r"  - (When|From): (.*)")  # the lines right below a Rule line
+MARK = re.compile(r"(.*) \[(promoted|retired)(?: -> ([^\]]+))?\]")  # at the end of a Rule line, written by promote and retire
 PLACEHOLDER = re.compile(r"- (?:None recorded yet.*|<.*>\.?)")  # the empty bullets of the templates and the example cards
 LESSONS_SUFFIX = re.compile(r" \(lessons: [^)]*\)$")
 
-# the entry's date, its task, its roles, its key (None on an old line), the rule text without the marker, the marker's path (None), and the index of the Rule line
-Entry = collections.namedtuple("Entry", "date task roles key rule promoted line")
+# One Rule line: its entry's date, task and roles, its key (None on an old line), the rule text without the markers, its When text (None),
+# who found it (self, owner or review), the promoted marker's path (None), the retired marker (None, "" with no successor, or the successor's key), and the index of the Rule line
+Entry = collections.namedtuple("Entry", "date task roles key rule when source promoted retired line")
 
 
 def is_none(rule):
@@ -62,23 +73,33 @@ def headings(lines):
 
 
 def parse(text):
-    """The entries of a lessons file that have a Rule line, in file order (newest first when the commands wrote it)."""
+    """The Rule lines of a lessons file, one Entry each, in file order (newest first when the commands wrote it)."""
     lines = text.split("\n")
     marks = headings(lines)
     entries = []
     for number, start in enumerate(marks):
         head = HEADING.fullmatch(lines[start].rstrip())
+        if not head:
+            continue
         end = marks[number + 1] if number + 1 < len(marks) else len(lines)
-        for index in range(start + 1, end if head else start):
+        roles = [role.strip() for role in (head.group(3) or "").split(",") if role.strip()]
+        for index in range(start + 1, end):
             rule = RULE.fullmatch(lines[index].rstrip())
-            if rule:
-                body, promoted = rule.group(2), None
-                done = MARK.fullmatch(body)
-                if done:
-                    body, promoted = done.groups()
-                roles = [role.strip() for role in (head.group(3) or "").split(",") if role.strip()]
-                entries.append(Entry(head.group(1), head.group(2), roles, rule.group(1), body.strip(), promoted, index))
-                break
+            if not rule:
+                continue
+            body, found = rule.group(2), {}
+            while MARK.fullmatch(body):
+                body, kind, target = MARK.fullmatch(body).groups()
+                found.setdefault(kind, target or "")
+            details = {}
+            for below in lines[index + 1:end]:
+                detail = DETAIL.fullmatch(below.rstrip())
+                if not detail:
+                    break
+                details.setdefault(detail.group(1), detail.group(2).strip())
+            source = details.get("From", "").lower()
+            entries.append(Entry(head.group(1), head.group(2), roles, rule.group(1), body.strip(), details.get("When") or None,
+                                 source if source in SOURCES else "self", found.get("promoted") or None, found.get("retired"), index))
     return entries
 
 
@@ -103,10 +124,37 @@ def is_promoted(group):
     return any(entry.promoted for entry in group)
 
 
+def promoted_to(group):
+    return next((entry.promoted for entry in group if entry.promoted), None)
+
+
+def is_retired(group):
+    return any(entry.retired is not None for entry in group)
+
+
+def successor(group):
+    """The key that replaced a retired rule, "" when none did, None when the rule is not retired."""
+    return next((entry.retired for entry in group if entry.retired is not None), None)
+
+
 def due(entries):
-    """(key, entries) of every rule seen THRESHOLD times and not promoted: most seen first, then by key."""
-    found = [(key, group) for key, group in groups(entries).items() if len(group) >= THRESHOLD and not is_promoted(group)]
+    """(key, entries) of every rule seen THRESHOLD times and not promoted or retired: most seen first, then by key."""
+    found = [(key, group) for key, group in groups(entries).items() if len(group) >= THRESHOLD and not is_promoted(group) and not is_retired(group)]
     return sorted(found, key=lambda item: (-len(item[1]), item[0]))
+
+
+def broken(entries, cased=()):
+    """(key, entries, the entries recorded after the promotion) of every promoted rule recorded again since, that has no eval case yet: most recorded again first, then by key.
+
+    promote marks every Rule line of the key, so a line of a promoted key with no marker was recorded after the promotion.
+    `cased` holds the keys that have an eval case, the check that a rule broken after its promotion needs.
+    """
+    found = []
+    for key, group in groups(entries).items():
+        after = [entry for entry in group if not entry.promoted]
+        if is_promoted(group) and not is_retired(group) and after and key not in cased:
+            found.append((key, group, after))
+    return sorted(found, key=lambda item: (-len(item[2]), item[0]))
 
 
 def words(text):
@@ -150,10 +198,37 @@ def missing_key(entries, rule):
         return "\n".join(lines)
     lines.append("closest recorded rules:")
     for _, key, group in ranked:
-        promoted = ", promoted" if is_promoted(group) else ""
-        lines.append(f"  {key} (seen {plural(len(group))}{promoted}): {group[0].rule}")
+        state = ", promoted" if is_promoted(group) else ""
+        state += "" if successor(group) is None else f", retired{' by ' + successor(group) if successor(group) else ''}"
+        lines.append(f"  {key} (seen {plural(len(group))}{state}): {group[0].rule}")
     lines.append("re-run with --key <existing> if it is the same rule, or --key <new-slug> if it is new")
     return "\n".join(lines)
+
+
+def key_refusal(entries, rule, key, new=False):
+    """Why `rule` cannot be recorded under `key`, or None when it can.
+
+    A retired key takes no new lines.
+    A new key whose closest recorded rule is promoted is refused unless `new`: the same failure under a new key would hide that a promoted rule broke again.
+    """
+    known = groups(entries)
+    if key in known:
+        if successor(known[key]) is None:
+            return None
+        after = successor(known[key])
+        return f"{key} is retired{' by ' + after if after else ''}; record the rule under {after or 'a new key'}; nothing was written"
+    if new:
+        return None
+    ranked = [item for item in closest(entries, rule) if successor(item[2]) is None][:1]
+    if not ranked or not is_promoted(ranked[0][2]):
+        return None
+    _, near, group = ranked[0]
+    return "\n".join([
+        f"{key} is a new key, and the closest recorded rule is promoted to {promoted_to(group)}:",
+        f"  {near}: {group[0].rule}",
+        f"if this is the same failure, the rule broke after its promotion: re-run with --key {near}",
+        "if it is a different rule, re-run with --new; nothing was written",
+    ])
 
 
 def role_counts(group):
@@ -172,21 +247,106 @@ def promote_hint(key, group):
     return lines
 
 
+def break_hint(key):
+    return [
+        "a rule broken after its promotion needs a check that a machine runs, not another note: a commands.deny entry, a handback.required item, a hook or a test",
+        f"keep it as an eval case with `Key: {key}` and a Check command that fails on this case, and run agent-steddy lessons eval",
+    ]
+
+
 def repeat_notice(path, key):
-    """What to print after a rule was recorded under `key`: nothing, or the count and the way to promote it."""
+    """What to print after a rule was recorded under `key`: nothing, the count and the way to promote it, or that a promoted rule broke again."""
     group = groups(read(path)).get(key, [])
-    if len(group) < THRESHOLD or is_promoted(group):
+    if is_promoted(group):
+        if all(entry.promoted for entry in group):
+            return []
+        return [f"{key} is seen again after its promotion to {promoted_to(group)} ({plural(len(group))} in all)", *break_hint(key)]
+    if len(group) < THRESHOLD:
         return []
     return [f"{key} is now seen {len(group)} times", *promote_hint(key, group)]
 
 
-def nudge(path):
-    """The line for the prompt reminder, empty when no rule is due. One file read, no git."""
-    keys = [key for key, _ in due(read(path))]
-    if not keys:
-        return ""
-    shown = ", ".join(keys[:3]) + (", ..." if len(keys) > 3 else "")
-    return f"Learning loop: {len(keys)} rule(s) seen twice and not promoted ({shown}); run agent-steddy lessons check."
+def shortlist(keys):
+    return ", ".join(keys[:3]) + (", ..." if len(keys) > 3 else "")
+
+
+def nudge(path, cased=()):
+    """The line for the prompt reminder, empty when no rule is due or broken after its promotion. One file read, no git."""
+    entries = read(path)
+    due_keys = [key for key, _ in due(entries)]
+    broken_keys = [key for key, _, _ in broken(entries, cased)]
+    parts = [f"{len(due_keys)} rule(s) seen twice and not promoted ({shortlist(due_keys)})"] if due_keys else []
+    parts += [f"{len(broken_keys)} rule(s) broken after promotion ({shortlist(broken_keys)})"] if broken_keys else []
+    return f"Learning loop: {'; '.join(parts)}; run agent-steddy lessons check." if parts else ""
+
+
+def stem(word):
+    """A crude English stem that drops -ing, -ed or a plural -s, so that runs and run, passed and pass match.
+
+    ponytail: suffix stripping, not a stemmer (stated and state still differ); swap in a Porter stemmer if recall misses on word forms.
+    """
+    for suffix in ("ing", "ed", "s"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3 and not (suffix == "s" and word[-2] in "siu"):
+            return word[:-len(suffix)]
+    return word
+
+
+def terms(text):
+    """The search terms of a text: its words in any script, lower case, function words dropped, stemmed."""
+    return [stem(word) for word in re.findall(r"\w+", text.lower()) if word not in FIND_STOP]
+
+
+def find(entries, query, top=5):
+    """(score, matched terms, key, entries) of the rules that match `query`, best first, ties by key; retired rules are left out.
+
+    One document per key: the key's words, every rule text and every When line of its entries.
+    The score is BM25 with the constants K1 and B; only keys that share a term with the query are returned.
+    """
+    keyed = {key: group for key, group in groups(entries).items() if not is_retired(group)}
+    docs = {key: terms(" ".join([key.replace("-", " "), *(entry.rule for entry in group), *(entry.when for entry in group if entry.when)])) for key, group in keyed.items()}
+    wanted = set(terms(query))
+    if not docs or not wanted:
+        return []
+    size = sum(len(doc) for doc in docs.values()) / len(docs) or 1
+    df = collections.Counter(word for doc in docs.values() for word in set(doc))
+    ranked = []
+    for key, doc in docs.items():
+        counts = collections.Counter(doc)
+        hits = [word for word in wanted if counts[word]]
+        if hits:
+            score = sum(math.log(1 + (len(docs) - df[word] + 0.5) / (df[word] + 0.5)) * counts[word] * (K1 + 1) / (counts[word] + K1 * (1 - B + B * len(doc) / size)) for word in hits)
+            ranked.append((round(score, 3), len(hits), key, keyed[key]))
+    return sorted(ranked, key=lambda item: (-item[0], item[2]))[:top]
+
+
+def rule_lines(key, group):
+    """Two lines for a found rule: the key, how often it was seen, where it was promoted and whether the owner gave it, the newest rule text; then its newest When."""
+    notes = [f"seen {plural(len(group))}"]
+    notes += [f"promoted -> {promoted_to(group)}"] if is_promoted(group) else []
+    notes += [f"from the {source}" for source in SOURCES[1:] if any(entry.source == source for entry in group)]
+    when = next((entry.when for entry in group if entry.when), None)
+    return [f"{key} ({', '.join(notes)}): {group[0].rule}", *([f"  when: {when}"] if when else [])]
+
+
+def find_lines(entries, query, top=5):
+    """The `lessons find` output."""
+    out = []
+    for _, _, key, group in find(entries, query, top):
+        out += rule_lines(key, group)
+    return out or ["no recorded rule matches; try the words of the situation, such as the command, the file or the step"]
+
+
+def recall(path, prompt):
+    """The lines the prompt hook adds: up to RECALL_TOP rules that share two terms or more with the prompt (one, for a prompt of one term). One file read."""
+    need = min(2, len(set(terms(prompt))))
+    hits = [hit for hit in find(read(path), prompt, RECALL_TOP) if need and hit[1] >= need]
+    if not hits:
+        return []
+    out = ["Lessons that may apply to this prompt (agent-steddy lessons find; read the whole entry in the lessons file before you lean on one):"]
+    for _, _, key, group in hits:
+        first, *rest = rule_lines(key, group)
+        out += [clip(f"- {first}", 400), *(clip(line, 400) for line in rest)]
+    return out
 
 
 def pitfalls_span(lines):
@@ -264,12 +424,34 @@ def prune_lines(folder):
     return lines
 
 
-def check(project, config):
-    """The `lessons check` report: due rules, rule lines with no key, and role cards to prune. Every section says `none` when empty."""
+def broken_lines(entries, cased):
+    lines = []
+    for key, group, after in broken(entries, cased):
+        lines.append(f"  {key}: promoted -> {promoted_to(group)}, recorded again on {', '.join(sorted(entry.date for entry in after))}")
+        lines.append("    tasks: " + "; ".join(entry.task for entry in after))
+        lines += ["    " + line for line in break_hint(key)]
+    return lines
+
+
+def no_when_lines(entries):
+    lines = []
+    for key, group in sorted(groups(entries).items()):
+        if not is_retired(group) and not any(entry.when for entry in group):
+            lines.append(f"  {key}: add a line '  - When: <the situation, in the words an agent would use then>' under its Rule line of {group[0].date} - {group[0].task}")
+    return lines
+
+
+def check(project, config, cased=()):
+    """The `lessons check` report: due rules, rules broken after their promotion, rules with no When, rule lines with no key, and role cards to prune. Every section says `none` when empty.
+
+    `cased` holds the keys that have an eval case (evals.case_keys), which takes a rule off the broken list.
+    """
     project = Path(project)
     entries = read(project / project_config.get(config, "records", "lessons"))
     sections = [
         (f"Due: rules seen {THRESHOLD} or more times and not promoted", due_lines(entries)),
+        ("Broken after promotion: promoted rules recorded again since, with no eval case", broken_lines(entries, cased)),
+        ("No When: rules that find can only match by their text (add the line by hand)", no_when_lines(entries)),
         ("Unkeyed: Rule lines with no key (add the key to the line by hand, or record the rule again with --key)", unkeyed_lines(entries)),
         (f"Cards to prune: role cards with more than {MAX_PITFALLS} pitfalls, and pitfalls that look alike", prune_lines(project / project_config.get(config, "records", "roles"))),
     ]
@@ -277,6 +459,10 @@ def check(project, config):
     for title, lines in sections:
         out += [*([""] if out else []), title, *(lines or ["  none"])]
     return out
+
+
+def has_marker(text):
+    return "[promoted" in text or "[retired" in text
 
 
 def relative(project, path):
@@ -312,7 +498,7 @@ def add_wall(path, bullet):
 def promote(project, config, key, to, text=None, force=False):
     """Move a repeated rule up: its bullet goes to the Pitfalls of the role card `to`, or to the walls file when `to` is `walls`, and its Rule lines get a marker. Returns what was written.
 
-    Refuses (exit 2) an unknown key, a key seen less than THRESHOLD times unless `force`, a key that is already promoted, a role with no card, and an empty or multi-line text.
+    Refuses (exit 2) an unknown key, a key seen less than THRESHOLD times unless `force`, a key that is already promoted or retired, a role with no card, and an empty or multi-line text.
     """
     project = Path(project)
     lessons_path = project / project_config.get(config, "records", "lessons")
@@ -325,7 +511,9 @@ def promote(project, config, key, to, text=None, force=False):
     if not group:
         raise Refuse(f"no rule has the key {key!r} in {shown}; run agent-steddy lessons check to see the keys", 2)
     if is_promoted(group):
-        raise Refuse(f"{key} is already promoted: {next(entry.promoted for entry in group if entry.promoted)}", 2)
+        raise Refuse(f"{key} is already promoted: {promoted_to(group)}", 2)
+    if is_retired(group):
+        raise Refuse(f"{key} is retired; a retired rule is not promoted", 2)
     if len(group) < THRESHOLD and not force:
         raise Refuse(f"{key} is seen {plural(len(group))}, fewer than {THRESHOLD}; promote it when it repeats, or pass --force", 2)
     if to == "walls":
@@ -339,8 +527,8 @@ def promote(project, config, key, to, text=None, force=False):
     wording = (text if text is not None else group[0].rule).strip()
     if not wording or "\n" in wording or "\r" in wording:
         raise Refuse("the text must be a single line that is not empty; pass --text with the final wording", 2)
-    if "[promoted ->" in wording:
-        raise Refuse("the text must not contain '[promoted ->'; the command writes that marker", 2)
+    if has_marker(wording):
+        raise Refuse("the text must not contain '[promoted' or '[retired'; the commands write those markers", 2)
     bullet = f"- {wording} (lessons: {', '.join(sorted(entry.date for entry in group))})"
     # ponytail: read, write the target, then the lessons file - a crash in between leaves the bullet in the target and the rules unmarked; two agents promoting at once could lose a change
     if to == "walls":
@@ -353,3 +541,37 @@ def promote(project, config, key, to, text=None, force=False):
         lines[entry.line] = lines[entry.line].rstrip() + marker
     lessons_path.write_text("\n".join(lines), encoding="utf-8")
     return [f"added to {relative(project, target)}: {bullet}", f"marked {plural(len(group), 'Rule line')} of {key} in {shown} as{marker}"]
+
+
+def retire(project, config, key, by=None):
+    """Mark every Rule line of `key` as retired, ` [retired]`, or ` [retired -> <by>]` when another rule replaced it. Returns what was written.
+
+    A retired rule is no longer due, broken or found, and takes no new lines; refuses (exit 2) an unknown or retired key, and a `by` that is the key itself or no recorded key.
+    A promoted rule keeps its bullet in the role card or the walls file: what to do with that bullet is a judgment, so the command only names it.
+    """
+    project = Path(project)
+    lessons_path = project / project_config.get(config, "records", "lessons")
+    shown = relative(project, lessons_path)
+    try:
+        source = lessons_path.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        source = ""
+    known = groups(parse(source))
+    group = known.get(key)
+    if not group:
+        raise Refuse(f"no rule has the key {key!r} in {shown}; run agent-steddy lessons check to see the keys", 2)
+    if is_retired(group):
+        raise Refuse(f"{key} is already retired", 2)
+    if by is not None:
+        valid_key(by)
+        if by == key or by not in known or is_retired(known[by]):
+            raise Refuse(f"--by must name another recorded rule that is not retired; record {by} first, or retire {key} without --by", 2)
+    marker = f" [retired -> {by}]" if by else " [retired]"
+    lines = source.split("\n")
+    for entry in group:
+        lines[entry.line] = lines[entry.line].rstrip() + marker
+    lessons_path.write_text("\n".join(lines), encoding="utf-8")
+    out = [f"marked {plural(len(group), 'Rule line')} of {key} in {shown} as{marker}"]
+    if is_promoted(group):
+        out.append(f"{key} was promoted to {promoted_to(group)}: edit or remove its bullet there by hand")
+    return out

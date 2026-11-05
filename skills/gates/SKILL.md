@@ -40,7 +40,7 @@ A rule matches the usual forms of a command, not every way around it; [the limit
 | Gate | Purpose | Output | Do not pass if |
 | --- | --- | --- | --- |
 | 1 Intake | Understand the real goal, the scope, the size (S, M or L) and the type (bug, feature, review, analysis, content). | One sentence that restates the goal and the scope; M and L tasks name the task with `agent-steddy metrics start "<task>"`. | An ambiguity that changes the result is neither asked nor logged as an assumption. |
-| 2 Recall | Load the walls (the table above and the project's walls file, `records.walls`), the role card of each role in play, and the matching lessons. When the project has principle skills installed (for example pstack's `principle-*`), load the ones that fit the roles in play, such as the ones the role card names on its `Principles:` line. | A short list of the traps to avoid this time. | Work starts before the walls file and the role cards were read. |
+| 2 Recall | Load the walls (the table above and the project's walls file, `records.walls`), the role card of each role in play, and the lessons that fit: `agent-steddy lessons find "<the goal and the plan in a sentence>"`, plus the ones the prompt hook added. When the project has principle skills installed (for example pstack's `principle-*`), load the ones that fit the roles in play, such as the ones the role card names on its `Principles:` line. | A short list of the traps to avoid this time. | Work starts before the walls file and the role cards were read. |
 | 3 Shape | Pick the roles and the split, check the side effects on existing behavior, and define Done. | The roles, the split and Done written down; a large task has a spec before any work starts. | Nobody can say what done means, or an owner decision is still open. |
 | 4 Act | Do the work to the role's standards. | The smallest correct change, in the right place and in the files assigned. | A wall or a role rule is broken. |
 | 5 Prove | Act as the adversary: evidence, not promises; reproduce a bug before fixing it. | Evidence at the level chosen on the ladder below: test output, screenshots you looked at, numbers from code, and subagent reports checked with your own eyes. | Anything is red, a screenshot was not looked at, a claim has no evidence, or a green test is read as proof of more than it measures. |
@@ -199,30 +199,39 @@ Checking each branch and then again after every merge repeats the same checks.
 
 The kit counts the repeats and writes the promotion; a person or an agent keeps the judgment.
 
-1. Write a retro at gate 6 for every task: three lines (Worked, Exposed, Rule), and ask whether any step was slow or repeated.
-   Before you write the Rule line, ask two questions: will it still be true in six months, and would it make a later agent decide differently?
+1. Write a retro at gate 6 for every task: Worked, Exposed and a Rule line for each rule worth keeping, and ask whether any step was slow or repeated.
+   Before you write a Rule line, ask two questions: will it still be true in six months, and would it make a later agent decide differently?
    If the answer to either is no, write `none`: something that happened once is a fact for the Exposed line, not yet a rule.
-   Record it with `agent-steddy record lesson ... --rule R --key K`.
+   Several problems that each pass the two questions are several rules, one `--rule`, `--key` and `--when` each, so each one is counted on its own.
+   Record it with `agent-steddy record lesson ... --rule R --key K --when W`, and add `--from owner` when the owner had to point it out.
    A rule other than `none` takes a key, a lowercase slug such as `commit-by-path`, and the same rule recorded again takes the same key.
    Without a key the command writes nothing, exits 2 and lists the closest recorded rules, so the key is chosen by comparing and not from memory.
+   The When is the situation the rule applies to, in the words an agent would use at that moment ("about to report that a test run passed from a command whose output went through a pipe"), because it is what `lessons find` and the prompt hook match; a label such as "exit codes" finds nothing.
 2. A rule seen a second time moves into the Pitfalls of the matching role card.
    After the write the command prints `<key> is now seen <n> times` and the `agent-steddy lessons promote <key> --to <role>` command, with the roles of those entries, most common first.
    `agent-steddy lessons check` lists every rule that is due, and the prompt reminder adds one line while any rule is due, so a repeat is not left to memory.
 3. A role rule broken a second time, or any rule about safety, data or money, moves into the walls file instead: `agent-steddy lessons promote <key> --to walls`.
+   A promoted rule that breaks again is recorded under its own key, not a new one: the command refuses a new key whose closest recorded rule is promoted until you choose, and the old key prints that the rule broke after its promotion.
    When a machine can check it, it also becomes a check: a project config entry such as `commands.deny`, `agents.writeFences` or `handback.required`, a hook, a test, or a new built-in rule in the kit.
    A check counts as enforced only after it was shown to fail on the error the lessons recorded: run it on that case and keep the output in the report.
    Until then the rule stays prose in the Enforced by sense, written down and not enforced, and the walls table does not name the check.
-4. At each merge, prune: `agent-steddy lessons check` also lists role cards with more than 12 pitfalls, pitfalls in one card that look alike, and Rule lines with no key, each with a suggested key.
+   Keep that run as a lesson eval case (`records.evals`, `- Key: <key>`, `- Kind: seen`, a `- Check:` command), and add a `new` case that the agent has not met, so a pass shows the rule generalized; a rule broken after its promotion stays on the `lessons check` list and the prompt reminder until it has a case.
+   A rule that a script cannot check (judgment, wording, design) gets a case with a `## Prompt` and `## Criteria` instead, which `agent-steddy lessons eval --judge` answers and judges with `claude -p`.
+4. At each merge, prune: `agent-steddy lessons check` also lists role cards with more than 12 pitfalls, pitfalls in one card that look alike, rules with no When line, and Rule lines with no key, each with a suggested key.
    Merge duplicate rules, drop stale ones, and keep the cards short.
+   A rule that no longer holds is retired, not deleted: `agent-steddy lessons retire <key> [--by <key>]`, so find stops returning it and the history stays.
 5. A procedure done by hand three times becomes a script, a make target or a skill.
 6. Each week, run `agent-steddy metrics report`, `agent-steddy metrics slow` and `agent-steddy lessons check`; a command near the top by total time gets faster, or gets a written reason to stay.
+7. After a plugin update, a model change or a rewrite of the role cards, run `agent-steddy lessons eval`, and `--judge` when cases need a model, before the next real task.
 
 | Step | The command does | You decide |
 | --- | --- | --- |
-| Record the rule | `record lesson --key` refuses a rule with no key and lists the closest recorded rules. | Whether the rule is the same as one listed, and the key of a new one. |
+| Record the rule | `record lesson --key` refuses a rule with no key or no When, lists the closest recorded rules, and refuses a new key whose closest rule is promoted unless `--new`. | Whether the rule is the same as one listed, the key of a new one, and the When. |
+| Recall | `lessons find` ranks the rules by key, text and When; the prompt hook adds up to three. | The query: the goal, the plan or the step, in plain words. |
 | Notice the repeat | `record lesson` prints the repeat notice; the reminder line and `lessons check` list the rules due. | Nothing to decide; read the notice. |
 | Promote | `lessons promote` writes the bullet, with the dates, and marks every Rule line of the key as promoted. | The target: a role card, the walls file, or a check as well; and the final wording (`--text`). |
-| Prune | `lessons check` lists the cards that are too long, the pitfalls that look alike and the unkeyed rules. | Which to merge or drop, and how to word what stays. |
+| Prune | `lessons check` lists the cards that are too long, the pitfalls that look alike, the rules with no When and the unkeyed rules; `lessons retire` marks a rule that no longer holds. | Which to merge, retire or drop, and how to word what stays. |
+| Prove it stuck | `lessons check` lists a promoted rule recorded again until it has an eval case; `lessons eval` runs the cases. | The check, the case and its criteria. |
 
 A promoted rule line ends with ` [promoted -> <path>]`, and a promoted key is no longer due.
 A rule that is broken after its promotion needs a check that a machine runs, not another note, and that check is not trusted until it has failed on the broken case once.
@@ -248,7 +257,8 @@ The report should move toward fewer feedback rounds and exposed defects per task
 | --- | --- |
 | The walls and the gates | This skill; each agent prompt repeats the walls it needs, because a subagent does not see this conversation. |
 | Role cards and their pitfalls | The project's roles folder, `records.roles` (`docs/agents/roles/` by default). |
-| Lessons | `records.lessons`, newest first; each Rule line carries a key. |
+| Lessons | `records.lessons`, newest first; each Rule line carries a key and a When line. |
+| Lesson evals | `records.evals`, one Markdown file per case (`docs/agents/evals/` by default). |
 | Resume notes | One file per branch in `.git/agent-steddy/resume/`, or in `resume.folder` when the project sets one. |
 | The project's walls file | `records.walls`, `docs/agents/walls.md` by default; read at gate 2 with the walls above. |
 | Decisions and assumptions | `records.decisions`. |

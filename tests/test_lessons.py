@@ -170,9 +170,10 @@ class Due(unittest.TestCase):
             self.assertEqual(lessons.repeat_notice(path, "other"), [])  # seen once
             self.assertEqual(lessons.repeat_notice(path, "unknown"), [])
 
-    def test_the_repeat_notice_stays_quiet_for_a_promoted_key_and_a_key_with_no_roles(self):
+    def test_the_repeat_notice_stays_quiet_for_a_promoted_key_with_no_line_after_the_promotion_and_a_key_with_no_roles(self):
         with project() as root:
-            path = put(root, "l.md", lessons_text(("2026-10-02", "b", "web", "- Rule [k]: r"), ("2026-10-01", "a", "web", "- Rule [k]: r [promoted -> docs/agents/roles/web.md]")))
+            marked = " [promoted -> docs/agents/roles/web.md]"
+            path = put(root, "l.md", lessons_text(("2026-10-02", "b", "web", "- Rule [k]: r" + marked), ("2026-10-01", "a", "web", "- Rule [k]: r" + marked)))
             self.assertEqual(lessons.repeat_notice(path, "k"), [])
             path = put(root, "l2.md", "## 2026-10-02 - b\n- Rule [k]: r\n\n## 2026-10-01 - a\n- Rule [k]: r\n")
             self.assertEqual(lessons.repeat_notice(path, "k")[:2], ["k is now seen 2 times", "agent-steddy lessons promote k --to <role>"])
@@ -208,11 +209,11 @@ class Check(unittest.TestCase):
     def run_check(self, root):
         return lessons.check(root, CONFIG)
 
-    def test_a_project_with_no_records_says_none_three_times(self):
+    def test_a_project_with_no_records_says_none_in_every_section(self):
         with project() as root:
             found = sections(self.run_check(root))
-            self.assertEqual(list(found), ["Due", "Unkeyed", "Cards to prune"])
-            self.assertEqual(list(found.values()), [["  none"]] * 3)
+            self.assertEqual(list(found), ["Due", "Broken after promotion", "No When", "Unkeyed", "Cards to prune"])
+            self.assertEqual(list(found.values()), [["  none"]] * 5)
 
     def test_due_lists_the_dates_the_tasks_the_roles_and_the_command(self):
         with project() as root:
@@ -463,3 +464,150 @@ class Promote(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+PROMOTED = " [promoted -> docs/agents/walls.md]"
+
+
+class Items(unittest.TestCase):
+    def test_every_rule_line_of_an_entry_is_an_item_with_its_when_its_source_and_its_markers(self):
+        text = "\n".join([
+            "## 2026-10-30 - two rules - roles: web",
+            "- Worked: w",
+            "- Rule [a-rule]: do a" + PROMOTED,
+            "  - When: about to do a",
+            "  - From: owner",
+            "- Rule [b-rule]: do b [promoted -> docs/x.md] [retired -> a-rule]",
+            "  - From: Review",
+            "  - When: about to do b",
+            "- Rule [c-rule]: do c [retired]",
+            "  - From: someone",
+            "",
+            "## 2026-10-29 - old - roles: web",
+            "- Rule [d-rule]: do d",
+            "",
+            "  - When: not below a Rule line, so not read",
+        ])
+        got = [(e.key, e.rule, e.when, e.source, e.promoted, e.retired) for e in lessons.parse(text)]
+        self.assertEqual(got, [
+            ("a-rule", "do a", "about to do a", "owner", "docs/agents/walls.md", None),
+            ("b-rule", "do b", "about to do b", "review", "docs/x.md", "a-rule"),
+            ("c-rule", "do c", None, "self", None, ""),
+            ("d-rule", "do d", None, "self", None, None),
+        ])
+
+    def test_a_retired_key_is_never_due_and_a_promoted_key_recorded_again_is_broken_until_it_has_an_eval_case(self):
+        entries = lessons.parse(lessons_text(
+            ("2026-10-05", "again", "web", "- Rule [walled]: r"),
+            ("2026-10-04", "b", "web", "- Rule [walled]: r" + PROMOTED),
+            ("2026-10-03", "a", "web", "- Rule [walled]: r" + PROMOTED),
+            ("2026-10-02", "b", "web", "- Rule [gone]: r [retired]"),
+            ("2026-10-01", "a", "web", "- Rule [gone]: r [retired]"),
+        ))
+        self.assertEqual(lessons.due(entries), [])
+        self.assertEqual([(key, [e.task for e in after]) for key, _, after in lessons.broken(entries)], [("walled", ["again"])])
+        self.assertEqual(lessons.broken(entries, {"walled"}), [])
+
+    def test_the_nudge_names_the_rules_broken_after_promotion_next_to_the_due_ones(self):
+        with project() as root:
+            path = put(root, "l.md", lessons_text(("2026-10-05", "again", "web", "- Rule [walled]: r"), ("2026-10-04", "b", "web", "- Rule [walled]: r" + PROMOTED),
+                                                  ("2026-10-02", "b", "web", "- Rule [twice]: r"), ("2026-10-01", "a", "web", "- Rule [twice]: r")))
+            self.assertEqual(lessons.nudge(path), "Learning loop: 1 rule(s) seen twice and not promoted (twice); 1 rule(s) broken after promotion (walled); run agent-steddy lessons check.")
+            self.assertEqual(lessons.nudge(path, {"walled"}), "Learning loop: 1 rule(s) seen twice and not promoted (twice); run agent-steddy lessons check.")
+
+    def test_the_repeat_notice_of_a_promoted_rule_recorded_again_asks_for_a_check(self):
+        with project() as root:
+            path = put(root, "l.md", lessons_text(("2026-10-05", "again", "web", "- Rule [walled]: r"), ("2026-10-04", "b", "web", "- Rule [walled]: r" + PROMOTED)))
+            self.assertEqual(lessons.repeat_notice(path, "walled"), [
+                "walled is seen again after its promotion to docs/agents/walls.md (2 times in all)",
+                "a rule broken after its promotion needs a check that a machine runs, not another note: a commands.deny entry, a handback.required item, a hook or a test",
+                "keep it as an eval case with `Key: walled` and a Check command that fails on this case, and run agent-steddy lessons eval",
+            ])
+
+    def test_check_lists_the_broken_rules_and_the_rules_with_no_when(self):
+        with project() as root:
+            put(root, "docs/agents/lessons.md", lessons_text(("2026-10-05", "again", "web", "- Rule [walled]: r"), ("2026-10-04", "b", "web", "- Rule [walled]: r" + PROMOTED),
+                                                             ("2026-10-03", "c", "web", "- Rule [gone]: r [retired]")) + "\n## 2026-10-01 - d - roles: web\n- Rule [with-when]: r\n  - When: w\n")
+            found = sections(lessons.check(root, CONFIG))
+            self.assertEqual(found["Broken after promotion"][:2], ["  walled: promoted -> docs/agents/walls.md, recorded again on 2026-10-05", "    tasks: again"])
+            self.assertEqual(found["No When"], ["  walled: add a line '  - When: <the situation, in the words an agent would use then>' under its Rule line of 2026-10-05 - again"])
+            self.assertEqual(sections(lessons.check(root, CONFIG, {"walled"}))["Broken after promotion"], ["  none"])
+
+
+class Find(unittest.TestCase):
+    ROWS = (
+        ("2026-10-31", "M7 console", "web", "- Rule [test-exit-status]: never pipe a test command into another command; read its exit status before committing" + PROMOTED
+         + "\n  - When: about to report that a test, verify or eval run passed, or to commit after one, from a command whose output went through a pipe"),
+        ("2026-10-30", "M0", "orchestrator", "- Rule [prove-the-service-runs]: before relying on a CI or hosted service, run one cheap job to prove the account can run it"),
+        ("2026-10-29", "setup", "orchestrator", "- Rule [look-at-every-render]: look at every rendered diagram in light and dark before calling it done"),
+        ("2026-10-28", "old", "web", "- Rule [old-eval-rule]: report every eval run that passed [retired]"),
+    )
+
+    def test_stems_match_word_forms_and_terms_keep_any_script(self):
+        self.assertEqual([lessons.stem(w) for w in ["runs", "passed", "running", "status", "process", "focus", "is", "files"]], ["run", "pass", "runn", "status", "process", "focus", "is", "file"])
+        self.assertEqual(lessons.terms("Mở đầu video: giải thích khái niệm quá sớm, and the tests"), ["mở", "đầu", "video", "giải", "thích", "khái", "niệm", "quá", "sớm", "test"])
+
+    def test_the_rule_whose_when_fits_the_situation_ranks_first_and_a_retired_rule_is_left_out(self):
+        entries = lessons.parse(lessons_text(*self.ROWS))
+        ranked = lessons.find(entries, "write a shell script that runs the eval protocol and reports whether each run passed")
+        self.assertEqual(ranked[0][2], "test-exit-status")
+        self.assertNotIn("old-eval-rule", [item[2] for item in ranked])
+        self.assertEqual(lessons.find(entries, "the and of"), [])
+        self.assertEqual(lessons.find([], "eval"), [])
+
+    def test_the_lines_name_the_count_the_promotion_the_source_and_the_newest_when(self):
+        entries = lessons.parse(lessons_text(*self.ROWS) + "\n## 2026-11-01 - feedback - roles: web\n- Rule [look-at-every-render]: look at every render\n  - When: a diagram is done\n  - From: owner\n")
+        self.assertEqual(lessons.find_lines(entries, "render the diagram", 1), [
+            "look-at-every-render (seen 2 times, from the owner): look at every render",
+            "  when: a diagram is done",
+        ])
+        self.assertIn("no recorded rule matches", lessons.find_lines(entries, "kubernetes")[0])
+
+    def test_recall_adds_at_most_three_rules_that_share_two_terms_with_the_prompt(self):
+        with project() as root:
+            path = put(root, "l.md", lessons_text(*self.ROWS))
+            lines = lessons.recall(path, "commit after the test run passed")
+            self.assertTrue(lines[0].startswith("Lessons that may apply to this prompt (agent-steddy lessons find"), lines)
+            self.assertTrue(lines[1].startswith("- test-exit-status (seen 1 time, promoted -> docs/agents/walls.md): never pipe"), lines)
+            self.assertEqual(lessons.recall(path, "continue with the dashboards"), [])  # nothing shares two terms
+            self.assertEqual(lessons.recall(path, "diagram")[1][:22], "- look-at-every-render")  # a prompt of one term needs one match
+            self.assertEqual(lessons.recall(path, ""), [])
+            self.assertEqual(lessons.recall(root / "missing.md", "commit after the test run passed"), [])
+
+
+class Retire(unittest.TestCase):
+    def setup(self, root):
+        return put(root, "docs/agents/lessons.md", lessons_text(("2026-10-03", "c", "web", "- Rule [new-way]: r"), ("2026-10-02", "b", "web", "- Rule [old-way]: r" + PROMOTED), ("2026-10-01", "a", "web", "- Rule [old-way]: r" + PROMOTED)))
+
+    def test_every_line_of_the_key_is_marked_and_a_promoted_rule_names_its_bullet(self):
+        with project() as root:
+            path = self.setup(root)
+            said = lessons.retire(root, CONFIG, "old-way", "new-way")
+            self.assertEqual(said, ["marked 2 Rule lines of old-way in docs/agents/lessons.md as [retired -> new-way]",
+                                    "old-way was promoted to docs/agents/walls.md: edit or remove its bullet there by hand"])
+            self.assertEqual(path.read_text().count("- Rule [old-way]: r [promoted -> docs/agents/walls.md] [retired -> new-way]\n"), 2)
+            self.assertEqual([e.retired for e in lessons.read(path) if e.key == "old-way"], ["new-way", "new-way"])
+            self.assertEqual(lessons.retire(root, CONFIG, "new-way"), ["marked 1 Rule line of new-way in docs/agents/lessons.md as [retired]"])
+
+    def test_it_refuses_with_exit_2_and_writes_nothing(self):
+        with project() as root:
+            path = self.setup(root)
+            before = path.read_text()
+            for key, by, words in [("nope", None, "no rule has the key 'nope'"), ("old-way", "old-way", "--by must name another recorded rule"),
+                                   ("old-way", "nope", "--by must name another recorded rule"), ("old-way", "Bad Key", "bad key")]:
+                with self.assertRaises(Refuse, msg=(key, by)) as caught:
+                    lessons.retire(root, CONFIG, key, by)
+                self.assertEqual(caught.exception.code, 2)
+                self.assertIn(words, str(caught.exception))
+            self.assertEqual(path.read_text(), before)
+            lessons.retire(root, CONFIG, "new-way")
+            for key, by in [("new-way", None), ("old-way", "new-way")]:
+                with self.assertRaises(Refuse):
+                    lessons.retire(root, CONFIG, key, by)
+
+    def test_a_retired_rule_is_not_promoted(self):
+        with project() as root:
+            put(root, "docs/agents/lessons.md", lessons_text(("2026-10-02", "b", "web", "- Rule [k]: r [retired]"), ("2026-10-01", "a", "web", "- Rule [k]: r [retired]")))
+            with self.assertRaises(Refuse) as caught:
+                lessons.promote(root, CONFIG, "k", "walls")
+            self.assertIn("k is retired", str(caught.exception))

@@ -8,8 +8,8 @@
   agent-steddy metrics selftest                     a quick check of the installed scripts
 
   agent-steddy record decision "<area>" "<text>"    append `- [area] text` to the decisions file
-  agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R [--key K]
-                                                    put a dated entry at the top of the lessons file; a rule other than none needs a key
+  agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R --key K --when W [--rule R2 --key K2 --when W2] [--from owner|review] [--new]
+                                                    put a dated entry at the top of the lessons file; each rule other than none needs a key and a When
   agent-steddy record finish <branch> [--full] [--no-verify]
                                                     verify the branch, fast-forward the working branch onto it, delete it; never pushes
 
@@ -17,12 +17,16 @@
                                                     write the resume note of the current branch (what to know to carry on); commits nothing
   agent-steddy resume [--branch B] [--clear]        print the resume note and what changed since it; --clear deletes it
 
-  agent-steddy lessons check [--quiet]              rules seen twice and not promoted, rules with no key, role cards to prune
+  agent-steddy lessons check [--quiet]              rules due, rules broken after promotion, rules with no When or no key, role cards to prune
+  agent-steddy lessons find "<query>" [--top 5]     the recorded rules that fit a task, best first (BM25 over keys, rules and When lines)
   agent-steddy lessons promote <key> --to <role|walls> [--text T] [--force]
                                                     write a repeated rule into a role card's Pitfalls or the walls file, and mark its lines
+  agent-steddy lessons retire <key> [--by K]        mark a rule that no longer holds, and the rule that replaced it
+  agent-steddy lessons eval [--key K] [--judge] [--model M] [--bare]
+                                                    run the eval cases of the rules; exit 1 when one fails
 
 The project is `CLAUDE_PROJECT_DIR` when set, else the nearest folder from the cwd up that has `.claude/agent-steddy.json` or `.git`.
-Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused and 2 when the learning loop wants another key or target, `metrics log` has only an auto task name, or `pause` and `resume` have no branch or repo to work with, with the reason on stderr.
+Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused or an eval case fails, and 2 when the learning loop wants another key, When or target, `metrics log` has only an auto task name, or `pause` and `resume` have no branch or repo to work with, with the reason on stderr.
 """
 import argparse
 import json
@@ -34,6 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I lea
 import lessons  # noqa: E402
 import local_state  # noqa: E402
 import metrics  # noqa: E402
+import evals  # noqa: E402
 import project_config  # noqa: E402
 import record  # noqa: E402
 import resume  # noqa: E402
@@ -67,10 +72,14 @@ def build_parser():
     decision.add_argument("area", help="a short tag such as app or website")
     decision.add_argument("text", help="one line: the decision and why")
     lesson = records.add_parser("lesson", help="put an entry at the top of the lessons file")
-    helps = {"roles": "comma separated", "rule": "one line; first ask: will it still be true in six months, and would it make a later agent decide differently? if not, none (something that happened once is a fact for --exposed, not yet a rule)"}
-    for field in ("task", "roles", "worked", "exposed", "rule"):
+    helps = {"roles": "comma separated"}
+    for field in ("task", "roles", "worked", "exposed"):
         lesson.add_argument(f"--{field}", required=True, help=helps.get(field, "one line"))
-    lesson.add_argument("--key", help="a slug that names the rule, such as commit-by-path; the same rule takes the same key; not needed when the rule is none")
+    lesson.add_argument("--rule", action="append", required=True, help="one line, repeat for each rule; first ask: will it still be true in six months, and would it make a later agent decide differently? if not, none (something that happened once is a fact for --exposed, not yet a rule)")
+    lesson.add_argument("--key", action="append", help="one per --rule, in the same order: a slug that names the rule, such as commit-by-path; the same rule takes the same key; not needed when the rule is none")
+    lesson.add_argument("--when", action="append", help="one per --rule, in the same order: the situation the rule applies to, in the words an agent would use when it comes up; lessons find matches it")
+    lesson.add_argument("--from", dest="source", choices=[source for source in lessons.SOURCES if source != "self"], default="self", help="owner or review when they found what the rules are about; left out when the agent did")
+    lesson.add_argument("--new", action="store_true", help="record a new key even though the closest recorded rule is promoted")
     finish = records.add_parser("finish", help="verify a branch, fast-forward the working branch onto it and delete it; never pushes")
     finish.add_argument("branch")
     finish.add_argument("--full", action="store_true", help="append --full to verifyCommand")
@@ -86,13 +95,24 @@ def build_parser():
     pick_up.add_argument("--branch", help="the branch; default is the checked out one")
     pick_up.add_argument("--clear", action="store_true", help="delete the note instead of printing it")
     loop = groups.add_parser("lessons", help="the learning loop: rules that repeat, and moving them up").add_subparsers(dest="command", required=True)
-    check = loop.add_parser("check", help="rules seen twice and not promoted, rules with no key, role cards to prune")
+    check = loop.add_parser("check", help="rules due, rules broken after promotion, rules with no When or no key, role cards to prune")
     check.add_argument("--quiet", action="store_true", help="print one summary line, and nothing when no rule is due")
     promote = loop.add_parser("promote", help="write a repeated rule into a role card or the walls file, and mark its lines")
     promote.add_argument("key")
     promote.add_argument("--to", required=True, help="a role (the file name of its card without .md), or walls")
     promote.add_argument("--text", help="the final wording; default is the rule text of the newest entry")
     promote.add_argument("--force", action="store_true", help="promote a rule seen only once")
+    find = loop.add_parser("find", help="the recorded rules that fit a task, best first")
+    find.add_argument("query", nargs="+", help="the task, the step or the situation, in plain words")
+    find.add_argument("--top", type=int, default=5)
+    retire = loop.add_parser("retire", help="mark a rule that no longer holds; find, check and record then leave it out")
+    retire.add_argument("key")
+    retire.add_argument("--by", help="the key of the rule that replaced it")
+    run = loop.add_parser("eval", help="run the eval cases of the rules: each Check command, and with --judge the cases a model judges")
+    run.add_argument("--key", help="only the cases of this key")
+    run.add_argument("--judge", action="store_true", help="answer and judge the cases that have a Prompt and Criteria with claude -p")
+    run.add_argument("--model", help="the model that answers, to compare models; the judge stays on claude's default")
+    run.add_argument("--bare", action="store_true", help="with --judge: answer without the walls and the lessons, to see whether a case needs them")
     return parser
 
 
@@ -117,17 +137,23 @@ def run_record(args, project, config):
         return [f"added: {record.decision(path, args.area, args.text)}"]
     if args.command == "lesson":
         path = Path(project) / project_config.get(config, "records", "lessons")
-        heading = record.lesson(path, args.task, args.roles, args.worked, args.exposed, args.rule, key=args.key)
-        notice = [] if lessons.is_none(args.rule) else lessons.repeat_notice(path, args.key)
+        heading = record.lesson(path, args.task, args.roles, args.worked, args.exposed, args.rule, key=args.key, when=args.when, source=args.source, new=args.new)
+        notice = [line for key in (args.key or []) if not lessons.is_none(args.rule[0]) for line in lessons.repeat_notice(path, key)]
         return [f"added: {heading}", *notice]
     record.finish(project, args.branch, config, args.full, args.no_verify)  # prints its own progress, since a verify can take minutes
     return []
 
 
 def run_lessons(args, project, config):
+    path = Path(project) / project_config.get(config, "records", "lessons")
+    cased = evals.case_keys(Path(project) / project_config.get(config, "records", "evals"))
     if args.command == "check":
-        line = lessons.nudge(Path(project) / project_config.get(config, "records", "lessons"))
-        return ([line] if line else []) if args.quiet else lessons.check(project, config)
+        line = lessons.nudge(path, cased)
+        return ([line] if line else []) if args.quiet else lessons.check(project, config, cased)
+    if args.command == "find":
+        return lessons.find_lines(lessons.read(path), " ".join(args.query), args.top)
+    if args.command == "retire":
+        return lessons.retire(project, config, args.key, args.by)
     return lessons.promote(project, config, args.key, args.to, args.text, args.force)
 
 
@@ -142,6 +168,10 @@ def main(argv=None):
             lines = resume.pause(project, config, args.intent, args.done, args.next_step, args.open_decisions, args.pitfalls, args.files)
         elif args.group == "resume":
             lines = (resume.clear if args.clear else resume.show)(project, config, args.branch)
+        elif args.group == "lessons" and args.command == "eval":
+            lines, passed = evals.run(project, config, args.key, args.judge, args.model, args.bare)
+            print("\n".join(lines))
+            return 0 if passed else 1
         else:
             lines = (run_record if args.group == "record" else run_lessons)(args, project, config)
         for line in lines:

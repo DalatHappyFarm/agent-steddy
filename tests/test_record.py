@@ -59,7 +59,7 @@ class Decision(unittest.TestCase):
 
 class Lesson(unittest.TestCase):
     def entry(self, **extra):
-        return {"task": "fix the build", "roles": "web, docs", "worked": "tests first", "exposed": "a stale cache", "rule": "clear the cache in CI", "key": "clear-the-cache", "today": "2026-10-29", **extra}
+        return {"task": "fix the build", "roles": "web, docs", "worked": "tests first", "exposed": "a stale cache", "rule": "clear the cache in CI", "key": "clear-the-cache", "when": "a CI build fails after a dependency changed", "today": "2026-10-29", **extra}
 
     def test_a_missing_file_is_created_from_the_template_with_the_entry_below_it(self):
         with folder() as root:
@@ -70,7 +70,7 @@ class Lesson(unittest.TestCase):
             self.assertEqual(lines.count("```text"), 1)
             at = lines.index("## 2026-10-29 - fix the build - roles: web, docs")
             self.assertGreater(at, lines.index("```"))  # below the format block, not inside it
-            self.assertEqual(lines[at + 1:at + 5], ["- Worked: tests first", "- Exposed: a stale cache", "- Rule [clear-the-cache]: clear the cache in CI", ""])
+            self.assertEqual(lines[at + 1:at + 6], ["- Worked: tests first", "- Exposed: a stale cache", "- Rule [clear-the-cache]: clear the cache in CI", "  - When: a CI build fails after a dependency changed", ""])
             self.assertEqual(path.read_text()[-1], "\n")
 
     def test_the_newest_entry_goes_first(self):
@@ -99,7 +99,7 @@ class Lesson(unittest.TestCase):
                 path = root / "lessons.md"
                 path.write_text(original)
                 record.lesson(path, **self.entry())
-                self.assertEqual(path.read_text(), "# My lessons\n\n## 2026-10-29 - fix the build - roles: web, docs\n- Worked: tests first\n- Exposed: a stale cache\n- Rule [clear-the-cache]: clear the cache in CI\n", original)
+                self.assertEqual(path.read_text(), "# My lessons\n\n## 2026-10-29 - fix the build - roles: web, docs\n- Worked: tests first\n- Exposed: a stale cache\n- Rule [clear-the-cache]: clear the cache in CI\n  - When: a CI build fails after a dependency changed\n", original)
 
     def test_the_date_defaults_to_today(self):
         import datetime
@@ -112,6 +112,8 @@ class Lesson(unittest.TestCase):
         self.assertIn("agent-steddy lessons promote <key> --to <role>", record.LESSONS_TEMPLATE)
         self.assertIn("still be true in six months", record.LESSONS_TEMPLATE)
         self.assertIn("has failed on the error recorded here", record.LESSONS_TEMPLATE)
+        self.assertIn("  - When: <the situation it applies to", record.LESSONS_TEMPLATE)
+        self.assertIn("agent-steddy lessons retire <key>", record.LESSONS_TEMPLATE)
         self.assertEqual(lessons.parse(record.LESSONS_TEMPLATE), [])  # the format example is not an entry
 
     def test_a_rule_without_a_key_writes_nothing_and_exits_2_with_the_closest_rules_first(self):
@@ -178,11 +180,76 @@ class Lesson(unittest.TestCase):
             for key in ["a", "commit-by-path", "x1-2y", "a" * 40]:
                 record.lesson(path, **self.entry(key=key))
 
-    def test_a_rule_that_carries_the_promoted_marker_is_refused(self):
+    def test_a_rule_that_carries_a_marker_is_refused(self):
         with folder() as root:
-            with self.assertRaises(Refuse):
-                record.lesson(root / "l.md", **self.entry(rule="do x [promoted -> docs/x.md]"))
+            for rule in ["do x [promoted -> docs/x.md]", "do x [retired]", "do x [retired -> y]"]:
+                with self.assertRaises(Refuse, msg=rule):
+                    record.lesson(root / "l.md", **self.entry(rule=rule))
             self.assertFalse((root / "l.md").exists())
+
+    def test_several_rules_go_into_one_entry_each_with_its_key_its_when_and_the_source(self):
+        with folder() as root:
+            path = root / "l.md"
+            record.lesson(path, **self.entry(rule=["clear the cache in CI", "pin the toolchain"], key=["clear-the-cache", "pin-toolchain"],
+                                             when=["a CI build fails after a dependency changed", "a build differs between machines"], source="owner"))
+            self.assertIn("- Rule [clear-the-cache]: clear the cache in CI\n  - When: a CI build fails after a dependency changed\n  - From: owner\n"
+                          "- Rule [pin-toolchain]: pin the toolchain\n  - When: a build differs between machines\n  - From: owner\n", path.read_text())
+            got = [(e.key, e.when, e.source, e.task) for e in lessons.read(path)]
+            self.assertEqual(got, [("clear-the-cache", "a CI build fails after a dependency changed", "owner", "fix the build"),
+                                   ("pin-toolchain", "a build differs between machines", "owner", "fix the build")])
+
+    def test_each_rule_needs_a_key_and_a_when_in_the_same_order_and_nothing_is_written_otherwise(self):
+        with folder() as root:
+            path = root / "l.md"
+            cases = [
+                ({"when": None}, "1 rule and 0 Whens"),
+                ({"rule": ["a b", "c d"], "key": ["a-b"], "when": ["x", "y"]}, "2 rules and 1 key"),
+                ({"rule": ["a b", "c d"], "key": ["a-b", "c-d"], "when": ["x"]}, "2 rules and 1 When"),
+                ({"rule": ["a b", "c d"], "key": ["a-b", "a-b"], "when": ["x", "y"]}, "a key appears twice"),
+                ({"rule": ["none", "c d"], "key": ["c-d"], "when": ["y"]}, "a rule of none stands alone"),
+                ({"source": "boss"}, "--from must be one of"),
+            ]
+            for change, words in cases:
+                with self.assertRaises(Refuse, msg=words) as caught:
+                    record.lesson(path, **self.entry(**change))
+                self.assertIn(words, str(caught.exception))
+            self.assertFalse(path.exists())
+
+    def test_a_retired_key_is_refused_and_names_its_successor(self):
+        with folder() as root:
+            path = root / "l.md"
+            path.write_text("## 2026-01-02 - b - roles: web\n- Rule [new-way]: r\n  - When: w\n\n## 2026-01-01 - a - roles: web\n- Rule [old-way]: r [retired -> new-way]\n  - When: w\n")
+            before = path.read_text()
+            with self.assertRaises(Refuse) as caught:
+                record.lesson(path, **self.entry(key="old-way"))
+            self.assertEqual(caught.exception.code, 2)
+            self.assertIn("old-way is retired by new-way; record the rule under new-way", str(caught.exception))
+            self.assertEqual(path.read_text(), before)
+
+    def test_a_new_key_whose_closest_rule_is_promoted_is_refused_unless_new(self):
+        with folder() as root:
+            path = root / "l.md"
+            path.write_text("## 2026-01-02 - b - roles: web\n- Rule [test-exit-status]: read the exit status of a test run before committing [promoted -> docs/agents/walls.md]\n"
+                            "\n## 2026-01-01 - a - roles: web\n- Rule [look-at-renders]: look at every render [retired]\n")
+            before = path.read_text()
+            with self.assertRaises(Refuse) as caught:
+                record.lesson(path, **self.entry(rule="capture the exit status of the eval run before reporting it", key="capture-exit-status"))
+            self.assertEqual(caught.exception.code, 2)
+            lines = str(caught.exception).splitlines()
+            self.assertEqual(lines[0], "capture-exit-status is a new key, and the closest recorded rule is promoted to docs/agents/walls.md:")
+            self.assertEqual(lines[2], "if this is the same failure, the rule broke after its promotion: re-run with --key test-exit-status")
+            self.assertEqual(path.read_text(), before)
+            record.lesson(path, **self.entry(rule="capture the exit status of the eval run before reporting it", key="capture-exit-status", new=True))
+            record.lesson(path, **self.entry(rule="read the exit status before reporting the eval", key="test-exit-status"))  # the same key: a break after promotion, not refused
+            self.assertEqual(lessons.repeat_notice(path, "test-exit-status")[0], "test-exit-status is seen again after its promotion to docs/agents/walls.md (2 times in all)")
+
+    def test_a_new_key_is_not_refused_when_the_closest_rule_is_not_promoted_or_is_retired(self):
+        with folder() as root:
+            path = root / "l.md"
+            path.write_text("## 2026-01-01 - a - roles: web\n- Rule [test-exit-status]: read the exit status before committing [promoted -> docs/agents/walls.md] [retired]\n"
+                            "- Rule [clear-cache]: clear the cache\n")
+            record.lesson(path, **self.entry(rule="read the exit status of every run before committing", key="exit-status-first"))
+            self.assertEqual(lessons.read(path)[0].key, "exit-status-first")
 
     def test_missing_or_multi_line_fields_are_refused_and_nothing_is_written(self):
         with folder() as root:

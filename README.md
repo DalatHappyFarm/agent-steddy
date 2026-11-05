@@ -13,7 +13,9 @@ Guardrails, gates and a learning loop for a team of Claude Code agents, packaged
 
 - Stop the commands that break shared work (destructive git, reading secrets, deploying from a subagent) with hooks, so the rule holds even when a prompt forgets it.
 - Give every task the same seven gates: intake, recall, shape, act, prove, record, deliver.
-- Turn repeated mistakes into rules: a short retro per task with a key on each rule, a notice when a rule repeats, and one command that moves it into a role card or the walls file.
+- Turn repeated mistakes into rules: a short retro per task with a key and a When line on each rule, a notice when a rule repeats, and one command that moves it into a role card or the walls file.
+- Put the right lessons in front of the agent when they apply: `lessons find` ranks the rules by their When lines (BM25), gate 2 and every brief run it, and the prompt hook adds the rules that match the prompt.
+- Catch a lesson that did not stick: a promoted rule recorded again is flagged until it has an eval case, a new key that looks like a promoted rule is refused, and `lessons eval` replays stored cases, the failure that was seen and a new one, after a plugin or model change.
 - Stop a task safely and pick it up again: one resume note per branch, and a hook that points at it when a session starts or the context was summarized.
 - Measure the work: minutes per task, first-pass verification, defects the owner found.
 
@@ -129,12 +131,15 @@ The data and the notes are local state in the git common dir (`.git/agent-steddy
 | `agent-steddy metrics report` | Weekly tables of tasks and of git rework, then a verdict on the last two weeks that have tasks: minutes by size and the first-pass share are faster or slower, better or worse, no measurable difference, or inconclusive, with the number of tasks of each week. |
 | `agent-steddy metrics slow` | The Bash commands that take the most time, grouped. |
 | `agent-steddy record decision "<area>" "<text>"` | Appends a line to `records.decisions`. |
-| `agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R --key K` | Puts a dated entry at the top of `records.lessons`. A rule other than `none` needs a key, a slug such as `commit-by-path`; without one nothing is written and the closest recorded rules are listed. A key recorded a second time prints a notice with the promote command. |
+| `agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R --key K --when W [--from owner] [--new]` | Puts a dated entry at the top of `records.lessons`; `--rule`, `--key` and `--when` repeat, one of each per rule. A rule other than `none` needs a key, a slug such as `commit-by-path`, and a When, the situation it applies to; without a key nothing is written and the closest recorded rules are listed. A key recorded a second time prints a notice with the promote command, a promoted key recorded again prints that it broke after its promotion, and a new key whose closest rule is promoted is refused unless `--new`. |
 | `agent-steddy record finish <branch>` | Runs `verifyCommand` on the branch, fast-forwards `workingBranch` onto it, deletes it and its resume note; it refuses when the verify fails and never pushes. |
 | `agent-steddy pause --intent I --done D --next N [--open O] [--pitfalls P] [--files a,b]` | Writes the resume note of the current branch: the date, the HEAD commit, the diff against the base, the uncommitted files, then the intent, what is done and verified, the open decisions, the next step, the key files and the pitfalls. It commits nothing. |
 | `agent-steddy resume [--branch B] [--clear]` | Prints the branch's resume note, the commits and uncommitted files since it, and a reminder that the note is a claim, not evidence; `--clear` deletes the note. |
-| `agent-steddy lessons check [--quiet]` | Lists the rules seen twice and not promoted, the Rule lines with no key (with a suggested key) and the role cards to prune; `--quiet` prints the one reminder line, or nothing. |
+| `agent-steddy lessons check [--quiet]` | Lists the rules seen twice and not promoted, the promoted rules recorded again with no eval case, the rules with no When, the Rule lines with no key (with a suggested key) and the role cards to prune; `--quiet` prints the one reminder line, or nothing. |
+| `agent-steddy lessons find "<query>" [--top N]` | Prints the rules that fit a task, best first: BM25 over each key's words, rule texts and When lines, retired rules left out. |
 | `agent-steddy lessons promote <key> --to <role\|walls> [--text T] [--force]` | Writes a repeated rule as the last bullet of the role card's Pitfalls, or into `records.walls`, and marks its Rule lines ` [promoted -> <path>]`. |
+| `agent-steddy lessons retire <key> [--by K]` | Marks a rule that no longer holds ` [retired]`, or ` [retired -> K]`; find, check and record then leave it out. |
+| `agent-steddy lessons eval [--key K] [--judge] [--model M] [--bare]` | Runs the eval cases in `records.evals`: each Check command, and with `--judge` the cases that `claude -p` answers and judges against their criteria (`--bare` answers without the walls and the lessons, to see whether a case needs them); a summary by kind (seen, new), exit 1 when one fails. |
 
 Claude Code puts the plugin's `bin/` folder on the Bash tool's `PATH` while the plugin is enabled; Claude.ai and Cowork do not install a plugin that has one.
 See [docs/config.md](docs/config.md) for the clocks, the file formats, `finish`, the resume notes, the learning loop and the keys.
@@ -153,6 +158,7 @@ The gates skill marks which walls a hook enforces and which ones a person has to
 
 Several ideas in the method come from [pstack](https://github.com/cursor/plugins/tree/main/pstack), a skill pack for coding agents by Lauren Tan (MIT license): pausing a task with a resume note and picking it up from the note and git, a green test that proves only what it measures, a check that counts as enforced only after it failed on the recorded error, two questions before a rule is written, a budget in the brief, auditor findings that carry the command that shows them, a status at the top of a hand-back, a verdict that comes with a metric, and seven principles that became the rules inside the gates (delete before you build, one place for each decision, build the lever, verifiable units, fix where the system first went wrong, attack the premise, do not wait for what can be undone).
 The kit's code and wording are its own, and pstack's own skills are a separate install (see [Works with pstack](#works-with-pstack)).
+The feedback memory of version 0.5.0 (a When line per rule, `lessons find` with BM25, and lesson evals with seen and new cases) follows a post by Việt Trần on keeping the knowledge a skill gathers as structured, searchable and testable items.
 
 ## Works with pstack
 

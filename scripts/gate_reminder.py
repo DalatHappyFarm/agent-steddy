@@ -1,7 +1,8 @@
 """Hook for UserPromptSubmit: put the gates in front of the agent on every prompt, and start the task clock.
 
 Prints one JSON object whose `additionalContext` is `reminder.text` of the project config, and nothing when `reminder.enabled` is false.
-When a rule of the lessons file is due for promotion (seen twice and not promoted), one more line names the keys and says to run `agent-steddy lessons check`; a problem reading the lessons file leaves that line out.
+When a rule of the lessons file is due for promotion (seen twice and not promoted) or broke after its promotion, one more line names the keys and says to run `agent-steddy lessons check`; a problem reading the lessons file leaves that line out.
+When `recall.prompt` is on, the rules that match the prompt follow (lessons.recall: at most three, each sharing two terms with it), whether or not the reminder is on.
 It also starts the task clock that `agent-steddy metrics` reads: when no task is pending, the time of this prompt becomes the start of an auto task named `auto <time>`.
 A pending task is never replaced, except an auto task older than 12 hours, which is a prompt that never reached `metrics log`.
 The clock starts whether or not the reminder is on.
@@ -15,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script directory off the path
+import evals  # noqa: E402
 import lessons  # noqa: E402
 import local_state  # noqa: E402
 import project_config  # noqa: E402
@@ -36,40 +38,64 @@ def start_clock(project, now):
 
 
 def learning_loop_line(project, config):
-    """The line that says rules are due for promotion, empty when none is or when the lessons file cannot be read."""
+    """The line that says rules are due for promotion or broke after it, empty when none is or when the lessons file cannot be read."""
     try:
-        return lessons.nudge(Path(project) / project_config.get(config, "records", "lessons"))
+        cased = evals.case_keys(Path(project) / project_config.get(config, "records", "evals"))
+        return lessons.nudge(Path(project) / project_config.get(config, "records", "lessons"), cased)
     except Exception:
         return ""
 
 
-def reminder(config, project=None):
-    """The hook output with the reminder, None when the reminder is off or its text is empty. With a `project`, a due rule adds the learning loop line."""
+def recall_lines(project, config, prompt):
+    """The lessons that match the prompt, [] when recall is off, there is no prompt, or the lessons file cannot be read."""
+    if not prompt or not project_config.get(config, "recall", "prompt"):
+        return []
+    try:
+        return lessons.recall(Path(project) / project_config.get(config, "records", "lessons"), prompt)
+    except Exception:
+        return []
+
+
+def reminder(config, project=None, prompt=None):
+    """The hook output, None when it has nothing to add: the reminder text when it is on (with the learning loop line when a rule is due), then the lessons that match the prompt."""
     text = project_config.get(config, "reminder", "text")
-    if not project_config.get(config, "reminder", "enabled") or not text.strip():
+    parts = []
+    if project_config.get(config, "reminder", "enabled") and text.strip():
+        line = learning_loop_line(project, config) if project is not None else ""
+        parts.append(f"{text}\n{line}" if line else text)
+    if project is not None:
+        parts += recall_lines(project, config, prompt)
+    if not parts:
         return None
-    line = learning_loop_line(project, config) if project is not None else ""
-    text = f"{text}\n{line}" if line else text
-    return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}
+    return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "\n".join(parts)}}
+
+
+def prompt_of(raw):
+    """The prompt of the hook input, None when there is none."""
+    try:
+        prompt = json.loads(raw).get("prompt")
+    except Exception:
+        return None
+    return prompt if isinstance(prompt, str) else None
 
 
 def is_notification(raw):
     """True when the hook input is a turn that Claude Code opened for a background task's notification, not a prompt someone typed."""
-    try:
-        prompt = json.loads(raw).get("prompt")
-    except Exception:
-        return False
-    return isinstance(prompt, str) and prompt.lstrip().startswith("<task-notification>")
+    prompt = prompt_of(raw)
+    return prompt is not None and prompt.lstrip().startswith("<task-notification>")
 
 
 def main():
     project = local_state.project_dir()
+    prompt = None
     try:
-        if not is_notification(sys.stdin.read()):
+        raw = sys.stdin.read()
+        if not is_notification(raw):
+            prompt = prompt_of(raw)
             start_clock(project, dt.datetime.now())
     except Exception:
         pass
-    output = reminder(project_config.load(project), project)
+    output = reminder(project_config.load(project), project, prompt)
     if output:
         print(json.dumps(output))
 

@@ -11,7 +11,7 @@ from pathlib import Path
 
 DEFAULT_REMINDER = (
     "Seven gates for this request: 1 Intake (the goal, the scope and the size; ask when it is unclear) -> "
-    "2 Recall (the rules, the role notes and the lessons so far) -> "
+    "2 Recall (the rules, the role notes, and the lessons that fit: `agent-steddy lessons find \"<the goal and the plan>\"`) -> "
     "3 Shape (the role, the split, what done means) -> 4 Act -> "
     "5 Prove (evidence you looked at; re-check what sub-agents report) -> "
     "6 Record (decisions with `agent-steddy record decision`, a retro with `agent-steddy record lesson`, a metrics line with `agent-steddy metrics log`) -> "
@@ -35,12 +35,14 @@ DEFAULTS = {
     "resume": {"folder": None},  # None keeps the resume notes in the local state; a project-relative folder keeps them in the repo
     "reminder": {"enabled": True, "text": DEFAULT_REMINDER},
     "nudges": {"premise": True},  # the premise nudge of tool_timing.py
+    "recall": {"prompt": True},  # the prompt hook adds the lessons that match the prompt
     "records": {
         "lessons": "docs/agents/lessons.md",
         "metrics": "docs/agents/metrics.jsonl",
         "decisions": "docs/agents/decisions.md",
         "roles": "docs/agents/roles",
         "walls": "docs/agents/walls.md",
+        "evals": "docs/agents/evals",
     },
 }
 

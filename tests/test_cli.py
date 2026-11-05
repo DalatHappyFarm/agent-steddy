@@ -148,10 +148,10 @@ class Records(unittest.TestCase):
             done = agent_steddy(["record", "decision", "api", "keep v1 for a month - clients lag"], root)
             self.assertEqual((done.returncode, done.stdout.strip(), done.stderr), (0, "added: - [api] keep v1 for a month - clients lag", ""))
             self.assertTrue((root / "notes" / "decisions.md").read_text().endswith("- [api] keep v1 for a month - clients lag\n"))
-            done = agent_steddy(["record", "lesson", "--task", "t1", "--roles", "web,docs", "--worked", "w", "--exposed", "e", "--rule", "r", "--key", "the-key"], root)
+            done = agent_steddy(["record", "lesson", "--task", "t1", "--roles", "web,docs", "--worked", "w", "--exposed", "e", "--rule", "r", "--key", "the-key", "--when", "w"], root)
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertRegex(done.stdout, r"^added: ## \d{4}-\d\d-\d\d - t1 - roles: web, docs\n$")
-            self.assertIn("- Rule [the-key]: r\n", (root / "notes" / "lessons.md").read_text())
+            self.assertIn("- Rule [the-key]: r\n  - When: w\n", (root / "notes" / "lessons.md").read_text())
             self.assertFalse((root / "docs").exists())
 
     def test_a_refused_record_exits_1_and_a_missing_option_exits_2(self):
@@ -200,8 +200,8 @@ class Records(unittest.TestCase):
 CARD = "# Role: Web\n\nMission: build pages.\n\n## Pitfalls\n\n- None recorded yet; the second time a mistake happens, add it here as a rule.\n\n## Tools\n\n- rg\n"
 
 
-def lesson(task, rule, key=None, roles="web"):
-    return ["record", "lesson", "--task", task, "--roles", roles, "--worked", "w", "--exposed", "e", "--rule", rule, *(["--key", key] if key else [])]
+def lesson(task, rule, key=None, roles="web", when="about to commit"):
+    return ["record", "lesson", "--task", task, "--roles", roles, "--worked", "w", "--exposed", "e", "--rule", rule, *(["--key", key, "--when", when] if key else [])]
 
 
 class LearningLoop(unittest.TestCase):
@@ -247,7 +247,7 @@ class LearningLoop(unittest.TestCase):
             done = agent_steddy(["lessons", "check"], root)
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual([line for line in done.stdout.splitlines() if not line.startswith(" ")][:1], ["Due: rules seen 2 or more times and not promoted"])
-            self.assertEqual(done.stdout.count("  none\n"), 3)
+            self.assertEqual(done.stdout.count("  none\n"), 5)
             self.assertEqual(agent_steddy(["lessons", "check", "--quiet"], root).stdout, "")
             for task in ("t1", "t2"):
                 agent_steddy(lesson(task, "commit by path", "commit-by-path"), root)
@@ -285,6 +285,56 @@ class LearningLoop(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertTrue((root / "docs/agents/walls.md").read_text().startswith("# Walls\n"))
             self.assertEqual(agent_steddy(["lessons", "promote", "no-secrets"], root).returncode, 2)  # argparse: --to is required
+
+    def test_several_rules_in_one_entry_and_a_missing_when_exits_2(self):
+        with project() as root:
+            base = ["record", "lesson", "--task", "t1", "--roles", "web", "--worked", "w", "--exposed", "e", "--from", "owner"]
+            done = agent_steddy([*base, "--rule", "commit by path", "--key", "commit-by-path", "--rule", "look at renders", "--key", "look-at-renders", "--when", "about to commit"], root)
+            self.assertEqual((done.returncode, done.stdout), (2, ""))
+            self.assertIn("2 rules and 1 When", done.stderr)
+            done = agent_steddy([*base, "--rule", "commit by path", "--key", "commit-by-path", "--when", "about to commit",
+                                 "--rule", "look at renders", "--key", "look-at-renders", "--when", "a diagram is done"], root)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            text = (root / "docs/agents/lessons.md").read_text()
+            self.assertIn("- Rule [commit-by-path]: commit by path\n  - When: about to commit\n  - From: owner\n- Rule [look-at-renders]: look at renders\n  - When: a diagram is done\n  - From: owner\n", text)
+
+    def test_find_lists_the_rules_that_fit_and_retire_takes_one_out(self):
+        with project() as root:
+            agent_steddy(lesson("t1", "commit by path, never git add all", "commit-by-path", when="about to stage and commit files"), root)
+            agent_steddy(lesson("t2", "look at every rendered diagram", "look-at-renders", when="a diagram or a screenshot is done"), root)
+            done = agent_steddy(["lessons", "find", "stage", "the", "files", "and", "commit"], root)
+            self.assertEqual((done.returncode, done.stdout.splitlines()), (0, ["commit-by-path (seen 1 time): commit by path, never git add all", "  when: about to stage and commit files"]))
+            done = agent_steddy(["lessons", "retire", "commit-by-path", "--by", "look-at-renders"], root)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertIn("no recorded rule matches", agent_steddy(["lessons", "find", "stage files and commit"], root).stdout)
+            again = agent_steddy(lesson("t3", "commit by path", "commit-by-path"), root)
+            self.assertEqual(again.returncode, 2)
+            self.assertIn("commit-by-path is retired by look-at-renders", again.stderr)
+
+    def test_a_promoted_rule_recorded_again_is_noticed_nudged_and_cleared_by_an_eval_case(self):
+        with project() as root:
+            agent_steddy(lesson("t1", "never pipe a test into tail before committing", "test-exit-status"), root)
+            agent_steddy(["lessons", "promote", "test-exit-status", "--to", "walls", "--force"], root)
+            new_key = agent_steddy(lesson("t2", "capture the exit status of a test before committing", "capture-exit-status"), root)
+            self.assertEqual(new_key.returncode, 2)
+            self.assertIn("re-run with --key test-exit-status", new_key.stderr)
+            again = agent_steddy(lesson("t2", "capture the exit status of a test before committing", "test-exit-status"), root)
+            self.assertEqual(again.returncode, 0, again.stderr)
+            self.assertEqual(again.stdout.splitlines()[1], "test-exit-status is seen again after its promotion to docs/agents/walls.md (2 times in all)")
+            quiet = agent_steddy(["lessons", "check", "--quiet"], root).stdout
+            self.assertEqual(quiet, "Learning loop: 1 rule(s) broken after promotion (test-exit-status); run agent-steddy lessons check.\n")
+            (root / "docs/agents/evals").mkdir(parents=True)
+            (root / "docs/agents/evals/test-exit-status.md").write_text("# a piped test\n\n- Key: test-exit-status\n- Kind: seen\n- Check: true\n")
+            self.assertEqual(agent_steddy(["lessons", "check", "--quiet"], root).stdout, "")
+            done = agent_steddy(["lessons", "eval"], root)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(done.stdout.splitlines()[0], "PASS    test-exit-status (seen) docs/agents/evals/test-exit-status.md")
+            (root / "docs/agents/evals/test-exit-status.md").write_text("# a piped test\n\n- Key: test-exit-status\n- Kind: seen\n- Check: echo the pipe hid it; false\n")
+            done = agent_steddy(["lessons", "eval"], root)
+            self.assertEqual(done.returncode, 1)
+            self.assertIn("FAIL    test-exit-status (seen)", done.stdout)
+            self.assertIn("    the pipe hid it", done.stdout)
+            self.assertIn("summary: seen: 0 of 1 passed", done.stdout)
 
 
 if __name__ == "__main__":
