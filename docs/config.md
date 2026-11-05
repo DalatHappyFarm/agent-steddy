@@ -271,6 +271,9 @@ It reads the project config from there, and every path it writes comes from that
 A command that is refused prints the reason on stderr after `agent-steddy: refused:` and exits 1.
 The refusals that ask for another key, When, target or task name (a rule with no key or no When, a bad key, a retired key, a new key whose closest rule is promoted, a promotion or a retirement that is not allowed, and a `metrics log` of a task that still has its auto name) exit 2, the code of a usage error, so a caller can tell them from a failed record.
 `lessons eval` exits 1 when a case fails or a case file is broken, so it can run in a verify command or in CI.
+`agent-steddy guard "<command line>" [--agent <type>] [--expect deny|ask|allow]` prints the verdict the Bash guard would give that line, `deny: <reason>`, `ask: <reason>` or `allow`, from the built-in rules and the project config; `--agent` judges it as a subagent of that type.
+It exits 0, and with `--expect` it exits 1 unless the verdict is the expected one, so a lesson eval's Check can show that a deny rule stops the recorded failure.
+The line is one quoted argument, so the guard of the session that runs `agent-steddy guard` does not read it as a command.
 `pause` and `resume` exit 2 as well when there is no branch or repo to work with: a detached HEAD, a repo with no commit, a project that is not a git repo, a `resume.folder` outside the project.
 
 ## Metrics
@@ -575,7 +578,8 @@ Write a shell script that runs `make eval` three times and prints which runs pas
   Keep one of each for a promoted rule.
 - A case has a `Check`, or a `## Prompt` and a `## Criteria` section, or both; the fields are read from the bullets before the first `## ` heading.
 - A `Check` is a shell command run in the project root with a 600 second limit; exit 0 means the rule held, and a failure prints its exit code and the last ten lines of its output.
-  For a rule that a deny rule, a hook or a test enforces, the Check runs that check on the recorded failure.
+  The kit's `bin/` folder comes first on its `PATH`, so `agent-steddy` in a Check is the kit that runs the eval, in a Claude Code session or not.
+  For a rule that a deny rule, a hook or a test enforces, the Check runs that check on the recorded failure, for example `- Check: agent-steddy guard "pnpm vitest run | tail -20 && git commit -m x -- a.ts" --expect deny`.
 - A case with no Check is listed as `REVIEW` and does not fail the run, unless `--judge` is given: then `claude -p` writes an answer to the prompt, given the project's walls file and the lessons that `lessons find` returns for the prompt, and a second `claude -p` judges the answer against the criteria and replies `PASS` or `FAIL` with one line of reason.
   The answer is written with what recall would give a real agent, so a case fails when the rule is not found as well as when it is not applied.
   The answering call starts with one line saying it has no tools and must write the deliverable itself; it does not tell the model to apply the lessons.
@@ -629,6 +633,9 @@ The README lists every id.
 Built-in rules use the same splitting and wrapper handling as the patterns above.
 They do not match words in order; each reads the options of the program it guards.
 For git that means its own options, such as `-C dir`, are skipped and the next word is the subcommand, so `git -C app stash` is a stash and `git log --grep stash` is not.
+
+`pipe-before-commit` reads the separators between the commands as well: it denies a pipeline (`a | b`) chained with `&&` to a later `git commit` in the same `&&` chain, since the chain reads the status of the pipeline's last command.
+A `set ... pipefail` earlier in the line, or a shell started with `-o pipefail` for its `-c` script, makes the line pass; so do a `;` or a newline before the commit, and a pipe into `git commit` itself (`echo msg | git commit -F -`).
 
 A project that must allow what a rule blocks lists the id in `guards.disable`:
 

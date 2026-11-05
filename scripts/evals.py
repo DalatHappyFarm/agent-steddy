@@ -101,10 +101,14 @@ def tail(text, count=10):
     return ["    " + line for line in text.strip().splitlines()[-count:]]
 
 
+BIN = Path(__file__).resolve().parent.parent / "bin"  # first on a Check's PATH, so `agent-steddy` there is this kit, also outside a Claude Code session
+
+
 def run_check(project, case):
     """(passed, the lines that show why it failed)."""
+    env = {**os.environ, "PATH": f"{BIN}{os.pathsep}{os.environ.get('PATH', '')}"}
     try:
-        done = subprocess.run(case.check, shell=True, cwd=project, capture_output=True, text=True, timeout=TIMEOUT)
+        done = subprocess.run(case.check, shell=True, cwd=project, env=env, capture_output=True, text=True, timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         return False, [f"    timed out after {TIMEOUT} s"]
     return done.returncode == 0, [] if done.returncode == 0 else [f"    exit {done.returncode}", *tail(done.stdout + done.stderr)]

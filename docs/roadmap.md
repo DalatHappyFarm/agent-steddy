@@ -15,6 +15,7 @@ A new session picks up at the first unticked step.
 - [x] 10. Ideas from pstack: resume notes, rules for checks and lessons, the brief budget, auditor re-run commands, the hand-back status and metric verdicts.
 - [x] 11. Method rules from pstack's principles, the premise nudge, pstack as a companion for engineering principles, and named metrics rows.
 - [x] 12. Feedback memory: a When line and a From line on each rule and several rules per entry, `lessons find` (BM25) at gate 2, in the brief and in the prompt hook, a promoted rule recorded again flagged until it has an eval case, a new key refused when its closest rule is promoted, `lessons retire`, and lesson evals (`lessons eval` with seen and new cases, `--judge` through `claude -p`, `--bare`).
+- [x] 13. The built-in rule `pipe-before-commit` and `agent-steddy guard`, which prints the Bash guard's verdict on a line so a check can be shown to fail on a recorded command; an eval Check finds the kit's own `agent-steddy` first on its PATH.
 
 ## Facts found on the way
 
@@ -122,5 +123,12 @@ A new session picks up at the first unticked step.
   Two runs with no walls and no lessons passed both cases too: a short clean prompt does not reproduce a failure that came from a long session, so these cases guard against a regression and do not show the lesson works.
   That is why `--bare` exists and the config reference says a rule like this needs a machine check.
 - Seen 2026-11-05 while committing step 12: `python3 -I -m unittest ... | tail -1 && git commit ...` committed after the test printed `FAILED`, because the pipe gave `tail`'s status, the same failure as the rule above; the committed tree was then tested on its own in a worktree (444 tests, exit 0).
-  A built-in Bash rule for a check piped into another command before a commit is a candidate for the next step.
+  A built-in Bash rule for a check piped into another command before a commit became step 13.
 - Not checked yet: that an agent writes good When lines and runs `lessons find` at gate 2 on its own, and a judged case on a rule of judgment (wording, design) where a model has a steady bias; the flow diagram does not show the recall lines of the gate reminder yet.
+- Decided 2026-11-05 for step 13: `pipe-before-commit` denies a pipeline chained with `&&` to a later `git commit` in one `&&` chain, unless `set ... pipefail` came before it in the line or the `-c` shell was started with it.
+  It reads the separators, so `split` became `pieces`, which keeps the text that ends each command, and every built-in rule test now takes the line as well as the commands.
+  It does not look at what the pipeline runs, so `git log | head && git commit` is denied too; the reason names the fix, and an agent rewrites the line.
+  `agent-steddy guard` is a top-level command because it reads the project config like the hook and has no records to write.
+- Checked 2026-11-05 for step 13, the check on the recorded failures: `agent-steddy guard ... --expect deny` exited 0 with `deny: [pipe-before-commit] ...` for the two piped commits a real project recorded (go test into tail, vitest into tail, each rebuilt from the lessons) and for the line that committed step 12 after a FAILED test.
+  The form that project recorded last, `$?` read after a `$(date)` on the same line, is allowed (exit 1 with `--expect deny`): the rule does not cover it, and that lesson stays prose.
+- Checked 2026-11-05 in a live Claude Code session (Claude Code 2.1.318, Haiku, `--plugin-dir`, a throwaway repo, `--permission-mode bypassPermissions`): `false | tail -1 && git commit --allow-empty -m piped` came back as the hook's `[pipe-before-commit]` reason, and `git log` showed only the first commit.

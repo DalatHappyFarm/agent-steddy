@@ -107,6 +107,13 @@ class Run(unittest.TestCase):
                 "summary: seen: 1 of 1 passed; new: 0 of 1 passed",
             ])
 
+    def test_a_check_finds_this_kit_s_command_first_on_its_path(self):
+        with project({"a.md": case(check="agent-steddy guard 'go test | tail && git commit -m x -- a' --expect deny")}) as root:
+            with mock.patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}):
+                lines, ok = evals.run(root, CONFIG)
+            self.assertTrue(ok, lines)
+            self.assertEqual(evals.BIN, ROOT / "bin")
+
     def test_without_judge_a_prompt_case_is_listed_for_review_and_does_not_fail(self):
         with project({"a.md": case()}) as root:
             lines, ok = evals.run(root, CONFIG)

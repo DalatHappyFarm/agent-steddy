@@ -104,7 +104,7 @@ class Commands(unittest.TestCase):
 
     def test_every_command_without_a_subcommand_is_in_the_readme_the_config_reference_and_the_gates_skill(self):
         names = top_level_commands()
-        self.assertEqual(names, {"pause", "resume"})
+        self.assertEqual(names, {"guard", "pause", "resume"})
         for path in [README, ROOT / "docs" / "config.md", ROOT / "skills" / "gates" / "SKILL.md"]:
             text = path.read_text(encoding="utf-8")
             for name in names:

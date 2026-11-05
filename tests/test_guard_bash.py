@@ -89,6 +89,19 @@ class GuardBash(unittest.TestCase):
         for line, expected in cases.items():
             self.assertEqual(guard_bash.split(line), expected, line)
 
+    def test_pieces_keep_the_separators_that_end_each_command(self):
+        cases = {
+            "a | b && c": [[["a"], "|"], [["b"], "&&"], [["c"], ""]],
+            "a || b; c &\nd": [[["a"], "||"], [["b"], ";"], [["c"], "&\n"], [["d"], ""]],
+            "a && \n b": [[["a"], "&&\n"], [["b"], ""]],
+            "x 'a | b' && y": [[["x", "a | b"], "&&"], [["y"], ""]],
+            "a 2>&1 | b": [[["a", "2>&1"], "|"], [["b"], ""]],
+            "": [],
+        }
+        for line, expected in cases.items():
+            self.assertEqual(guard_bash.pieces(line), expected, line)
+            self.assertEqual(guard_bash.split(line), [words for words, _ in expected], line)
+
     def test_split_keeps_redirections_in_one_word(self):
         cases = {
             "git stash 2>&1 | tee log": [["git", "stash", "2>&1"], ["tee", "log"]],

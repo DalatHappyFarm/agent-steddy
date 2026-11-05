@@ -5,7 +5,7 @@ Guardrails, gates and a learning loop for a team of Claude Code agents, packaged
 <!-- diagram source: docs/diagrams/architecture.json -->
 ![agent-steddy: Claude Code fires its events at the plugin's hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which reads the project config, keeps that clock and writes the project's records under docs/agents; agents read the skills, and the templates are copied into the project's agents and role cards.](docs/diagrams/architecture.svg)
 
-> Status: version 0.5.0, early.
+> Status: version 0.6.0, early.
 > Tested with Claude Code 2.1.314 on macOS; it needs `python3` 3.9 or later and `git` on the PATH.
 > It works in Claude Code only: the `bin/` folder keeps it out of Claude.ai and Cowork.
 
@@ -90,6 +90,7 @@ A deny stops the command; an ask makes the owner confirm it, in the main session
 | `sed-in-place` | deny | `sed -i` without a suffix argument, and `--in-place`; they behave differently on macOS and Linux. |
 | `secret-read` | deny | Reading `.env`, `.env.*` (not `.env.example`), `*.env.local` or a glob such as `.env*` with `cat`, `grep`, `sed`, `head` and similar, and `source .env` followed by an echo of a variable. |
 | `env-dump` | deny | `printenv` and a bare `env`, which print every environment variable. |
+| `pipe-before-commit` | deny | A pipeline chained with `&&` to a later `git commit`, such as `go test \| tail -5 && git commit`, with no `set -o pipefail` before it: the `&&` reads the status of `tail`, not of the tests. |
 
 Every rule looks through `NAME=value` prefixes, `env`, `sudo`, `command`, `nohup`, `time`, `nice` and `exec`, and reads the script of `bash -c`, `sh -c` and `zsh -c`.
 The project config can add its own rules (`commands.deny`, `commands.alwaysAsk`, `commands.askFromSubagent`) and turn a built-in rule off by id (`guards.disable`).
@@ -135,6 +136,7 @@ The data and the notes are local state in the git common dir (`.git/agent-steddy
 | `agent-steddy record finish <branch>` | Runs `verifyCommand` on the branch, fast-forwards `workingBranch` onto it, deletes it and its resume note; it refuses when the verify fails and never pushes. |
 | `agent-steddy pause --intent I --done D --next N [--open O] [--pitfalls P] [--files a,b]` | Writes the resume note of the current branch: the date, the HEAD commit, the diff against the base, the uncommitted files, then the intent, what is done and verified, the open decisions, the next step, the key files and the pitfalls. It commits nothing. |
 | `agent-steddy resume [--branch B] [--clear]` | Prints the branch's resume note, the commits and uncommitted files since it, and a reminder that the note is a claim, not evidence; `--clear` deletes the note. |
+| `agent-steddy guard "<command line>" [--agent T] [--expect deny\|ask\|allow]` | Prints the Bash guard's verdict on a line, from the built-in rules and the project's; with `--expect` it exits 1 unless the verdict is that one, so an eval case can show that a deny rule stops the recorded failure. |
 | `agent-steddy lessons check [--quiet]` | Lists the rules seen twice and not promoted, the promoted rules recorded again with no eval case, the rules with no When, the Rule lines with no key (with a suggested key) and the role cards to prune; `--quiet` prints the one reminder line, or nothing. |
 | `agent-steddy lessons find "<query>" [--top N]` | Prints the rules that fit a task, best first: BM25 over each key's words, rule texts and When lines, retired rules left out. |
 | `agent-steddy lessons promote <key> --to <role\|walls> [--text T] [--force]` | Writes a repeated rule as the last bullet of the role card's Pitfalls, or into `records.walls`, and marks its Rule lines ` [promoted -> <path>]`. |

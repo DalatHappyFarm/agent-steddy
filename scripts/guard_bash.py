@@ -28,14 +28,15 @@ TOKEN = re.compile(r"""
 QUOTING = re.compile(r"['\"\\]")
 
 
-def split(line):
-    """Split a shell line into simple commands (lists of words).
+def pieces(line):
+    """Split a shell line into simple commands, each with the separators that end it: [words, end], where `end` is "|", "&&", "||", ";", "&", "\\n", "(", ")", "`", "$(" or a run of them, and "" for the last command.
 
     Commands end at ; && || | & parentheses, backticks, `$(` and newlines.
     Quoted text stays inside its word, so it is never a command.
     Comments and heredoc bodies are skipped.
     """
     commands, words, heredocs = [], [], []
+    closed = False  # True right after a command ended, while only separators follow it
     pos = 0
     while pos < len(line):
         token = TOKEN.match(line, pos)
@@ -44,11 +45,15 @@ def split(line):
         if kind == "word":
             text = token.group()
             words.append(shlex.split(text)[0] if QUOTING.search(text) else text)  # shlex is slow, and most words have nothing to unquote
+            closed = False
         elif kind == "heredoc":
             heredocs.append(token.group("tag"))
         elif kind in ("newline", "separator"):
             if words:
-                commands.append(words)
+                commands.append([words, token.group()])
+                closed = True
+            elif closed:
+                commands[-1][1] += token.group()  # `&&` and `||` come as two tokens
             words = []
             while kind == "newline" and heredocs:  # the bodies start on the next line
                 tag = heredocs.pop(0)
@@ -59,8 +64,13 @@ def split(line):
                     if body.strip() == tag:
                         break
     if words:
-        commands.append(words)
+        commands.append([words, ""])
     return commands
+
+
+def split(line):
+    """Split a shell line into simple commands (lists of words); see `pieces`."""
+    return [words for words, _ in pieces(line)]
 
 
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
@@ -162,7 +172,7 @@ def git(words):
 
 def git_rule(subcommand, test=lambda args: True):
     """A rule test that is true when some command is `git <subcommand> <args>` with test(args)."""
-    def check(commands):
+    def check(commands, line=None):
         found = (git(words) for words in commands)
         return any(f and f[0] == subcommand and test(f[1]) for f in found)
     return check
@@ -207,7 +217,7 @@ def force_push(args):
 
 def program_rule(names, test):
     """A rule test that is true when some command runs one of the programs `names` with arguments that pass test(args)."""
-    return lambda commands: any(basename(words[0]) in names and test(words[1:]) for words in commands)
+    return lambda commands, line=None: any(basename(words[0]) in names and test(words[1:]) for words in commands)
 
 
 def recursive(args):
@@ -278,16 +288,49 @@ def prints_sourced_secret(commands):
     return False
 
 
-def secret_read(commands):
+def secret_read(commands, line=None):
     return any(reads_secret(words) for words in commands) or prints_sourced_secret(commands)
 
 
-def env_dump(commands):
+def env_dump(commands, line=None):
     """True for `printenv` and for `env` with no command after it (the wrapper loop leaves a bare env as ["env"])."""
     return any(basename(words[0]) in ("printenv", "env") for words in commands)
 
 
-# Built-in rules: (id, test over the parsed commands, reason). The id leads the reason and is what `guards.disable` lists.
+def is_commit(words):
+    found = git(words) if words else None
+    return bool(found) and found[0] == "commit"
+
+
+def pipe_before_commit(commands, line, depth=0):
+    """True when a pipeline is chained with `&&` to a later `git commit` and no `set -o pipefail` came before it in the line.
+
+    A pipeline's status is its last command's, so `go test | tail -5 && git commit` commits when tail succeeds, even when the tests failed.
+    The script of `bash -c` is read as its own line, unless the shell was started with pipefail.
+    """
+    found = [(unwrap(words), end.strip()) for words, end in pieces(line)]
+    pipefail = False
+    for i, (words, end) in enumerate(found):
+        if not words:
+            continue
+        if basename(words[0]) == "set" and "pipefail" in words:
+            pipefail = True
+        script = shell_script(words)
+        if script is not None and "pipefail" not in words and depth < MAX_SCRIPT_DEPTH and pipe_before_commit(None, script, depth + 1):
+            return True
+        if end != "|" or pipefail:
+            continue
+        last = i
+        while last < len(found) and found[last][1] == "|":
+            last += 1
+        while last < len(found) and found[last][1] == "&&":
+            last += 1
+            if last < len(found) and is_commit(found[last][0]):
+                return True
+    return False
+
+
+# Built-in rules: (id, test over the parsed commands and the line, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
     ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
     ("git-reset-hard", git_rule("reset", lambda args: "--hard" in args),
@@ -311,6 +354,9 @@ DENY_RULES = [
      "Give a suffix, as in sed -i.bak or sed -i '', or edit the file with a script."),
     ("secret-read", secret_read, "Never print a secret file. Read it only through the script that needs it, and leave its values out of the conversation."),
     ("env-dump", env_dump, "printenv and a bare env print the environment, which can hold secrets. Read a variable inside the script that needs it."),
+    ("pipe-before-commit", pipe_before_commit,
+     "A pipeline's exit status is its last command's, so `<check> | tail && git commit` commits even when the check failed. "
+     "Run the check on its own (output to a file, then tail the file), or start the line with set -o pipefail, read its status, then commit by path."),
 ]
 
 # Ask rules make the owner confirm the command, in the main session too.
@@ -343,7 +389,7 @@ def judge(line, agent_type, config):
         return [pattern for pattern in listed(config, "commands", key) if isinstance(pattern, str) and hit(pattern)]
 
     def built_in(rules):
-        return [f"[{rule_id}] {why}" for rule_id, test, why in rules if rule_id not in off and test(commands)]
+        return [f"[{rule_id}] {why}" for rule_id, test, why in rules if rule_id not in off and test(commands, line)]
 
     deny = built_in(DENY_RULES)
     for rule in listed(config, "commands", "deny"):

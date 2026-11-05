@@ -107,6 +107,16 @@ RULE_CASES = {
         "miss": ["echo env", 'printf "%s\\n" env', "env FOO=1 make test", "env -i FOO=1 bash x.sh", "env -u FOO make test", "sudo env FOO=1 make", "printenvironment",
                  "echo $HOME", "git status", "ls env", "cat env.md", "rg printenv docs"],
     },
+    "pipe-before-commit": {
+        "hit": ["go test ./... | tail -5 && git commit -m 'fix: x' -- a.go", "pnpm vitest run 2>&1 | tail -20 && git add web/a.ts && git commit -m x -- web/a.ts",
+                "make verify | tee verify.log && git commit -m x -- a", "go test ./... | grep -v ok | tail && git commit -m x -- a",
+                "git add a && go test | tail &&\n  git commit -m x -- a", "go test | tail && git -C app commit -m x -- a", "set -o errexit; go test | tail && git commit -m x -- a",
+                "bash -c 'go test | tail' && true; go test | tail && git commit -m x -- a"],
+        "miss": ["go test ./... > test.log 2>&1 && tail -5 test.log && git commit -m x -- a.go", "set -o pipefail; go test ./... | tail -5 && git commit -m x -- a.go",
+                 "set -euo pipefail; go test | tail && git commit -m x -- a", "echo 'fix: x' | git commit -F - -- a.go", "go test ./... | tail -5; git status",
+                 "go test ./... | tail -5 && git status", "git commit -m 'a | b && git commit' -- a.go", "go test | tail -5 || git commit -m x -- a",
+                 "bash -o pipefail -c 'go test | tail && git commit -m x -- a'", "go test | tail -5\ngit commit -m x -- a", "git log | head -3; git commit -m x -- a"],
+    },
 }
 
 

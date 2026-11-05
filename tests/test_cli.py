@@ -142,6 +142,20 @@ class Reports(unittest.TestCase):
             self.assertIn("  12/", report)
 
 
+class Guard(unittest.TestCase):
+    def test_it_prints_the_verdict_of_the_built_in_and_the_project_rules_and_expect_sets_the_exit_code(self):
+        with project({"commands": {"deny": [{"match": "acme-cli config push", "reason": "No config push."}], "askFromSubagent": ["make deploy"]}}) as root:
+            done = agent_steddy(["guard", "go test ./... | tail -5 && git commit -m x -- a.go"], root)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertTrue(done.stdout.startswith("deny: [pipe-before-commit] A pipeline's exit status"), done.stdout)
+            self.assertEqual(agent_steddy(["guard", "acme-cli config push", "--expect", "deny"], root).stdout, "deny: No config push.\n")
+            self.assertEqual(agent_steddy(["guard", "git status"], root).stdout, "allow\n")
+            self.assertEqual(agent_steddy(["guard", "make deploy"], root).stdout, "allow\n")
+            self.assertTrue(agent_steddy(["guard", "make deploy", "--agent", "acme-web"], root).stdout.startswith("ask: "))
+            for line, expect, code in [("git stash", "deny", 0), ("git status", "deny", 1), ("git status", "allow", 0), ("git push --force", "ask", 0), ("git stash", "allow", 1)]:
+                self.assertEqual(agent_steddy(["guard", line, "--expect", expect], root).returncode, code, (line, expect))
+
+
 class Records(unittest.TestCase):
     def test_decision_and_lesson_go_to_the_files_named_in_the_config(self):
         with project({"records": {"decisions": "notes/decisions.md", "lessons": "notes/lessons.md"}}) as root:

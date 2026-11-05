@@ -27,7 +27,7 @@ The table is the kit's own walls; a project adds its own in the walls file (`rec
 | 5 | A branch with unmerged commits is never deleted by force. | Built-in `git-branch-force-delete`. |
 | 6 | The owner's own browser, tabs and accounts are never used; throwaway profiles are used instead. | Not enforced; the agent prompts state it. |
 | 7 | Numbers come from code or a script, never from memory. | Not enforced. |
-| 8 | Only what was verified is reported as verified; inferences are labeled, and failures are reported as failures. | Not enforced. |
+| 8 | Only what was verified is reported as verified; inferences are labeled, and failures are reported as failures. | Partly: built-in `pipe-before-commit` denies a commit chained with `&&` after a pipeline, whose status is its last command's; the rest is not enforced. |
 | 9 | Owner decisions that are hard to reverse are asked, or logged as assumptions, never made silently. | Not enforced; `agent-steddy record decision` writes them down. |
 | 10 | A subagent starts only with an agent type the project allows, and a model it is started with must match the one the project sets for that type. | `guard_agent` with `agents.allowed` and `agents.models`. |
 | 11 | A fenced subagent writes only inside its write fence. | `guard_write` with `agents.writeFences`; a write through the Bash tool is not fenced. |
@@ -214,6 +214,7 @@ The kit counts the repeats and writes the promotion; a person or an agent keeps 
    A promoted rule that breaks again is recorded under its own key, not a new one: the command refuses a new key whose closest recorded rule is promoted until you choose, and the old key prints that the rule broke after its promotion.
    When a machine can check it, it also becomes a check: a project config entry such as `commands.deny`, `agents.writeFences` or `handback.required`, a hook, a test, or a new built-in rule in the kit.
    A check counts as enforced only after it was shown to fail on the error the lessons recorded: run it on that case and keep the output in the report.
+   For a deny rule, `agent-steddy guard "<the recorded command>" --expect deny` is that run.
    Until then the rule stays prose in the Enforced by sense, written down and not enforced, and the walls table does not name the check.
    Keep that run as a lesson eval case (`records.evals`, `- Key: <key>`, `- Kind: seen`, a `- Check:` command), and add a `new` case that the agent has not met, so a pass shows the rule generalized; a rule broken after its promotion stays on the `lessons check` list and the prompt reminder until it has a case.
    A rule that a script cannot check (judgment, wording, design) gets a case with a `## Prompt` and `## Criteria` instead, which `agent-steddy lessons eval --judge` answers and judges with `claude -p`.
