@@ -35,12 +35,23 @@ Then start a new Claude Code session there.
 Paste this into that session:
 
 ```text
-Set up the agent-steddy plugin in this repo. It is installed; its files are in the folder that `dirname "$(dirname "$(command -v agent-steddy)")"` prints. Read README.md, templates/README.md and docs/config.md there first.
+Set up the agent-steddy plugin in this repo. It is installed; its files are in
+the folder that `dirname "$(dirname "$(command -v agent-steddy)")"` prints.
+Read README.md, templates/README.md and docs/config.md there first.
 
-1. Write .claude/agent-steddy.json with only the keys this repo needs, modelled on examples/acme/.claude/agent-steddy.json: workingBranch, verifyCommand (the one command that proves a change here, such as tests plus lint), and our deploy and publish commands under commands.askFromSubagent or commands.deny.
-2. Copy templates/roles/orchestrator.md into docs/agents/roles/ and templates/brief.md into docs/agents/, and write one role card in docs/agents/roles/ for each kind of work this repo has. Ask me before adding subagent files to .claude/agents/.
-3. Prove it works: run `agent-steddy metrics selftest`, `agent-steddy guard "git stash" --expect deny`, and the verifyCommand once.
-4. Commit these files by path on a new branch, do not push, and tell me what you set and why.
+1. Write .claude/agent-steddy.json with only the keys this repo needs,
+   modelled on examples/acme/.claude/agent-steddy.json: workingBranch,
+   verifyCommand (the one command that proves a change here, such as tests
+   plus lint), and our deploy and publish commands under
+   commands.askFromSubagent or commands.deny.
+2. Copy templates/roles/orchestrator.md into docs/agents/roles/ and
+   templates/brief.md into docs/agents/, and write one role card in
+   docs/agents/roles/ for each kind of work this repo has. Ask me before
+   adding subagent files to .claude/agents/.
+3. Prove it works: run `agent-steddy metrics selftest`,
+   `agent-steddy guard "git stash" --expect deny`, and the verifyCommand once.
+4. Commit these files by path on a new branch, do not push, and tell me what
+   you set and why.
 ```
 
 After that the hooks work on their own, and the agent records each task with the finish skill.
