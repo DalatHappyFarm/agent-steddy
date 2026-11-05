@@ -53,7 +53,7 @@ The commands of gates 6 and 7 are in the [finish skill](../finish/SKILL.md).
 ## Rules inside the gates
 
 How to work inside a gate, grouped by the gate each rule applies to.
-Each rule comes from one of the principle skills of pstack (see [Ideas from](../../README.md#ideas-from)), and the `(pstack: <name>)` at its end names that principle.
+Each rule comes from one of the principle skills of pstack (see [Ideas from](../../docs/reference.md#ideas-from)), and the `(pstack: <name>)` at its end names that principle.
 They are judgment, and no hook enforces them; the one mechanism that points at a rule is the premise nudge, under Prove.
 
 ### Act

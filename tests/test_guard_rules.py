@@ -163,8 +163,8 @@ class BuiltInRules(unittest.TestCase):
             for command in cases["miss"]:
                 self.assertEqual(verdict(command)[0], "allow", f"{rule_id}: {command}")
 
-    def test_the_readme_lists_every_rule_id_with_its_decision(self):
-        readme = (ROOT / "README.md").read_text()
+    def test_the_reference_lists_every_rule_id_with_its_decision(self):
+        readme = (ROOT / "docs" / "reference.md").read_text()
         listed = re.findall(r"^\| `([a-z-]+)` \| (deny|ask) \|", readme, re.MULTILINE)
         self.assertEqual(sorted(listed), sorted((rule_id, kind_of(rule_id)) for rule_id in rule_ids()))
 

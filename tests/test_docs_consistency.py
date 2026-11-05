@@ -1,16 +1,16 @@
-"""The docs that teach the method (the skills, the templates and the README) must agree with the code they name.
+"""The docs that teach the method (the skills, the templates, the README and the reference) must agree with the code they name.
 
 Thirteen checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
-every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the README and the config reference;
+every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the reference and the config reference;
 every key of the config defaults has a row in the config reference;
 the README status line names the manifest's version;
 the metric verdict rule in the config reference states the two constants of scripts/metrics.py;
 the method rules that must stand in more than one place (the two questions before a Rule line, a check that counts as enforced only after it failed, the brief budget, the auditor's re-run commands, the hand-back status) do;
 the rules inside the gates are grouped by gate and each names its pstack principle, and the three that an implementer meets most stand in the implementer template and its example too;
-the premise nudge's text, threshold and switch in the config reference and the README are the code's, and the text points at a rule the gates skill has;
-the pstack companion (the README section with its install command, gate 2 loading principle skills, a `Principles:` line in every role card with names that pstack has);
-named metrics rows (the refusal the config reference quotes is the code's, the finish skill and the README say it, no doc logs a row without `--task`, and the old after-the-fact note is gone);
-every backticked built-in rule id is listed in the README table;
+the premise nudge's text, threshold and switch in the config reference and the reference are the code's, and the text points at a rule the gates skill has;
+the pstack companion (the reference section with its install command, gate 2 loading principle skills, a `Principles:` line in every role card with names that pstack has);
+named metrics rows (the refusal the config reference quotes is the code's, the finish skill and the reference say it, no doc logs a row without `--task`, and the old after-the-fact note is gone);
+every backticked built-in rule id is listed in the reference's table;
 every relative link resolves, and its #anchor exists when the target is a Markdown file.
 """
 
@@ -31,7 +31,8 @@ import project_config  # noqa: E402
 import tool_timing  # noqa: E402
 
 README = ROOT / "README.md"
-METHOD_DOCS = sorted([README, *ROOT.glob("skills/**/*.md"), *ROOT.glob("templates/**/*.md")])
+REFERENCE = ROOT / "docs" / "reference.md"
+METHOD_DOCS = sorted([README, REFERENCE, *ROOT.glob("skills/**/*.md"), *ROOT.glob("templates/**/*.md")])
 
 
 def frontmatter(path):
@@ -64,8 +65,8 @@ def top_level_commands():
 
 
 def rule_table():
-    """The rule ids and their decisions that the README's built-in rule table lists."""
-    return re.findall(r"^\| `([a-z-]+)` \| (deny|ask) \|", README.read_text(encoding="utf-8"), re.M)
+    """The rule ids and their decisions that the reference's built-in rule table lists."""
+    return re.findall(r"^\| `([a-z-]+)` \| (deny|ask) \|", REFERENCE.read_text(encoding="utf-8"), re.M)
 
 
 def slug(heading):
@@ -102,10 +103,10 @@ class Commands(unittest.TestCase):
             self.assertIn((group, command), known, f"{path.relative_to(ROOT)}: agent-steddy {group} {command}")
 
 
-    def test_every_command_without_a_subcommand_is_in_the_readme_the_config_reference_and_the_gates_skill(self):
+    def test_every_command_without_a_subcommand_is_in_the_reference_the_config_reference_and_the_gates_skill(self):
         names = top_level_commands()
         self.assertEqual(names, {"guard", "pause", "resume"})
-        for path in [README, ROOT / "docs" / "config.md", ROOT / "skills" / "gates" / "SKILL.md"]:
+        for path in [REFERENCE, ROOT / "docs" / "config.md", ROOT / "skills" / "gates" / "SKILL.md"]:
             text = path.read_text(encoding="utf-8")
             for name in names:
                 self.assertTrue(f"agent-steddy {name}" in text, f"{path.relative_to(ROOT)}: agent-steddy {name}")
@@ -227,8 +228,8 @@ class RulesInsideTheGates(unittest.TestCase):
                 line = next((line for line in text.split(" - ") if phrase in line.lower()), None)
                 self.assertTrue(line and "gates skill, Rules inside the gates" in line, f"{relative}: {phrase}")
 
-    def test_the_readme_credit_line_names_the_principles_that_became_rules(self):
-        credit = squash((ROOT / "README.md").read_text(encoding="utf-8"))
+    def test_the_reference_credit_line_names_the_principles_that_became_rules(self):
+        credit = squash(REFERENCE.read_text(encoding="utf-8"))
         self.assertIn("seven principles that became the rules inside the gates", credit)
 
 
@@ -244,8 +245,8 @@ class PremiseNudge(unittest.TestCase):
         for name in ("PREMISE_FAILS", "TAIL", "NUDGE"):  # each number and the text are defined once and used by name
             self.assertEqual(len(re.findall(rf"^{name} = ", source, re.M)), 1, name)
 
-    def test_the_readme_hooks_table_and_the_gates_skill_name_the_nudge_and_its_switch(self):
-        readme = squash((ROOT / "README.md").read_text(encoding="utf-8"))
+    def test_the_reference_hooks_table_and_the_gates_skill_name_the_nudge_and_its_switch(self):
+        readme = squash(REFERENCE.read_text(encoding="utf-8"))
         row = next(line for line in readme.split(" | ") if line.startswith("Logs how long the command took"))
         self.assertIn("premise nudge", row)
         self.assertIn("`nudges.premise` turns it off", row)
@@ -284,8 +285,8 @@ class PstackCompanion(unittest.TestCase):
         self.assertEqual(len(lines), 1, f"{path.relative_to(ROOT)}: one Principles line under Standards")
         return lines[0]
 
-    def test_the_readme_has_the_section_the_install_command_and_the_credit_line_points_to_it(self):
-        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    def test_the_reference_has_the_section_the_install_command_and_the_credit_line_points_to_it(self):
+        readme = REFERENCE.read_text(encoding="utf-8")
         section = re.search(r"^## Works with pstack\n(.*?)^## ", readme, re.M | re.S)
         self.assertTrue(section)
         text = squash(section.group(1))
@@ -334,11 +335,11 @@ class NamedRows(unittest.TestCase):
         self.assertIn(f"agent-steddy: refused: {squash(self.refusal())}", config)
         self.assertIn("exits 2", config)
 
-    def test_the_skills_and_the_readme_say_that_the_task_name_is_required_while_it_is_an_auto_name(self):
+    def test_the_skills_and_the_reference_say_that_the_task_name_is_required_while_it_is_an_auto_name(self):
         for relative, phrases in [
             ("skills/finish/SKILL.md", ["the command refuses without `--task`", "exits 2, writes nothing and keeps the clock"]),
             ("skills/gates/SKILL.md", ["`--task` names the row for what was done", "refuses with exit 2, writes nothing and keeps the clock"]),
-            ("README.md", ["`--task` is required", "refuses (exit 2), writes nothing and keeps the clock"]),
+            ("docs/reference.md", ["`--task` is required", "refuses (exit 2), writes nothing and keeps the clock"]),
         ]:
             text = squash((ROOT / relative).read_text(encoding="utf-8"))
             for phrase in phrases:
@@ -357,7 +358,7 @@ class NamedRows(unittest.TestCase):
 
 
 class RuleIds(unittest.TestCase):
-    def test_every_rule_id_mentioned_is_in_the_readme_table(self):
+    def test_every_rule_id_mentioned_is_in_the_reference_table(self):
         listed = {rule_id for rule_id, _ in rule_table()}
         self.assertTrue(listed)
         # a mention is a backticked id that starts like a built-in rule, as in `git-stash` or `[git-stash] Never ...`

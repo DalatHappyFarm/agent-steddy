@@ -1,31 +1,107 @@
 {
-  "title": "agent-steddy: Claude Code fires its events at the plugin's hooks, which read the project config and answer with deny, ask or block; the hooks keep a task clock and timings in local state under .git/agent-steddy; agents run the agent-steddy command, which reads the project config, keeps that clock and writes the project's records under docs/agents; agents read the skills, and the templates are copied into the project's agents and role cards.",
-  "width": 900,
-  "theme": {"light": {"hub": "#8C8F97"}, "dark": {"hub": "#7E8188"}},
+  "title": "agent-steddy sits between your Claude Code agents and your repo: it checks every prompt and command, blocks risky git and secret reads, and keeps what the agents learn in docs/agents. A lesson's life: a mistake is recorded as a rule, the rule is recalled when its situation comes back, promoted when it repeats, and checked by an eval case.",
+  "width": 880,
+  "theme": {
+    "light": {
+      "hub": "#8C8F97"
+    },
+    "dark": {
+      "hub": "#7E8188"
+    }
+  },
   "sections": [
     {
       "label": "How it fits",
       "columns": [
-        [{"id": "claude", "title": "Claude Code", "sub": "prompts, tools, stops"},
-         {"id": "state", "title": "Local state", "sub": ".git/agent-steddy/"},
-         {"id": "agents", "title": "Agents", "sub": "main and subagents"},
-         {"id": "roles", "title": "Agents, role cards", "sub": "your files, from templates"}],
-        [{"id": "hooks", "title": "Hooks", "sub": "plugin: deny, ask, block", "hub": true},
-         {"id": "cmd", "title": "agent-steddy", "sub": "plugin: the command", "hub": true},
-         {"id": "method", "title": "Skills, templates", "sub": "plugin: the method", "hub": true}],
-        [{"id": "config", "title": "Project config", "sub": ".claude/agent-steddy.json"},
-         {"id": "records", "title": "Records", "sub": "docs/agents/"}]
+        [
+          {
+            "id": "you",
+            "title": "You",
+            "sub": "give tasks, review"
+          }
+        ],
+        [
+          {
+            "id": "agents",
+            "title": "Claude Code",
+            "sub": "main agent, subagents"
+          }
+        ],
+        [
+          {
+            "id": "hub",
+            "title": "agent-steddy",
+            "sub": "plugin in your project",
+            "hub": true
+          }
+        ],
+        [
+          {
+            "id": "repo",
+            "title": "Your repo",
+            "sub": "safe commits only"
+          },
+          {
+            "id": "lessons",
+            "title": "Lessons",
+            "sub": "docs/agents/"
+          }
+        ]
       ],
       "edges": [
-        {"from": "claude", "to": "hooks", "label": "events", "both": true},
-        {"from": "agents", "to": "cmd", "label": "run"},
-        {"from": "agents", "to": "method", "label": "read"},
-        {"from": "hooks", "to": "config", "label": "read"},
-        {"from": "cmd", "to": "config", "label": "read"},
-        {"from": "hooks", "to": "state", "label": "clock, timings"},
-        {"from": "cmd", "to": "state", "label": "clock", "both": true},
-        {"from": "cmd", "to": "records", "label": "writes"},
-        {"from": "method", "to": "roles", "label": "templates copied"}
+        {
+          "from": "you",
+          "to": "agents",
+          "label": "tasks"
+        },
+        {
+          "from": "agents",
+          "to": "hub",
+          "label": "checks",
+          "both": true
+        },
+        {
+          "from": "hub",
+          "to": "repo",
+          "label": "guards"
+        },
+        {
+          "from": "hub",
+          "to": "lessons",
+          "label": "learns",
+          "both": true
+        }
+      ]
+    },
+    {
+      "label": "A lesson's life",
+      "items": [
+        {
+          "label": "Mistake",
+          "tone": "red"
+        },
+        {
+          "label": "Rule",
+          "tone": "amber"
+        },
+        {
+          "label": "Recalled",
+          "tone": "blue"
+        },
+        {
+          "label": "Promoted",
+          "tone": "purple"
+        },
+        {
+          "label": "Checked",
+          "tone": "green"
+        }
+      ],
+      "captions": [
+        "recorded",
+        "fits again",
+        "repeats",
+        "eval case"
       ]
     }
   ]

@@ -1,4 +1,4 @@
-"""The diagrams, their JSON specs and the README must agree: each spec has an SVG, the SVG carries the spec's text as its title, and the README shows it with the same alt text."""
+"""The diagrams, their JSON specs and the pages that show them must agree: each spec has an SVG, the SVG carries the spec's text as its title, and its page shows it with the same alt text."""
 import html
 import json
 import pathlib
@@ -7,7 +7,8 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPECS = sorted((ROOT / "docs" / "diagrams").glob("*.json"))
-README = (ROOT / "README.md").read_text(encoding="utf-8")
+# the page that shows each diagram, and the image path as that page writes it
+PAGES = {"architecture": (ROOT / "README.md", "docs/diagrams/architecture.svg"), "flow": (ROOT / "docs" / "reference.md", "diagrams/flow.svg")}
 # the comment that names the spec, then the image; the alt text may run over several lines
 EMBED = re.compile(r"<!-- diagram source: (\S+) -->\n!\[(.*?)\]\((\S+?)\)", re.S)
 
@@ -27,14 +28,13 @@ class Diagrams(unittest.TestCase):
             self.assertEqual(html.unescape(re.search(r"<title>(.*?)</title>", svg, re.S).group(1)), title, spec.name)
             self.assertEqual(re.findall(r"https?://[^\s\"']+", svg), ["http://www.w3.org/2000/svg"], spec.name)
 
-    def test_the_readme_shows_each_diagram_with_the_spec_title_as_alt_text(self):
-        shown = {source: (words(alt), image) for source, alt, image in EMBED.findall(README)}
+    def test_its_page_shows_each_diagram_with_the_spec_title_as_alt_text(self):
         for spec in SPECS:
-            source = f"docs/diagrams/{spec.name}"
+            page, image = PAGES[spec.stem]
+            shown = {source: (words(alt), path) for source, alt, path in EMBED.findall(page.read_text(encoding="utf-8"))}
             title = json.loads(spec.read_text(encoding="utf-8"))["title"]
-            self.assertIn(source, shown)
-            self.assertEqual(shown[source], (words(title), f"docs/diagrams/{spec.stem}.svg"), spec.name)
-        self.assertEqual(len(shown), len(SPECS))
+            self.assertEqual(shown.get(f"docs/diagrams/{spec.name}"), (words(title), image), spec.name)
+            self.assertEqual(len(shown), 1, page.name)
 
 
 if __name__ == "__main__":
