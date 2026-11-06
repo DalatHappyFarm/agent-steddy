@@ -16,6 +16,7 @@ A new session picks up at the first unticked step.
 - [x] 11. Method rules from pstack's principles, the premise nudge, pstack as a companion for engineering principles, and named metrics rows.
 - [x] 12. Feedback memory: a When line and a From line on each rule and several rules per entry, `lessons find` (BM25) at gate 2, in the brief and in the prompt hook, a promoted rule recorded again flagged until it has an eval case, a new key refused when its closest rule is promoted, `lessons retire`, and lesson evals (`lessons eval` with seen and new cases, `--judge` through `claude -p`, `--bare`).
 - [x] 13. The built-in rule `pipe-before-commit` and `agent-steddy guard`, which prints the Bash guard's verdict on a line so a check can be shown to fail on a recorded command; an eval Check finds the kit's own `agent-steddy` first on its PATH.
+- [x] 14. Version 0.6.1: the Bash guard looks through package runners (`npx`, `bunx`, and `exec` and `dlx` of npm, pnpm and yarn), and a config pattern is unwrapped like a command.
 
 ## Facts found on the way
 
@@ -132,3 +133,7 @@ A new session picks up at the first unticked step.
 - Checked 2026-11-05 for step 13, the check on the recorded failures: `agent-steddy guard ... --expect deny` exited 0 with `deny: [pipe-before-commit] ...` for the two piped commits a real project recorded (go test into tail, vitest into tail, each rebuilt from the lessons) and for the line that committed step 12 after a FAILED test.
   The form that project recorded last, `$?` read after a `$(date)` on the same line, is allowed (exit 1 with `--expect deny`): the rule does not cover it, and that lesson stays prose.
 - Checked 2026-11-05 in a live Claude Code session (Claude Code 2.1.318, Haiku, `--plugin-dir`, a throwaway repo, `--permission-mode bypassPermissions`): `false | tail -1 && git commit --allow-empty -m piped` came back as the hook's `[pipe-before-commit]` reason, and `git log` showed only the first commit.
+- Found 2026-11-06 moving a real project onto the kit: its old guard listed `npx supabase ...` and `npx eas ...` next to the plain forms, and the kit did not look through `npx`, `pnpm exec` or `pnpm dlx`, so with only `wrangler deploy` in `askFromSubagent` the 0.6.0 guard allowed `npx wrangler deploy` from a subagent.
+  The project listed the `npx` forms in its config as a stopgap, which became step 14.
+- Decided 2026-11-06 for step 14: runners are wrappers, so every built-in rule and every config pattern sees through them; a pattern is unwrapped too, so a project's old `npx ...` stopgap keeps matching and now also matches the plain form.
+  Package scripts (`npm run`) and a tool run by name through the manager (`pnpm wrangler`) stay out: `pnpm deploy` is a pnpm command, so the name alone cannot tell them apart.

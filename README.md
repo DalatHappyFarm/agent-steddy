@@ -5,7 +5,7 @@ A Claude Code plugin that keeps your AI coding agents safe, on process, and lear
 <!-- diagram source: docs/diagrams/architecture.json -->
 ![agent-steddy sits between your Claude Code agents and your repo: it checks every prompt and command, blocks risky git and secret reads, and keeps what the agents learn in docs/agents. A lesson's life: a mistake is recorded as a rule, the rule is recalled when its situation comes back, promoted when it repeats, and checked by an eval case.](docs/diagrams/architecture.svg)
 
-> Status: version 0.6.0, early.
+> Status: version 0.6.1, early.
 > Claude Code only; it needs `python3` 3.9 or later and `git`.
 
 ## Why

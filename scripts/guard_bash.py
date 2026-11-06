@@ -85,6 +85,16 @@ WRAPPERS = {
     "nice": {"-n"},
     "exec": {"-a"},
 }
+# Package runners that run the command after them, and the runner options that take a separate value.
+RUNNERS = {"npx", "bunx"}
+RUNNER_OPTIONS = {"-p", "--package", "--allow-build", "-w", "--workspace"}
+# Package managers whose `exec` and `dlx` subcommands are runners too, each with its own options before the subcommand that take a separate value.
+MANAGERS = {
+    "npm": {"-w", "--workspace", "--prefix"},
+    "pnpm": {"-C", "--dir", "-F", "--filter", "--filter-prod"},
+    "yarn": {"--cwd"},
+}
+VERSION = re.compile(r"(?<=.)@[^/]*$")  # the @version a runner may put after a package name: wrangler@3, @scope/cli@latest
 SHELLS = {"bash", "sh", "zsh"}
 MAX_SCRIPT_DEPTH = 3
 
@@ -93,9 +103,36 @@ def basename(word):
     return word.rsplit("/", 1)[-1]
 
 
-def unwrap(words):
-    """The command a simple command really runs: leading NAME=value words, shell keywords and wrappers (env, sudo, ...) with their options are skipped.
+def skip_options(words, i, with_value):
+    """The index of the first word from i on that is not an option or a NAME=value; `--` ends the options, and the options in `with_value` take the next word."""
+    while i < len(words):
+        if words[i] == "--":
+            return i + 1
+        if words[i] in with_value:
+            i += 2
+        elif words[i].startswith("-") or ASSIGNMENT.match(words[i]):
+            i += 1
+        else:
+            break
+    return i
 
+
+def runner_end(words, i):
+    """The index after a package runner that starts at words[i] (`npx`, `bunx`, or npm, pnpm or yarn with its options and `exec` or `dlx`) and the runner's options; None when no runner starts there."""
+    name = basename(words[i])
+    if name in MANAGERS:
+        i = skip_options(words, i + 1, MANAGERS[name])
+        if i >= len(words) or words[i] not in ("exec", "dlx"):
+            return None
+    elif name not in RUNNERS:
+        return None
+    return skip_options(words, i + 1, RUNNER_OPTIONS)
+
+
+def unwrap(words):
+    """The command a simple command really runs: leading NAME=value words, shell keywords, wrappers (env, sudo, ...) and package runners (npx, pnpm exec, ...) with their options are skipped.
+
+    A runner's package may carry a version, which is dropped: `npx wrangler@3 deploy` runs `wrangler deploy`.
     A bare `env` has no command after it and stays as ["env"], because it prints the environment.
     """
     i, last = 0, None
@@ -105,17 +142,11 @@ def unwrap(words):
         if ASSIGNMENT.match(word) or word in KEYWORDS:
             i += 1
         elif name in WRAPPERS:
-            i, last = i + 1, name
-            while i < len(words):
-                if words[i] == "--":
-                    i += 1
-                    break
-                if words[i] in WRAPPERS[name]:
-                    i += 2
-                elif words[i].startswith("-") or ASSIGNMENT.match(words[i]):
-                    i += 1
-                else:
-                    break
+            i, last = skip_options(words, i + 1, WRAPPERS[name]), name
+        elif (end := runner_end(words, i)) is not None:
+            if end < len(words):
+                words = words[:end] + [VERSION.sub("", words[end])] + words[end + 1:]
+            i, last = end, name
         else:
             break
     return words[i:] or (["env"] if last == "env" else [])
@@ -149,8 +180,9 @@ def matches(words, pattern):
 
     The program is compared by basename; the other pattern words must appear in order among the command's words that do not start with `-`, not necessarily next to each other.
     So `acme-cli --workdir app config push --yes` matches "acme-cli config push" and `acme-cli config list` does not.
+    The pattern is unwrapped like a command, so "npx acme-cli config push" is the same pattern as "acme-cli config push".
     """
-    want = pattern.split()
+    want = unwrap(pattern.split())
     if not words or not want or basename(words[0]) != want[0]:
         return False
     positional = iter(word for word in words[1:] if not word.startswith("-"))

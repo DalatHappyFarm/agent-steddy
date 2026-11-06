@@ -608,10 +608,12 @@ Wrappers are looked through, at the start of a simple command and in any order:
 
 - leading `NAME=value` assignments;
 - `env`, `sudo`, `command`, `nohup`, `time`, `nice` and `exec`, with their options (`env -i FOO=1`, `sudo -u root`, `nice -n 10`) and, for `env` and `sudo`, assignments;
+- the package runners `npx` and `bunx`, and `exec` and `dlx` of `npm`, `pnpm` and `yarn`, with their options (`npx --yes`, `pnpm --filter web exec`, `npm exec -w app --`); a version after the package is dropped, so `npx acme-cli@2 config push` runs `acme-cli config push`;
 - the shell keywords `!`, `{`, `if`, `then`, `elif`, `else`, `while`, `until` and `do`.
 
 The script of `bash -c`, `sh -c` and `zsh -c` (also `-lc` and similar option clusters) is checked as its own command line, up to three levels deep.
-So `sudo -u root env FOO=1 acme-cli config push` and `bash -lc "cd app && acme-cli config push"` both match the pattern above.
+So `sudo -u root env FOO=1 acme-cli config push`, `pnpm exec acme-cli config push` and `bash -lc "cd app && acme-cli config push"` all match the pattern above.
+A pattern is unwrapped the same way, so `"npx acme-cli config push"` is the same pattern as `"acme-cli config push"`.
 A wrapper word further along does not count: `echo sudo acme-cli config push` does not match.
 
 Limits to know:
@@ -619,6 +621,7 @@ Limits to know:
 - A pattern can match too much: `cli config push` also matches `cli config list push`, because the words only have to appear in order.
   Write the pattern with the fewest words that name the command.
 - Commands that run other commands are not looked through: `xargs`, `find -exec`, `eval`, `watch`, shell scripts run by path, and a `$(...)` inside double quotes.
+  Neither are package scripts (`npm run deploy`), a tool run by name through the manager (`pnpm acme-cli`, `yarn acme-cli`) and the `-c` script of `npx` and `pnpm exec`.
 - A script nested in more than three `bash -c` levels is not read.
 - Built-in rules share these limits.
   They stop the usual forms of a command and guard against honest mistakes; an agent set on getting around them, for example with `eval` or a command built from variables, can.

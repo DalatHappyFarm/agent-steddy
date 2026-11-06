@@ -137,6 +137,30 @@ class GuardBash(unittest.TestCase):
                         "echo bash -c 'git stash'", "bash -c ''", 'dash -c "git stash"']:
             self.assertEqual(run(command), "allow", command)
 
+    def test_looks_through_package_runners(self):
+        for command in ["npx acme-cli config push", "npx --yes acme-cli config push", "npx -y acme-cli@2 config push", "npx -p acme-cli acme-cli config push",
+                        "npx --package=acme acme-cli config push", "npx @acme/acme-cli@latest config push", "/opt/bin/npx acme-cli config push",
+                        "bunx acme-cli config push", "pnpm exec acme-cli config push", "pnpm dlx acme-cli@latest config push",
+                        "pnpm --filter web exec acme-cli config push", "pnpm -C app exec acme-cli config push", "npm exec -- acme-cli config push",
+                        "npm -w app exec acme-cli config push", "npm exec -w app -- acme-cli config push", "yarn dlx acme-cli config push",
+                        "yarn --cwd app exec acme-cli config push", "cd app && npx acme-cli config push", "sudo npx acme-cli config push",
+                        "bash -c 'pnpm exec acme-cli config push'", "CI=1 pnpm exec env A=1 acme-cli config push"]:
+            self.assertEqual(run(command, DENY_PUSH), "deny", command)
+        for command in ["npx acme-cli config list", "pnpm run acme-cli config push", "pnpm install acme-cli", "echo npx acme-cli config push",
+                        "npx", "pnpm exec", "npm exec --", "acme-cli-x config push"]:
+            self.assertEqual(run(command, DENY_PUSH), "allow", command)
+        self.assertEqual(guard_bash.unwrap("pnpm --filter web exec wrangler@3 deploy".split()), ["wrangler", "deploy"])
+        self.assertEqual(run("npx git stash"), "deny")
+        self.assertEqual(run("pnpm exec env"), "deny")  # env prints the environment, wherever it is run from
+        self.assertEqual(run("env npx"), "allow")
+
+    def test_a_pattern_is_unwrapped_like_a_command(self):
+        for pattern in ["npx acme-cli config push", "pnpm exec acme-cli config push", "acme-cli config push", "sudo acme-cli config push"]:
+            config = {"commands": {"deny": [{"match": pattern, "reason": "no"}]}}
+            for command in ["acme-cli config push", "npx acme-cli config push", "pnpm dlx acme-cli@1 config push"]:
+                self.assertEqual(run(command, config), "deny", f"{pattern} / {command}")
+            self.assertEqual(run("acme-cli config list", config), "allow", pattern)
+
     def test_looks_into_nested_scripts_three_levels_deep(self):
         three = "bash -c \"bash -c \\\"bash -c 'git stash'\\\"\""
         four = "bash -c \"bash -c \\\"bash -c 'bash -c \\\\\\\"git stash\\\\\\\"'\\\"\""

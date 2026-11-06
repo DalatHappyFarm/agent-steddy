@@ -60,7 +60,7 @@ A deny stops the command; an ask makes the owner confirm it, in the main session
 | `env-dump` | deny | `printenv` and a bare `env`, which print every environment variable. |
 | `pipe-before-commit` | deny | A pipeline chained with `&&` to a later `git commit`, such as `go test \| tail -5 && git commit`, with no `set -o pipefail` before it: the `&&` reads the status of `tail`, not of the tests. |
 
-Every rule looks through `NAME=value` prefixes, `env`, `sudo`, `command`, `nohup`, `time`, `nice` and `exec`, and reads the script of `bash -c`, `sh -c` and `zsh -c`.
+Every rule looks through `NAME=value` prefixes, `env`, `sudo`, `command`, `nohup`, `time`, `nice` and `exec`, the package runners `npx`, `bunx` and `exec` and `dlx` of npm, pnpm and yarn, and reads the script of `bash -c`, `sh -c` and `zsh -c`.
 The project config can add its own rules (`commands.deny`, `commands.alwaysAsk`, `commands.askFromSubagent`) and turn a built-in rule off by id (`guards.disable`).
 A deny beats an ask, and a built-in rule beats a config rule.
 See [docs/config.md](config.md) for the details and the limits of the matching.
