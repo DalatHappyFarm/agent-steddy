@@ -6,7 +6,7 @@
                                                     and --minutes when the clock ran more than a working day (it was left open)
   agent-steddy metrics report [--weeks 8]           weekly tables: tasks (medians), and git rework by commit prefix
   agent-steddy metrics slow [--days 7] [--top 10]   Bash commands by total time and count
-  agent-steddy metrics selftest                     a quick check of the installed scripts
+  agent-steddy metrics selftest                     a quick check of the installed scripts, and whether the hooks run in this session
 
   agent-steddy record decision "<area>" "<text>"    append `- [area] text` to the decisions file
   agent-steddy record lesson --task T --roles a,b --worked W --exposed E --rule R --key K --when W [--rule R2 --key K2 --when W2] [--from owner|review] [--new]
@@ -28,6 +28,8 @@
   agent-steddy lessons eval [--key K] [--judge] [--model M] [--bare]
                                                     run the eval cases of the rules; exit 1 when one fails
 
+Inside a Claude Code session, every command but `guard` and `metrics selftest` first warns on stderr when this plugin's hooks did not run in the session, or run another copy than this command (session_marker.py); the exit code and stdout stay as they are.
+`metrics selftest` prints the result as its second line.
 The project is `CLAUDE_PROJECT_DIR` when set, else the nearest folder from the cwd up that has `.claude/agent-steddy.json` or `.git`.
 Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused or an eval case fails, and 2 when the learning loop wants another key, When or target, `metrics log` has only an auto task name or a clock that was left open, or `pause` and `resume` have no branch or repo to work with, with the reason on stderr.
 """
@@ -46,6 +48,7 @@ import guard_bash  # noqa: E402
 import project_config  # noqa: E402
 import record  # noqa: E402
 import resume  # noqa: E402
+import session_marker  # noqa: E402
 from local_state import Refuse  # noqa: E402
 
 
@@ -70,7 +73,7 @@ def build_parser():
     slow = commands.add_parser("slow", help="Bash commands grouped by total time and count")
     slow.add_argument("--days", type=int, default=7)
     slow.add_argument("--top", type=int, default=10)
-    commands.add_parser("selftest", help="a quick check of the installed scripts")
+    commands.add_parser("selftest", help="a quick check of the installed scripts, and whether the hooks run in this session")
     records = groups.add_parser("record", help="decisions, lessons and the merge that ends a task").add_subparsers(dest="command", required=True)
     decision = records.add_parser("decision", help="append a decision to the decisions file")
     decision.add_argument("area", help="a short tag such as app or website")
@@ -136,7 +139,7 @@ def run_metrics(args, project, config, state):
     if args.command == "slow":
         return metrics.slow(state, args.days, args.top)
     metrics.selftest()
-    return ["selftest ok"]
+    return ["selftest ok", session_marker.selftest_line(project)]
 
 
 def run_record(args, project, config):
@@ -168,6 +171,10 @@ def run_lessons(args, project, config):
 def main(argv=None):
     args = build_parser().parse_args(argv)
     project = local_state.project_dir()
+    if args.group != "guard" and getattr(args, "command", None) != "selftest":  # guard is called by scripts and eval checks and does not depend on the hooks; selftest reports the check on stdout
+        notice = session_marker.warning(project)
+        if notice:
+            print(notice, file=sys.stderr)
     try:
         config = project_config.load(project)
         if args.group == "metrics":

@@ -67,7 +67,7 @@ Once a week, read `agent-steddy lessons check` and `agent-steddy metrics report`
 
 **Where things live.**
 `.claude/agent-steddy.json` and `docs/agents/` (lessons, decisions, metrics, walls, role cards, eval cases) are committed and shared with your team.
-`.git/agent-steddy/` (the task clock, command timings, resume notes) stays on your machine.
+`.git/agent-steddy/` (the task clock, command timings, resume notes, session markers) stays on your machine.
 
 ## Install
 
@@ -79,6 +79,8 @@ claude plugin install agent-steddy@agent-steddy --scope project
 ```
 
 Then start a new Claude Code session there.
+Hooks load only when a session starts, so a session that was already open when you installed has none of them, even though the plugin shows as enabled.
+Inside such a session the `agent-steddy` command prints a warning when its hooks are not running.
 
 ## Set it up with your agent
 
@@ -88,6 +90,8 @@ Paste this into that session:
 Set up the agent-steddy plugin in this repo. It is installed; its files are in
 the folder that `dirname "$(dirname "$(command -v agent-steddy)")"` prints.
 Read README.md, templates/README.md and docs/config.md there first.
+Change only .claude/, docs/agents/, CLAUDE.md and .gitignore, and ask me
+before you touch anything else.
 
 1. Write .claude/agent-steddy.json with only the keys this repo needs,
    modelled on examples/acme/.claude/agent-steddy.json: workingBranch,
@@ -98,10 +102,13 @@ Read README.md, templates/README.md and docs/config.md there first.
    templates/brief.md into docs/agents/, and write one role card in
    docs/agents/roles/ for each kind of work this repo has. Ask me before
    adding subagent files to .claude/agents/.
-3. Prove it works: run `agent-steddy metrics selftest`,
-   `agent-steddy guard "git stash" --expect deny`, and the verifyCommand once.
+3. Run the verifyCommand once, and `agent-steddy metrics selftest`. If that
+   says the hooks are not live in this session, tell me so now.
 4. Commit these files by path on a new branch, do not push, and tell me what
    you set and why.
+5. Then tell me to start a new Claude Code session in this repo, and what to
+   check there: `agent-steddy metrics selftest` must say the hooks are live,
+   and only after that `git stash` must come back denied by the hook.
 ```
 
 After that the hooks work on their own, and the agent records each task with the finish skill.

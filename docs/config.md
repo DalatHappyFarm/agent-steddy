@@ -183,13 +183,14 @@ The two hooks run in parallel and each prints its own `additionalContext`, which
 
 ## Local state
 
-The kit keeps a little state per project, and none of it is committed: the pending task clock, the tool timing log and the resume notes.
+The kit keeps a little state per project, and none of it is committed: the pending task clock, the tool timing log, the session markers and the resume notes.
 It lives in the `agent-steddy` folder inside the git common dir, for example `.git/agent-steddy/`, so every worktree of a repo shares it.
 The files:
 
 - `pending-task.json` is the task clock, written by the prompt hook and read by `agent-steddy metrics`.
 - `tool-times.jsonl` is the tool timing log, one line per Bash command.
 - `tool-marks/` holds the start time of each Bash command that has not finished.
+- `sessions/` holds one marker per Claude Code session whose hooks run, named by the session id; the [hooks live check](#hooks-live-check) reads it.
 - `resume/` holds the [resume notes](#resume-notes), one file per branch, unless `resume.folder` puts them in the project.
 
 Outside a git repo the hooks use a folder per project under `CLAUDE_PLUGIN_DATA`, and with neither they keep no state.
@@ -201,7 +202,7 @@ So in a project that is not a git repo the hooks can write the state and the `ag
 
 `scripts/tool_timing.py` times every Bash command.
 It runs three times per command: `pre` before it (`PreToolUse`), and `post` after a success (`PostToolUse`) or `fail` after a failure (`PostToolUseFailure`).
-`pre` stores the start time under the tool call id; `post` and `fail` append one line to `tool-times.jsonl` and delete the mark:
+`pre` stores the start time under the tool call id, and writes the session's marker when it is missing or differs (the [hooks live check](#hooks-live-check)); `post` and `fail` append one line to `tool-times.jsonl` and delete the mark:
 
 ```json
 {"ts": "2026-10-29T17:40:02", "agent": "main", "ms": 2500, "status": "ok", "cmd": "make test", "session_id": "abc123"}
@@ -217,7 +218,7 @@ It runs three times per command: `pre` before it (`PreToolUse`), and `post` afte
   A leading `cd <path> &&` is dropped, the project root and the working directory become relative paths, temp paths become `<tmp>`, and heredoc bodies are removed.
   Secrets are replaced by `[REDACTED:<pattern>]` with the patterns of the [secret output scan](#secret-output-scan), and the text is cut to 400 characters after that.
 - A command that was denied or interrupted leaves a mark and no line; `metrics slow` deletes marks older than a day.
-- The hook never blocks and exits 0 whatever happens; it prints nothing except the premise nudge below.
+- The hook never blocks and exits 0 whatever happens, and a marker that cannot be written does not lose the timing mark; it prints nothing except the premise nudge below.
 
 ### Premise nudge
 
@@ -241,6 +242,61 @@ This command failed <n> times in a row in this session. If the fixes between the
 Both the secret scan and the timing hook run on `PostToolUseFailure`, and each may print an `additionalContext`.
 The Claude Code hooks reference (checked 2026-10-30) says that matching hooks run in parallel and that "when several hooks return `additionalContext` for the same event, Claude receives all of the values".
 So each hook speaks for itself: the nudge does not include the scan's note, the scan does not include the nudge, and neither depends on the order in which they finish.
+
+## Hooks live check
+
+Hooks load only when a Claude Code session starts.
+A plugin that was installed, enabled or updated inside a running session has no hooks in it, and the agent there still finds the `agent-steddy` command and works as if the guards, the gate reminder and the task clock were on.
+An agent that learned the cache path of one version also keeps calling that copy after an update, while the hooks run another.
+So the command checks for both and says so.
+
+**The marker.**
+The Bash hook `tool_timing.py pre` runs before every command, the command's own included.
+When the marker of its session, `sessions/<session id>` in the [local state](#local-state), is missing or differs from what the hook would write, it writes it:
+
+```json
+{"root": "/path/to/agent-steddy", "version": "<version>"}
+```
+
+- `root` is `CLAUDE_PLUGIN_ROOT` with its links resolved, and `version` is the `version` of `<root>/.claude-plugin/plugin.json`, `unknown` when that cannot be read.
+- The file is named by `session_id` of the hook input, which the Bash tool also gives to every command as `CLAUDE_CODE_SESSION_ID`.
+- The check comes before the write, so a session whose marker is right costs one small read.
+  A write prunes the markers older than `MARKER_DAYS` = 30 days.
+- The `pre` hook writes it, not only the session start, so a session whose hooks run has a marker by the time any command runs, also one that started before the plugin had the check.
+- The write never blocks and never fails the hook; an error in it is dropped.
+
+**The warning.**
+Before it runs, a command of `agent-steddy` that has `CLAUDE_CODE_SESSION_ID` and a state folder reads the marker of its session and prints at most one line on stderr.
+With no marker, the session's hooks did not run:
+
+```text
+agent-steddy: this plugin's hooks did not run in this session, so the guards, the gate reminder and the task clock are off. The plugin was installed, enabled or updated after the session started: start a new Claude Code session in this project.
+```
+
+With a marker whose root is not the command's own (compared with links resolved), the hooks run another copy:
+
+```text
+agent-steddy: this is version <version> at <path>, but this session's hooks run version <version> at <path>; call `agent-steddy` by name, not through a cache path.
+```
+
+- The check never changes the exit code or what a command prints on stdout, and an error in it is silent: a marker that cannot be read gives no warning.
+- Without `CLAUDE_CODE_SESSION_ID` (a person in a terminal) or without a state folder (a project that is not a git repo, where the Bash tool has no `CLAUDE_PLUGIN_DATA`) there is no check.
+- `agent-steddy guard` does not check.
+  Project scripts and the Check of a lesson eval call it, one call for each case, and its verdict comes from the line and the project config and not from the hooks.
+  So a `deny` from `guard` shows that a rule holds and not that the hook runs; `metrics selftest` shows that.
+- The marker lives in the state of the project the session started in, so a command run in another git repo after a `cd` looks in that repo's state, finds no marker and warns.
+- A session that started before the plugin was updated to a version with this check runs hooks that write no marker, so a command of the new version warns that the hooks did not run; starting a new session is the right answer there too.
+
+**The selftest line.**
+`metrics selftest` does not print the warning.
+It prints `selftest ok` and then one line on stdout that says the same thing, and its exit code stays 0 in each case:
+
+```text
+hooks live in this session: yes, version <version>
+hooks live in this session: no, the plugin was installed, enabled or updated after the session started; start a new Claude Code session in this project
+hooks live in this session: not checked (needs a Claude Code session, and a git repo for the project)
+hooks live in this session: yes, version <version>, but this command is version <version> at <path>, not the copy at <path> that the hooks run; call `agent-steddy` by name, not through a cache path
+```
 
 ## Gate reminder
 
@@ -271,6 +327,7 @@ The same fail-open rules apply: a value of the wrong type is read as the default
 `bin/agent-steddy` is the command for what a hook cannot do: name a task, write a line to the metrics file, show a report.
 Claude Code puts the `bin/` folder of a plugin on the `PATH` of the Bash tool while the plugin is enabled, so an agent runs it as a bare `agent-steddy`.
 Claude.ai and Cowork do not install a plugin that has a top-level `bin/` folder, so the plugin installs in Claude Code only.
+In a Claude Code session the command also warns on stderr when this plugin's hooks do not run there: see the [hooks live check](#hooks-live-check).
 The command only dispatches to `scripts/cli.py`, which runs isolated (`python3 -I`) like the hooks.
 
 The Bash tool does not give `CLAUDE_PROJECT_DIR` to the commands it runs.
@@ -295,7 +352,7 @@ It writes to `records.metrics`, a JSON lines file that the project commits, and 
 | `metrics log --size S\|M\|L --type new\|feedback --verify-first-pass yes\|no [--task T] [--roles a,b] [--agents N] [--minutes N] [--exposed N]` | Appends one line to the metrics file and deletes the clock. `--task` defaults to the name given to `start`, and is required while the task still has its auto name: the command then [refuses](#named-rows); `--minutes` replaces the clock, and is required when the clock ran more than a working day: the command then [refuses](#open-clocks). |
 | `metrics report [--weeks 8]` | Prints a table per week of tasks (count, median minutes by size, median prompt minutes, defects found by the owner per task, share of first-pass verifications) and below it the rows whose minutes are over a working day, as [clocks that may have been left open](#open-clocks), a table per week of commits by conventional prefix, with the share of fixes as rework, and then [verdicts](#verdicts) on the last two weeks that have tasks. |
 | `metrics slow [--days 7] [--top 10]` | Prints the Bash commands of the [tool timing](#tool-timing) log grouped by key, by total time and by count. A command line is keyed by its heaviest known step, else by the chain of its steps. |
-| `metrics selftest` | Checks the installed scripts on temporary files and prints `selftest ok`. |
+| `metrics selftest` | Checks the installed scripts on temporary files and prints `selftest ok`, then one line on whether this plugin's hooks run in the session (see the [hooks live check](#hooks-live-check)). |
 
 A line of the metrics file has these fields: `date`, `task`, `type` (`new` for a fresh request, `feedback` for an owner round on earlier work), `size`, `roles`, `agents`, `minutes`, `prompt_minutes`, `exposed` (defects the owner found in work that was already delivered), `verify_first_pass`.
 

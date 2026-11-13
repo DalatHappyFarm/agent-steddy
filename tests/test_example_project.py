@@ -7,7 +7,6 @@ A last class checks that the agents, the role cards and the config of the exampl
 import contextlib
 import fnmatch
 import json
-import os
 import pathlib
 import re
 import shutil
@@ -21,7 +20,7 @@ EXAMPLE = ROOT / "examples" / "acme"
 CONFIG = json.loads((EXAMPLE / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
 BIN = ROOT / "bin" / "agent-steddy"
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from hook_runner import git, make_repo, run_hook  # noqa: E402
+from hook_runner import cli_env, git, make_repo, run_hook  # noqa: E402
 
 
 def bash(command, agent=None):
@@ -154,9 +153,8 @@ def copy_of_example():
 
 
 def agent_steddy(*args, cwd):
-    """The finished process of `bin/agent-steddy`, run as the Bash tool runs it: no CLAUDE_PROJECT_DIR."""
-    env = {key: value for key, value in os.environ.items() if key not in ("CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_DATA")}
-    return subprocess.run([str(BIN), *args], cwd=cwd, env=env, capture_output=True, text=True, check=True)
+    """The finished process of `bin/agent-steddy`, run as the Bash tool runs it but outside a session (see `cli_env`)."""
+    return subprocess.run([str(BIN), *args], cwd=cwd, env=cli_env(), capture_output=True, text=True, check=True)
 
 
 class WholeTask(unittest.TestCase):
