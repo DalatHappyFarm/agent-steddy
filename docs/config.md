@@ -277,7 +277,7 @@ The Bash tool does not give `CLAUDE_PROJECT_DIR` to the commands it runs.
 So the command finds the project itself: `CLAUDE_PROJECT_DIR` when it is set, else the nearest folder from the working directory up that has `.claude/agent-steddy.json` or `.git`.
 It reads the project config from there, and every path it writes comes from that config.
 A command that is refused prints the reason on stderr after `agent-steddy: refused:` and exits 1.
-The refusals that ask for another key, When, target or task name (a rule with no key or no When, a bad key, a retired key, a new key whose closest rule is promoted, a promotion or a retirement that is not allowed, and a `metrics log` of a task that still has its auto name) exit 2, the code of a usage error, so a caller can tell them from a failed record.
+The refusals that ask for another key, When, target or task name (a rule with no key or no When, a bad key, a retired key, a new key whose closest rule is promoted, a promotion or a retirement that is not allowed, a `metrics log` of a task that still has its auto name, and a `metrics log` without `--minutes` of a clock that ran more than a working day) exit 2, the code of a usage error, so a caller can tell them from a failed record.
 `lessons eval` exits 1 when a case fails or a case file is broken, so it can run in a verify command or in CI.
 `agent-steddy guard "<command line>" [--agent <type>] [--expect deny|ask|allow]` prints the verdict the Bash guard would give that line, `deny: <reason>`, `ask: <reason>` or `allow`, from the built-in rules and the project config; `--agent` judges it as a subagent of that type.
 It exits 0, and with `--expect` it exits 1 unless the verdict is the expected one, so a lesson eval's Check can show that a deny rule stops the recorded failure.
@@ -292,8 +292,8 @@ It writes to `records.metrics`, a JSON lines file that the project commits, and 
 | Command | What it does |
 | --- | --- |
 | `metrics start "<task>" [--force]` | Names the task and starts its clock. It refuses when a named task is already running, so a sub-agent that reads the gates does not restart the clock of the task it works for; `--force` replaces it. |
-| `metrics log --size S\|M\|L --type new\|feedback --verify-first-pass yes\|no [--task T] [--roles a,b] [--agents N] [--minutes N] [--exposed N]` | Appends one line to the metrics file and deletes the clock. `--task` defaults to the name given to `start`, and is required while the task still has its auto name: the command then [refuses](#named-rows); `--minutes` replaces the clock. |
-| `metrics report [--weeks 8]` | Prints a table per week of tasks (count, average minutes by size, average prompt minutes, defects found by the owner per task, share of first-pass verifications), a table per week of commits by conventional prefix, with the share of fixes as rework, and then [verdicts](#verdicts) on the last two weeks that have tasks. |
+| `metrics log --size S\|M\|L --type new\|feedback --verify-first-pass yes\|no [--task T] [--roles a,b] [--agents N] [--minutes N] [--exposed N]` | Appends one line to the metrics file and deletes the clock. `--task` defaults to the name given to `start`, and is required while the task still has its auto name: the command then [refuses](#named-rows); `--minutes` replaces the clock, and is required when the clock ran more than a working day: the command then [refuses](#open-clocks). |
+| `metrics report [--weeks 8]` | Prints a table per week of tasks (count, median minutes by size, median prompt minutes, defects found by the owner per task, share of first-pass verifications) and below it the rows whose minutes are over a working day, as [clocks that may have been left open](#open-clocks), a table per week of commits by conventional prefix, with the share of fixes as rework, and then [verdicts](#verdicts) on the last two weeks that have tasks. |
 | `metrics slow [--days 7] [--top 10]` | Prints the Bash commands of the [tool timing](#tool-timing) log grouped by key, by total time and by count. A command line is keyed by its heaviest known step, else by the chain of its steps. |
 | `metrics selftest` | Checks the installed scripts on temporary files and prints `selftest ok`. |
 
@@ -307,7 +307,9 @@ There are two clocks, both in local time:
   It starts at the auto start, which `start` keeps as `prompt_start`, and an auto start that only `log --task` names is still the prompt time.
   It is `null` when there was no auto start, as for a second task of the same prompt (`log` deletes the clock), and when the auto start is older than 12 hours: that was a prompt that never reached `log`, and it is not the prompt of the task being logged now.
   A stale auto start also gives a `null` for `minutes`, unless `--minutes` is given.
-- The report averages `prompt_minutes` over the lines that have it.
+- A clock that ran more than a working day is [refused](#open-clocks) at `log` unless `--minutes` is given.
+- The weekly table of the report shows medians, since one row from a clock left open would decide a mean: `med_min(S/M/L)` is the median of `minutes` for each size, and `med_prompt_min` the median of `prompt_minutes` over the lines that have it.
+  `exposed/task` is still the mean of the week, and `verify_1st_pass` its share.
 
 `metrics log` does not need the clock: with `--task` and `--minutes` it works in a project that has no local state.
 `start` needs it and refuses without one.
@@ -326,9 +328,34 @@ Run it again with `--task`, or after `metrics start`, and the same clock logs th
 A task named by `start` logs without `--task`, and `--task` is accepted whatever the pending name is.
 A project with no clock at all and no `--task` gets the older refusal, `no task: ...`, with exit 1.
 
+### Open clocks
+
+A task clock that stays open over a night or a multi-day session gives a row of thousands of minutes, and one such row is enough to move a whole week.
+So `metrics log` refuses a clock that has run more than a working day, while the agent still knows how long it really worked.
+A working day is `OPEN_CLOCK_MINUTES` = 480 minutes, a constant at the top of `scripts/metrics.py` that the refusal and the list below use by name.
+When `--minutes` is missing and the clock of the row (`minutes`, from `start` or from the auto start) ran more than that, the command writes nothing, keeps the clock, exits 2 and says:
+
+```text
+agent-steddy: refused: the clock has run <n> minutes, more than a working day (480): it was probably left open over a break. Pass --minutes <active minutes>, your honest estimate of the time spent working on it; nothing was written and the clock is kept
+```
+
+Run it again with `--minutes <active minutes>`, and the same clock logs the row with that number.
+A `--minutes` that is given is taken as it is, whatever the clock says, and `prompt_minutes` still counts from the prompt, so a long discussion before `start` is not an open clock.
+A clock of exactly 480 minutes logs; one of 481 does not.
+
+The report lists the rows that are over the same line, below the weekly table and for the weeks the table shows (`--weeks`), so that an old bad row, or a row from before this check, is seen and its number can be corrected by hand in the metrics file:
+
+```text
+Clock left open? Rows with more than 480 minutes (if so, correct the number in the metrics file):
+  2026-10-13    6928  fix the build
+```
+
+Each line has the date, the minutes and the task.
+The list is left out when no row is over the line.
+
 ### Verdicts
 
-The averages of the weekly table move from week to week even when nothing changed, so the report ends with a verdict on the last two weeks that have tasks (among the `--weeks` the tables show; they need not be neighbors).
+The medians of the weekly table move from week to week even when nothing changed, so the report ends with a verdict on the last two weeks that have tasks (among the `--weeks` the tables show; they need not be neighbors).
 It compares minutes for each size, S, M and L, and the share of tasks whose first verification run was green:
 
 ```text

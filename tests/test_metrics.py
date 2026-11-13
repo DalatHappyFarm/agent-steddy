@@ -49,6 +49,13 @@ def finish(state, log_file, **kwargs):
     return json.loads(log_file.read_text().splitlines()[-1])
 
 
+def task_row(day, size, minutes, prompt_minutes=None, task="t"):
+    return {"date": day, "task": task, "type": "new", "size": size, "minutes": minutes, "prompt_minutes": prompt_minutes, "exposed": 0, "verify_first_pass": True}
+
+
+LINE = 480  # a working day in minutes: a clock that ran longer was left open
+
+
 class Start(unittest.TestCase):
     def test_start_names_the_task_and_keeps_the_prompt_time_of_the_auto_start(self):
         with workspace() as (state, _):
@@ -167,13 +174,50 @@ class Log(unittest.TestCase):
             self.assertEqual((row["task"], row["minutes"], row["prompt_minutes"]), ("t", 3, None))
 
 
+class OpenClock(unittest.TestCase):
+    def test_the_line_is_a_working_day(self):
+        self.assertEqual(metrics.OPEN_CLOCK_MINUTES, LINE)
+
+    def test_a_clock_over_the_line_is_refused_without_minutes_and_one_at_the_line_logs(self):
+        for name, clock in [("a named task", {"task": "t", "start": ago(LINE + 1)}), ("an auto start named at log", {"task": f"auto {ago(LINE + 1)}", "start": ago(LINE + 1)})]:
+            with workspace() as (state, log_file):
+                put(state, **clock)
+                with self.assertRaises(Refuse) as raised:
+                    finish(state, log_file, task="t")
+                self.assertEqual(raised.exception.code, 2, name)
+                message = str(raised.exception)
+                self.assertIn(f"the clock has run {LINE + 1} minutes", message)
+                self.assertIn("--minutes <active minutes>", message)
+                self.assertIn("nothing was written and the clock is kept", message)
+                self.assertFalse(log_file.exists(), name)
+                self.assertEqual(pending(state), clock, name)
+        for name, clock in [("a named task", {"task": "t", "start": ago(LINE)}), ("an auto start named at log", {"task": f"auto {ago(LINE)}", "start": ago(LINE)})]:
+            with workspace() as (state, log_file):
+                put(state, **clock)
+                self.assertEqual(finish(state, log_file, task="t")["minutes"], LINE, name)
+                self.assertFalse((state / local_state.PENDING).exists(), name)
+
+    def test_minutes_given_on_an_old_clock_pass_and_a_long_discussion_before_start_is_not_an_open_clock(self):
+        with workspace() as (state, log_file):
+            put(state, task="t", start=ago(3 * 24 * 60), prompt_start=ago(4 * 24 * 60))
+            with self.assertRaises(Refuse):
+                finish(state, log_file)
+            row = finish(state, log_file, minutes=90)  # the refused clock is still there, and the honest number logs it
+            self.assertEqual((row["minutes"], row["prompt_minutes"]), (90, 4 * 24 * 60))
+            self.assertFalse((state / local_state.PENDING).exists())
+        with workspace() as (state, log_file):
+            put(state, task="t", start=ago(10), prompt_start=ago(3 * LINE))
+            row = finish(state, log_file)
+            self.assertEqual((row["minutes"], row["prompt_minutes"]), (10, 3 * LINE))
+
+
 class Report(unittest.TestCase):
     ROWS = [
         {"date": "2026-10-12", "task": "a", "type": "new", "size": "S", "minutes": 10, "prompt_minutes": 30, "exposed": 0, "verify_first_pass": True},
         {"date": "2026-10-12", "task": "b", "type": "feedback", "size": "S", "minutes": 20, "exposed": 2, "verify_first_pass": False},  # an old row has no prompt_minutes
     ]
 
-    def test_the_task_table_averages_by_week_and_size(self):
+    def test_the_task_table_has_a_row_per_week_with_the_size_cells_the_prompt_cell_and_the_shares(self):
         table = metrics.task_table(self.ROWS, 8)
         self.assertEqual(len(table), 2)
         self.assertTrue(table[1].startswith("2026-W42"), table)
@@ -181,6 +225,48 @@ class Report(unittest.TestCase):
         self.assertIn("        30", table[1])  # only the row that has prompt_minutes counts
         self.assertIn("1.00", table[1])
         self.assertIn("50%", table[1])
+
+    def test_the_task_table_shows_medians_so_one_open_clock_does_not_decide_the_week(self):
+        sizes = {"S": [4, 6, 8, 1860], "M": [30, 40, 80], "L": [60, 61, 90, 3403, 6928]}  # an even and two odd counts, an open clock in S and L
+        prompts = [30, 40, 50, 946]  # on the S rows only
+        rows = [task_row("2026-10-12", size, value, prompts[i] if size == "S" else None) for size, values in sizes.items() for i, value in enumerate(values)]
+        for values in (*sizes.values(), prompts):
+            self.assertNotEqual(statistics.median(values), statistics.mean(values))  # the numbers tell a median from a mean
+        table = metrics.task_table(rows, 8)
+        self.assertEqual(len(table), 2)
+
+        def cells(center):
+            s, m, l = (f"{center(values):.0f}" for values in sizes.values())
+            return f"{s:>4}/{m:>4}/{l:>4}", f"{center(prompts):.0f}"
+
+        sizes_cell, prompt_cell = cells(statistics.median)
+        self.assertIn(sizes_cell, table[1])
+        shown_prompt = table[1].split()[-3]  # then exposed per task and the first-pass share
+        self.assertEqual(shown_prompt, prompt_cell)
+        old_sizes_cell, old_prompt_cell = cells(statistics.mean)
+        self.assertNotIn(old_sizes_cell, table[1])
+        self.assertNotEqual(shown_prompt, old_prompt_cell)
+        self.assertIn("med_min(S/M/L)", table[0])
+        self.assertIn("med_prompt_min", table[0])
+        self.assertNotIn("avg", table[0])
+
+    def test_rows_over_the_line_are_listed_below_the_table_as_a_clock_left_open(self):
+        rows = [task_row("2026-10-12", "S", LINE, task="at the line"), task_row("2026-10-12", "S", LINE + 1, task="just over"), task_row("2026-10-13", "L", 6928, task="two days"),
+                task_row("2026-10-13", "M", None, task="no minutes"), task_row("2026-10-13", "M", "9999", task="text"), task_row("2026-10-13", "M", True, task="flag"),
+                task_row("2026-08-03", "L", 3403, task="before the weeks shown")]
+        with workspace() as (_, log_file), tempfile.TemporaryDirectory() as plain:
+            log_file.parent.mkdir(parents=True)
+            log_file.write_text("".join(json.dumps(r) + "\n" for r in rows))
+            lines = metrics.report(log_file, "m.jsonl", plain, 1)  # the weeks option limits the list like it limits the table
+            head = next(i for i, line in enumerate(lines) if line.startswith("Clock left open?"))
+            self.assertIn(f"more than {LINE} minutes", lines[head])
+            self.assertEqual(lines[head - 1], "")
+            self.assertTrue(lines[head - 2].startswith("2026-W42"), lines)  # right below the table
+            self.assertEqual(lines[head + 1:head + 4], ["  2026-10-12     481  just over", "  2026-10-13    6928  two days", ""])
+            self.assertEqual(lines[head + 4], "Git rework (conventional commit prefixes)")
+            self.assertIn("  2026-08-03    3403  before the weeks shown", metrics.report(log_file, "m.jsonl", plain, 8))
+            log_file.write_text("".join(json.dumps(r) + "\n" for r in rows[:1] + rows[3:6]))
+            self.assertFalse([line for line in metrics.report(log_file, "m.jsonl", plain, 8) if "Clock left open?" in line])  # nothing over the line, no list
 
     def test_only_the_last_weeks_are_shown(self):
         rows = [{**self.ROWS[0], "date": day} for day in ("2026-09-01", "2026-10-12", "2026-10-26")]
@@ -212,7 +298,7 @@ class Report(unittest.TestCase):
             finish(state, log_file, task="t", minutes=5)
             lines = metrics.report(log_file, "docs/agents/metrics.jsonl", repo, 8)
             self.assertEqual(lines[0], "Tasks (docs/agents/metrics.jsonl)")
-            self.assertIn("  5/", "\n".join(lines))  # the average of size S
+            self.assertIn("  5/", "\n".join(lines))  # the median of size S
             self.assertIn("50%", lines[lines.index("Git rework (conventional commit prefixes)") + 2])  # one fix of one feat and one fix
             self.assertEqual(sum(1 for line in lines if line.startswith("2")), 2)
             self.assertEqual(lines[-2:], ["Verdicts, the last two weeks that have tasks", "  needs two weeks with tasks"])  # one week only
