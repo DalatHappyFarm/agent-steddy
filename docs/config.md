@@ -490,11 +490,12 @@ Two more refusals keep a repeat from hiding under a new name, both exit 2 and wr
   The rule and its When line are compared with every recorded key that is not retired, and the key scores as its best entry, a rule text with its When line.
   This ranking is not the one above: both texts become sets of search terms, the words of `lessons find` with function words dropped and a crude stem, and the score is their cosine, the terms they share over the square root of the product of the two set sizes, from 0 to 1.
   A rule that shares no term is not close, so it is never listed.
-  The key is refused when the closest rule scores `NEAR` or more, 0.38, a constant in `scripts/lessons.py` and not a config key, or when the closest rule is promoted, whatever its score.
-  It was calibrated on five real lessons files: six pairs of one rule recorded under two keys scored 0.39 to 0.59, only six of the other 19,700 pairs of keys scored 0.38 or more, and replayed in date order, 2 of 199 new keys would have been refused.
+  The key is refused when the closest rule scores `NEAR` or more, 0.38, or `PROMOTED_NEAR` or more, 0.30, when that rule is promoted; both are constants in `scripts/lessons.py` and not config keys.
+  `NEAR` was calibrated on five real lessons files: six pairs of one rule recorded under two keys scored 0.39 to 0.59, only six of the other 19,700 pairs of keys scored 0.38 or more, and replayed in date order, 2 of 199 new keys would have been refused.
+  `PROMOTED_NEAR` sits 0.05 below the score of a real promoted rule that broke again and was recorded under a new key, 0.35 at its weakest; with it, replayed in date order, 5 of the 199 new keys would have been refused by either line, and 35 if any score counted.
   The refusal lists the three closest rules, each as `<key> (seen <n> times, promoted -> <path>): <newest rule text>` with the promoted part only for a promoted rule, then says to re-run with `--key <existing>` when it is the same rule, or with `--new` when it is a different one.
   When the closest rule is promoted the refusal says so and names its target, and the way on for the same failure is `--key <promoted key>`, a break after its promotion.
-  It asks for any score when the closest rule is promoted, since a promoted rule that breaks again is the repeat that most needs to be seen.
+  The line is lower for a promoted rule, since a promoted rule that breaks again is the repeat that most needs to be seen; a refusal at any score would fire so often that `--new` would become a reflex.
   Two rules that share only a sentence frame ("about to run X, before Y") score low, and two that share their situation and most of their words score high.
   The measure is lexical, so a rule that says the same thing in other words, in another situation, still passes under a new key.
 

@@ -24,6 +24,7 @@ MAX_KEY = 40
 MAX_PITFALLS = 12  # a card with more bullets than this is due for pruning
 ALIKE = 0.45  # similarity from which two texts look alike: on sample pairs paraphrases of one rule scored 0.43 to 0.9, unrelated rules 0.15 to 0.25 and different rules in one sentence frame up to 0.8; a crude measure, so the report only proposes
 NEAR = 0.38  # score from which a new key is refused as a possible repeat of a recorded rule: on five real lessons files, six pairs of one rule under two keys scored 0.39 to 0.59 and only six of the other 19,700 pairs of keys scored 0.38 or more; replayed in date order, 2 of 199 new keys were refused; a crude measure, since a repeat in other words and another situation passes
+PROMOTED_NEAR = 0.30  # NEAR for a new key whose closest recorded rule is promoted; lower, since a promoted rule that breaks again is the repeat that most needs to be seen: on a real lessons file a promoted rule broke again days later under a new key and scored 0.35 to 0.37 (0.35 when the promoted entries have no When line), so the line sits 0.05 below it; on five real files replayed in date order it and NEAR refuse 5 of 199 new keys, against 35 when any score counts
 SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 STOP_WORDS = {"a", "an", "the", "to", "of", "and", "or", "is", "are", "be", "it", "in", "on", "for", "with", "that", "this", "you", "your", "when", "do", "does"}
 # find drops more function words than suggest_key does, since a prompt is longer and looser than a rule
@@ -210,8 +211,8 @@ def key_refusal(entries, rule, key, new=False, when=None):
     """Why `rule` (with its `when`) cannot be recorded under `key`, or None when it can.
 
     A retired key takes no new lines.
-    A new key is refused unless `new` when the closest recorded rule that is not retired is promoted, since the same failure under a new key would hide that a promoted rule broke again,
-    or when that rule scores NEAR or more, since a repeat under a new key is never counted.
+    A new key is refused unless `new` when the closest recorded rule that is not retired scores NEAR or more, since a repeat under a new key is never counted,
+    or PROMOTED_NEAR or more when that rule is promoted, since the same failure under a new key would hide that a promoted rule broke again.
     """
     known = groups(entries)
     if key in known:
@@ -222,10 +223,12 @@ def key_refusal(entries, rule, key, new=False, when=None):
     if new:
         return None
     ranked = [item for item in nearest(entries, rule, when) if item[0]]  # a rule that shares no term with the new one is not close
-    if not ranked or (ranked[0][0] < NEAR and not is_promoted(ranked[0][2])):
+    if not ranked:
         return None
-    _, near, group = ranked[0]
+    score, near, group = ranked[0]
     promoted = is_promoted(group)
+    if score < (PROMOTED_NEAR if promoted else NEAR):
+        return None
     return "\n".join([
         f"{key} is a new key, and the closest recorded rule is promoted to {promoted_to(group)}:" if promoted else f"{key} is a new key, and it looks like a rule that is already recorded:",
         *(f"  {name} (seen {plural(len(rules))}{', promoted -> ' + promoted_to(rules) if is_promoted(rules) else ''}): {rules[0].rule}" for _, name, rules in ranked),

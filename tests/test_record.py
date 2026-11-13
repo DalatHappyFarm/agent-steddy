@@ -295,6 +295,27 @@ class Lesson(unittest.TestCase):
             self.assertEqual(lines[1], "  pin-toolchain (seen 2 times, promoted -> docs/agents/walls.md): pin the toolchain version in CI so every machine builds the same result")
             self.assertEqual(lines[-2:], ["if this is the same failure, the rule broke after its promotion: re-run with --key pin-toolchain", "if it is a different rule, re-run with --new; nothing was written"])
 
+    def test_a_promoted_closest_rule_refuses_from_a_lower_score_than_an_unpromoted_one(self):
+        recorded = "## 2026-01-01 - a - roles: web\n- Rule [commit-by-path]: commit by path, never stage everything{}\n  - When: about to run git add before a commit\n"
+        between = {"rule": "read the diff before a commit", "key": "read-the-diff", "when": "about to commit a change you did not write"}
+        below = {"rule": "commit one feature with its tests", "key": "one-feature-per-commit", "when": "about to split work into commits"}
+        with folder() as root:
+            path = root / "l.md"
+            for marker, refused in [(" [promoted -> docs/agents/walls.md]", [True, False]), ("", [False, False])]:
+                path.write_text(recorded.format(marker))
+                scores = [lessons.nearest(lessons.read(path), case["rule"], case["when"])[0][0] for case in (between, below)]
+                self.assertEqual(scores, [0.335, 0.239])  # computed by the code
+                self.assertTrue(scores[1] < lessons.PROMOTED_NEAR <= scores[0] < lessons.NEAR)
+                for case, expected in zip((between, below), refused):
+                    if expected:
+                        with self.assertRaises(Refuse, msg=case) as caught:
+                            record.lesson(path, **self.entry(**case))
+                        self.assertTrue(str(caught.exception).startswith("read-the-diff is a new key, and the closest recorded rule is promoted to docs/agents/walls.md:"), str(caught.exception))
+                    else:
+                        before = path.read_text()
+                        record.lesson(path, **self.entry(**case))
+                        path.write_text(before)
+
     def test_a_new_key_is_not_refused_when_no_recorded_rule_is_close_or_the_close_one_is_retired(self):
         with folder() as root:
             path = root / "l.md"

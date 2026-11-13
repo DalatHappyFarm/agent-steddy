@@ -48,7 +48,7 @@ For any other rule the command refuses without a key: it writes nothing, exits 2
 Read them, then re-run with `--key <existing>` when it is the same rule, or with a new slug when it is not.
 A new slug is refused too when it looks like a recorded rule, by its words and its `--when`: the command writes nothing, exits 2 and lists the three closest, each with its key, how often it was seen, whether it is promoted and its text.
 Then choose: `--key <existing>` when it is the same rule, so that the repeat is counted, or `--new` when it is a different rule.
-When the closest recorded rule is promoted, the refusal says so, whatever its score: if this is the same failure, the promoted rule broke again, so record it under that key; pass `--new` only when it is a different rule.
+When the closest recorded rule is promoted, the refusal says so, and it comes at a lower score than for another rule: if this is the same failure, the promoted rule broke again, so record it under that key; pass `--new` only when it is a different rule.
 
 `--when` is the situation the rule applies to, written the way an agent would put it at that moment, such as "about to report that a test run passed from a command whose output went through a pipe".
 It is what `agent-steddy lessons find` and the prompt hook match, so name the step, the command or the file, not a category.
