@@ -355,6 +355,20 @@ class LearningLoop(unittest.TestCase):
             self.assertIn("re-run with --key <existing> if it is the same rule, or --key <new-slug> if it is new", done.stderr)
             self.assertEqual((root / "docs/agents/lessons.md").read_text().count("## 20"), 1)
 
+    def test_a_new_key_that_looks_like_a_recorded_rule_exits_2_and_new_records_it_anyway(self):
+        with project() as root:
+            first = "pin the toolchain version in CI so every machine builds the same result"
+            self.assertEqual(agent_steddy(lesson("t1", first, "pin-toolchain", when="a build passes on one machine and fails on another"), root).returncode, 0)
+            again = lesson("t2", "pin the compiler version in CI, so builds do not differ between machines", "pin-compiler", when="a build differs between two machines")
+            done = agent_steddy(again, root)
+            self.assertEqual((done.returncode, done.stdout), (2, ""))
+            self.assertTrue(done.stderr.startswith("agent-steddy: refused: pin-compiler is a new key, and it looks like a rule that is already recorded:\n"), done.stderr)
+            self.assertIn(f"  pin-toolchain (seen 1 time): {first}\n", done.stderr)
+            self.assertIn("if it is the same rule, re-run with --key <existing>\nif it is a different rule, re-run with --new; nothing was written", done.stderr)
+            self.assertEqual((root / "docs/agents/lessons.md").read_text().count("## 20"), 1)
+            self.assertEqual(agent_steddy([*again, "--new"], root).returncode, 0)
+            self.assertEqual((root / "docs/agents/lessons.md").read_text().count("## 20"), 2)
+
     def test_the_second_time_a_key_is_recorded_the_notice_names_the_promote_command(self):
         with project() as root:
             first = agent_steddy(lesson("t1", "commit by path", "commit-by-path", roles="web,docs"), root)
