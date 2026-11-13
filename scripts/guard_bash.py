@@ -215,6 +215,23 @@ def short(arg, letter):
     return arg.startswith("-") and not arg.startswith("--") and letter in arg[1:]
 
 
+def adds_everything(args):
+    """True when `git add` takes the whole tree: a pathspec of `.`, `:/` or `:`, or -A, --all, -u or --update with no pathspec to narrow it.
+
+    With pathspecs, -A and -u stage only those paths, so `git add -A docs` is fine.
+    An exclusion alone (`':!a'`, `':^a'`, `':(exclude)a'`) does not narrow anything: git adds the rest of the tree.
+    """
+    options, paths = [], []
+    for i, arg in enumerate(args):
+        if arg == "--":
+            paths += args[i + 1:]
+            break
+        (options if arg.startswith("-") else paths).append(arg)
+    named = [path for path in paths if not path.startswith((":!", ":^", ":(exclude)"))]
+    sweeping = any(arg in ("--all", "--update") or short(arg, "A") or short(arg, "u") for arg in options)
+    return any(path.rstrip("/") in (".", ":") for path in paths) or ((sweeping or bool(paths)) and not named)
+
+
 COMMIT_VALUE_OPTIONS = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--author", "--date", "--template", "--reuse-message",
                         "--reedit-message", "--cleanup", "--fixup", "--squash", "--trailer", "--pathspec-from-file"}
 
@@ -277,6 +294,11 @@ READERS = {"cat", "tac", "less", "more", "head", "tail", "sed", "awk", "gawk", "
 PATTERN_FIRST = {"sed", "awk", "gawk", "rg", "grep", "egrep", "fgrep"}  # the first word that is not an option is a pattern or a script, not a file
 PATTERN_OPTIONS = {"-e", "-f", "--regexp", "--file", "--expression"}  # these give the pattern, so the first word is a file again
 STD_SINKS = ("/dev/stdout", "/dev/stderr", "/dev/tty", "/dev/fd/")
+GREPS = ("grep", "egrep", "fgrep")
+# For rg and the grep family: the short options that print only counts, file names or nothing, then the short options that take a value.
+# In rg -L is --follow, which prints matches; in grep -L lists the files without a match.
+LISTING = {"rg": ("cql", "ABCEMTdefgjmrt"), **dict.fromkeys(GREPS, ("cqlL", "ABCDdefm"))}
+LISTING_LONG = {"--count", "--count-matches", "--quiet", "--silent", "--files-with-matches", "--files-without-match"}
 
 
 def secret_path(word):
@@ -286,6 +308,44 @@ def secret_path(word):
         if name == ".env" or name.endswith(".env.local") or (name.startswith(".env.") and name != ".env.example") or (name.startswith(".env") and re.search(r"[*?[]", name)):
             return True
     return False
+
+
+def lists_only(prog, args):
+    """True when an rg or grep command prints only counts, file names or nothing: -c, -q or -l (also -L for grep), alone or in a cluster such as -qn, or a long form.
+
+    `--json` and `--format` bring the matched lines back, wherever they stand, so they win.
+    The value of an option such as -e or -g is not an option, so `-gc` and `-e -c` do not count.
+    """
+    if prog not in LISTING:
+        return False
+    letters, with_value = LISTING[prog]
+    found, skip = False, False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg == "--":
+            break
+        elif arg.startswith(("--json", "--format")):
+            return False
+        elif arg.startswith("--"):
+            found = found or arg in LISTING_LONG
+            skip = arg in PATTERN_OPTIONS
+        elif arg.startswith("-"):
+            for i, letter in enumerate(arg[1:], 1):
+                found = found or letter in letters
+                if letter in with_value:
+                    skip = i == len(arg) - 1  # a value attached to the cluster (-A2) ends it; a separate one is the next word
+                    break
+    return found
+
+
+def names_only(args):
+    """True for `cut -d= -f1`, also as `-d =`, `-d '='` and `-f 1`: field 1 of a NAME=value line is the name.
+
+    A second -d or -f, and --complement, bring the values back.
+    """
+    given = [(arg[:2], arg[2:] or (args[i + 1:i + 2] or [""])[0]) for i, arg in enumerate(args) if arg[:2] in ("-d", "-f")]
+    return sorted(given) == [("-d", "="), ("-f", "1")] and "--complement" not in args
 
 
 def reads_secret(words):
@@ -298,6 +358,8 @@ def reads_secret(words):
     args = words[1:]
     if prog == "cp" and not any(arg.startswith(STD_SINKS) for arg in args):  # a copy to a file prints nothing
         return False
+    if lists_only(prog, args) or (prog == "cut" and names_only(args)):  # names, counts and file names are no secret
+        return False
     skip = prog in PATTERN_FIRST and not any(arg in PATTERN_OPTIONS or arg.startswith(("--regexp=", "--file=", "--expression=")) for arg in args)
     for arg in args:
         if arg == "--" or (arg.startswith("-") and len(arg) > 1 and not secret_path(arg)):
@@ -309,13 +371,24 @@ def reads_secret(words):
     return False
 
 
+# The parameters that hold a status or an argument, never a secret, bare or in braces:
+# $? $! $# $$ $- $@ $* $0-$9 ${10} $status, and $pipestatus and $PIPESTATUS with or without an index.
+STATUS_PARAMETER = re.compile(r"""
+    \$ (?: [?!#$@*0-9-]
+         | \{ (?: [?!#$@*-] | \d+ ) \}
+         | (?: pipestatus | PIPESTATUS | status ) (?! [A-Za-z0-9_] ) (?: \[ [-0-9@*]+ \] )?
+         | \{ (?: pipestatus | PIPESTATUS | status ) (?: \[ [-0-9@*]+ \] )? \}
+         )
+""", re.VERBOSE)
+
+
 def prints_sourced_secret(commands):
-    """True when a secret file is sourced and a later echo or printf prints a variable."""
+    """True when a secret file is sourced and a later echo or printf expands a variable, other than a status or an argument."""
     sourced = False
     for words in commands:
         if words[0] in ("source", ".") and any(secret_path(word) for word in words[1:]):
             sourced = True
-        elif sourced and basename(words[0]) in ("echo", "printf") and any("$" in word for word in words[1:]):
+        elif sourced and basename(words[0]) in ("echo", "printf") and any("$" in STATUS_PARAMETER.sub("", word) for word in words[1:]):
             return True
     return False
 
@@ -324,9 +397,23 @@ def secret_read(commands, line=None):
     return any(reads_secret(words) for words in commands) or prints_sourced_secret(commands)
 
 
-def env_dump(commands, line=None):
-    """True for `printenv` and for `env` with no command after it (the wrapper loop leaves a bare env as ["env"])."""
-    return any(basename(words[0]) in ("printenv", "env") for words in commands)
+def env_dump(commands, line, depth=0):
+    """True for `printenv` and for `env` with no command after it (the wrapper loop leaves a bare env as ["env"]).
+
+    Not when it is piped straight into an rg or grep that prints only counts or nothing, as in `env | rg -c '^NAME='`.
+    Like `pipe_before_commit`, this reads the line for its pipes, and the script of `bash -c` as its own line.
+    """
+    found = [(unwrap(words), end.strip()) for words, end in pieces(line)]
+    for i, (words, end) in enumerate(found):
+        script = shell_script(words)
+        if script is not None and depth < MAX_SCRIPT_DEPTH:
+            if env_dump(None, script, depth + 1):
+                return True
+        elif words and basename(words[0]) in ("printenv", "env"):
+            reader = found[i + 1][0] if end == "|" and i + 1 < len(found) else None
+            if not (reader and lists_only(basename(reader[0]), reader[1:])):
+                return True
+    return False
 
 
 def is_commit(words):
@@ -364,7 +451,8 @@ def pipe_before_commit(commands, line, depth=0):
 
 # Built-in rules: (id, test over the parsed commands and the line, reason). The id leads the reason and is what `guards.disable` lists.
 DENY_RULES = [
-    ("git-stash", git_rule("stash"), "Never git stash while agents share the working tree: it hides their changes. Commit by path instead."),
+    ("git-stash", git_rule("stash", lambda args: not args or args[0] not in ("list", "show")),
+     "Never git stash while agents share the working tree: it hides their changes. Commit by path instead. git stash list and git stash show only read."),
     ("git-reset-hard", git_rule("reset", lambda args: "--hard" in args),
      "git reset --hard discards uncommitted work that other agents may share. Undo with a new commit, or restore one file by path."),
     ("git-checkout-all", git_rule("checkout", lambda args: "." in args),
@@ -373,19 +461,23 @@ DENY_RULES = [
      "Restoring . discards every uncommitted change in the tree, including other agents' work. Restore single files by path."),
     ("git-clean-force", git_rule("clean", lambda args: "--force" in args or any(short(arg, "f") for arg in args)),
      "git clean -f deletes untracked files that other agents may own. Remove your own files by path."),
-    ("git-add-all", git_rule("add", lambda args: any(arg in (".", "--all") or short(arg, "A") for arg in args)),
-     "Staging everything sweeps in files other agents are editing. Stage your own files by path, then commit by path."),
+    ("git-add-all", git_rule("add", adds_everything),
+     "Staging the whole tree sweeps in files other agents are editing. Stage your own files by path (git add -A <paths> is fine), then commit by path."),
     ("git-commit-all", git_rule("commit", commit_all),
      "git commit -a commits other agents' uncommitted changes too. Commit by path: git commit -m <message> -- <paths>."),
     ("git-branch-force-delete", git_rule("branch", force_delete),
      "Force-deleting a branch can lose commits that exist nowhere else. Use git branch -d, which refuses a branch that is not merged."),
-    ("grep-recursive", program_rule(("grep", "egrep", "fgrep"), recursive),
+    ("grep-recursive", program_rule(GREPS, recursive),
      "Use rg for a recursive or directory search. Plain grep is fine in a pipe or on one file, and so is git grep."),
     ("sed-in-place", program_rule(("sed",), in_place),
      "A bare sed -i differs between macOS and Linux: macOS wants a suffix argument, and --in-place does not exist there. "
      "Give a suffix, as in sed -i.bak or sed -i '', or edit the file with a script."),
-    ("secret-read", secret_read, "Never print a secret file. Read it only through the script that needs it, and leave its values out of the conversation."),
-    ("env-dump", env_dump, "printenv and a bare env print the environment, which can hold secrets. Read a variable inside the script that needs it."),
+    ("secret-read", secret_read,
+     "Never print a secret file. To check a name or a count, use rg -c '^NAME=' <file>, rg -q or cut -d= -f1 <file>, which print no values. "
+     "Otherwise read it only through the script that needs it."),
+    ("env-dump", env_dump,
+     "printenv and a bare env print the environment, which can hold secrets. To check that a variable is set, use test -n \"$NAME\" or env | rg -c '^NAME='. "
+     "Read a variable inside the script that needs it."),
     ("pipe-before-commit", pipe_before_commit,
      "A pipeline's exit status is its last command's, so `<check> | tail && git commit` commits even when the check failed. "
      "Run the check on its own (output to a file, then tail the file), or start the line with set -o pipefail, read its status, then commit by path."),

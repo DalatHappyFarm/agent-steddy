@@ -637,6 +637,18 @@ Built-in rules use the same splitting and wrapper handling as the patterns above
 They do not match words in order; each reads the options of the program it guards.
 For git that means its own options, such as `-C dir`, are skipped and the next word is the subcommand, so `git -C app stash` is a stash and `git log --grep stash` is not.
 
+`git-add-all` reads the pathspecs: `-A`, `--all`, `-u` and `--update` stage the whole tree only when no pathspec narrows them, so `git add -A docs` passes and `git add -u` does not.
+A pathspec of `.`, `:/` or `:` takes the whole tree, and so does an exclusion alone (`':!a'`, `':^a'`, `':(exclude)a'`), because git adds the rest of the tree.
+`git-stash` passes `git stash list` and `git stash show`, which only read; every other form, and a bare `git stash`, is denied.
+
+`secret-read` and `env-dump` stop a command that prints a value, not one that only checks for a name.
+`rg` and `grep` with `-c`, `-q`, `-l` or the long forms (and `-L` for grep; in rg `-L` is `--follow` and prints the lines) print counts, file names or nothing, and `cut -d= -f1` prints the names, so they may read a secret file.
+`--json` and `--format` bring the lines back, so a command that has one is stopped.
+The value of an option such as `-g` or `-t` is not read as a flag (`rg -gc KEY .env` is denied), and a second `-f` or `-d` of `cut`, or `--complement`, is stopped too.
+After `source .env`, an echo or printf of `$?`, `$#`, `$1`, `$status`, `$pipestatus` and the like passes, and one of any other variable is denied.
+`env | rg -c '^NAME='` passes, as does any `env` or `printenv` piped straight into an rg or grep that prints only counts, file names or nothing, since the environment never reaches the output.
+A multi-line value has lines with no `=`, and `cut -d= -f1` prints those whole; add `-s` to drop them.
+
 `pipe-before-commit` reads the separators between the commands as well: it denies a pipeline (`a | b`) chained with `&&` to a later `git commit` in the same `&&` chain, since the chain reads the status of the pipeline's last command.
 A `set ... pipefail` earlier in the line, or a shell started with `-o pipefail` for its `-c` script, makes the line pass; so do a `;` or a newline before the commit, and a pipe into `git commit` itself (`echo msg | git commit -F -`).
 

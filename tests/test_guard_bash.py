@@ -38,12 +38,13 @@ def run(command, config=None, agent_type=None):
 
 class GuardBash(unittest.TestCase):
     def test_denies_git_stash_in_any_position(self):
-        for command in ["git stash", "git stash pop", "git -C ../other stash list", "cd app && git stash",
+        for command in ["git stash", "git stash pop", "git -C ../other stash drop", "cd app && git stash",
                         "ls; git stash", "/usr/bin/git stash", "echo x|git stash"]:
             self.assertEqual(run(command), "deny", command)
 
     def test_allows_everything_else(self):
-        for command in ["git status", "git commit -m 'stash later' -- a.md", "echo 'git stash'", "rg stash", "git log --grep stash"]:
+        for command in ["git status", "git commit -m 'stash later' -- a.md", "echo 'git stash'", "rg stash", "git log --grep stash",
+                        "git stash list", "git stash list | head -1", "git -C ../other stash show -p"]:
             self.assertEqual(run(command), "allow", command)
 
     def test_split_ends_a_command_at_operators_newlines_backticks_and_substitutions(self):
