@@ -45,19 +45,19 @@ A deny stops the command; an ask makes the owner confirm it, in the main session
 
 | Rule id | Decision | What it stops |
 | --- | --- | --- |
-| `git-stash` | deny | `git stash`, which hides the changes other agents are working on. |
+| `git-stash` | deny | `git stash`, `push`, `pop`, `apply`, `drop` and the other forms, which hide the changes other agents are working on. `git stash list` and `git stash show` only read and pass. |
 | `git-reset-hard` | deny | `git reset --hard`, which discards uncommitted work. |
 | `git-checkout-all` | deny | `git checkout .` and `git checkout -- .`, which overwrite every uncommitted change. |
 | `git-restore-all` | deny | `git restore .` and `git restore --staged .`, which discard or unstage everything. |
 | `git-clean-force` | deny | `git clean -f`, `-fd`, `-fdx` and `--force`, which delete untracked files. |
-| `git-add-all` | deny | `git add -A`, `--all` and `.`, which stage files other agents are editing. |
+| `git-add-all` | deny | `git add .`, `git add :/`, and `-A`, `--all`, `-u` or `--update` with no pathspec, which stage files other agents are editing; an exclusion alone, such as `':!a'`, does not count as a pathspec. `git add -A docs` and `git add -u a.ts` stage only the paths named and pass. |
 | `git-commit-all` | deny | `git commit -a`, `-am` and `--all`, which commit other agents' changes. |
 | `git-branch-force-delete` | deny | `git branch -D`, and `-d` together with `-f`, which can lose commits. |
 | `git-push-force` | ask | `git push` with `--force`, `-f`, `--force-with-lease` or a `+refspec`. |
 | `grep-recursive` | deny | `grep -r`, `-R` and `--recursive` (also `egrep` and `fgrep`); use `rg` instead. |
 | `sed-in-place` | deny | `sed -i` without a suffix argument, and `--in-place`; they behave differently on macOS and Linux. |
-| `secret-read` | deny | Reading `.env`, `.env.*` (not `.env.example`), `*.env.local` or a glob such as `.env*` with `cat`, `grep`, `sed`, `head` and similar, and `source .env` followed by an echo of a variable. |
-| `env-dump` | deny | `printenv` and a bare `env`, which print every environment variable. |
+| `secret-read` | deny | Reading `.env`, `.env.*` (not `.env.example`), `*.env.local` or a glob such as `.env*` with `cat`, `grep`, `sed`, `head` and similar, and `source .env` followed by an echo of a variable. What prints no value passes: `rg` and `grep` with `-c`, `-q` or `-l` (and `-L` for grep), `cut -d= -f1`, and an echo of a status or argument such as `$?`, `$#`, `$1` or `${pipestatus[1]}`. |
+| `env-dump` | deny | `printenv` and a bare `env`, which print every environment variable. A pipe straight into an `rg` or `grep` that prints only counts, file names or nothing (`-c`, `-q`, `-l`) passes, as in `env \| rg -c '^NAME='`. |
 | `pipe-before-commit` | deny | A pipeline chained with `&&` to a later `git commit`, such as `go test \| tail -5 && git commit`, with no `set -o pipefail` before it: the `&&` reads the status of `tail`, not of the tests. |
 
 Every rule looks through `NAME=value` prefixes, `env`, `sudo`, `command`, `nohup`, `time`, `nice` and `exec`, the package runners `npx`, `bunx` and `exec` and `dlx` of npm, pnpm and yarn, and reads the script of `bash -c`, `sh -c` and `zsh -c`.

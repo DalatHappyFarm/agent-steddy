@@ -14,10 +14,14 @@ import guard_bash  # noqa: E402
 
 RULE_CASES = {
     "git-stash": {
-        "hit": ["git stash", "git stash pop", "git stash list", "git -C apps/web stash", "git -c a.b=c --git-dir x stash", "cd app && git stash",
-                "ls; git stash", "/usr/bin/git stash", "echo x|git stash", "echo $(git stash)", 'bash -c "git stash"'],
+        "hit": ["git stash", "git stash pop", "git -C apps/web stash", "git -c a.b=c --git-dir x stash", "cd app && git stash",
+                "ls; git stash", "/usr/bin/git stash", "echo x|git stash", "echo $(git stash)", 'bash -c "git stash"',
+                "git stash push", "git stash push -m x", "git stash save x", "git stash apply", "git stash drop", "git stash clear", "git stash create",
+                "git stash store abc", "git stash branch feat/x", "git stash -u", "git stash --keep-index", "git stash -- a.ts", "git stash pop stash@{1}",
+                "git stash list; git stash drop", "git stash list && git stash", "git stash list | git stash", "git stash -q list", "git stash -- list"],
         "miss": ["git status", "git commit -m 'stash later' -- a.md", "echo 'git stash'", "rg stash", "git log --grep stash", "git stash-free-tool",
-                 "git show HEAD:stash", "git diff stash"],
+                 "git show HEAD:stash", "git diff stash", "git stash list", "git stash list | head -1", "git stash list --oneline", "git stash show",
+                 "git stash show -p", "git stash show stash@{1}", "git -C apps/web stash list", "cd app && git stash show --stat", "bash -c 'git stash list'"],
     },
     "git-reset-hard": {
         "hit": ["git reset --hard", "git reset --hard HEAD~1", "git reset HEAD~1 --hard", "git -C app reset --hard origin/main", "cd app && git reset --hard",
@@ -44,8 +48,14 @@ RULE_CASES = {
     },
     "git-add-all": {
         "hit": ["git add -A", "git add --all", "git add .", "git add -- .", "git add -Av", "git add -vA", "git -C apps add -A", "cd apps && git add -A && echo done",
-                "git add . && git commit -m x", "echo hi\ngit add -A", "FOO=1 git add .", "bash -c 'git add -A'"],
+                "git add . && git commit -m x", "echo hi\ngit add -A", "FOO=1 git add .", "bash -c 'git add -A'",
+                "git add -u", "git add --update", "git add -uv", "git add -u -- . ':!package.json'", "git add -A .", "git add -A -- .", "git add --all .", "git add a.ts .",
+                "git add :/", "git add :", "git add -A :/", "git add ./", "git add -A ':!package.json'", "git add -- ':!package.json'", "git add -u ':^b'",
+                "git add -A ':(exclude)b'", "git add -A -n", "git add -A --verbose", "git -C app add -u", "cd app && git add -u && git status"],
         "miss": ["git add apps/web/a.ts docs/b.md", "git add -- docs/x.md", "git add ./a.md", "git add -n a.md", "git add -p a.ts", "git add -u a.md",
+                 "git add -A web/src/app/Page.test.tsx", "git add -A docs CLAUDE.md README.md", "git add -A some/dir", "git add --all docs", "git add -Av docs",
+                 "git add -A -- docs", "git add -u web/src", "git add --update docs a.md", "git add -A docs ':!docs/draft.md'", "git add -A ./a.md", "git add -A .github",
+                 "git add -A -- -odd-name", "git add a.ts b.ts", "git add", "git add -A docs && git commit -m x -- docs", "cd app && git add -A src",
                  "git commit -m 'git add -A is banned' -- a.md", "echo 'git add .'", "cat <<EOF\ngit add -A\nEOF",
                  "git commit -m \"$(cat <<'EOF'\nfeat: x\n\ngit add -A and git add . mentioned\nEOF\n)\" -- a.md"],
     },
@@ -94,18 +104,59 @@ RULE_CASES = {
                 "jq . .env.local", "cat < .env", "cat<.env", "echo $(<.env)", "cat .env | head", "ls && cat .env", "cd config && cat .env.local", 'bash -c "cat .env"',
                 "FOO=1 cat .env", "sudo cat .env", "diff .env .env.example", "cat .env.example .env", "ls\ncat .env",
                 "source .env; echo $KEY", 'source config/.env.local && printf "%s" "$DATABASE_URL"', '. .env.local; echo "$X"', "set -a; source .env; set +a; echo $TOKEN",
-                'bash -c "source .env; echo $K"', "source .env\necho $KEY"],
+                'bash -c "source .env; echo $K"', "source .env\necho $KEY",
+                "source .env && echo $DATABASE_URL", "source .env; echo ${DATABASE_URL}", 'source .env; echo "exit $? $KEY"', "source .env; echo $?$KEY",
+                "source .env; echo $status_x", "source .env; echo $statusx", "source .env; echo $PIPESTATUSX", "source .env; echo ${status:-$KEY}",
+                "source .env; echo ${pipestatus[$i]}", 'source .env; echo "$(printenv KEY)"', "source .env; echo ${!NAME}", "source .env; echo ${#KEY}", "source .env; echo $",
+                "source .env; echo $1$KEY", "source .env; echo $KEY2", 'source .env; printf "%s %s" "$?" "$KEY"',
+                'rg -n "DATABASE_URL" .env* | rg -v PASSWORD', "rg TOKEN .env", "rg -n TOKEN .env.local | head", "cut -d= -f2 .env", "cut -d= -f1,2 .env", "cut -d= -f1- .env",
+                "cut -d, -f1 .env", "cut -f1 .env", "cut -d= .env", "cut -d= -f1 --complement .env", "cut -d= -f1 -f2 .env", "cut -d= -f2 -f1 .env", "cut -d== -f1 .env",
+                "cut -c1-5 .env", "cut -d= -f 2 .env", "cat .env | cut -d= -f1", "rg -L KEY .env", "rg -Ln KEY .env", "rg -c --json KEY .env", "rg -l --json KEY .env",
+                "rg --json -q KEY .env", "grep -l --format=%O KEY .env", "grep -c --json KEY .env", "rg -gc KEY .env", "rg -tc KEY .env", "rg -e -c .env",
+                "rg -e -q .env", "rg --regexp -c .env", "rg KEY .env -- -c", "rg -A3 KEY .env", "rg -v -n KEY .env", "grep -n KEY .env; rg -c KEY .env",
+                "rg -c KEY .env; cat .env", "cat .env; rg -q KEY .env", "grep -A2c KEY .env", "rg -Ec KEY .env", "rg -rc KEY .env", "rg -r c KEY .env",
+                "rg -m1 KEY .env", "rg --max-count=1 KEY .env"],
         "miss": ["cat .env.example", "cat config/.env.example", "head .env.example", "ls -la .env.local", "ls .env", "test -f config/.env.local", "[ -f .env ] && echo yes",
                  "make test", "stat .env", "rg -n 'env.local' docs", "rg -n .env.local docs", 'rg --glob "!.env*" KEY', "sed -n '1,5p' .envrc-notes.md",
                  "grep -n ENV_FILE Makefile", "cat docs/env-notes.md", "cat environment.md", "echo $HOME", "echo .env", "cp .env.example .env", "cp .env.local backup/",
                  "git status --short .env.example", "git add .env.example", "cat envfile.txt", "source scripts/lib.sh; echo $X", "source .env; make test",
-                 "set -a; source config/.env.local; set +a; bash scripts/run.sh", "echo $KEY; source .env", "cat <<EOF\ncat .env\nEOF", "diff a.md b.md"],
+                 "set -a; source config/.env.local; set +a; bash scripts/run.sh", "echo $KEY; source .env", "cat <<EOF\ncat .env\nEOF", "diff a.md b.md",
+                 'set -a && . ./.env.local && set +a && go test ./... 2>&1 | tail -8; echo "exit=${pipestatus[1]}"',
+                 '(set -a; . ./.env.local; set +a; go test ./... > out.txt 2>&1); echo "go exit $?"',
+                 'cut -d= -f1 .env.development.local | rg "DATABASE_URL|DIRECT_URL"', 'rg -c "^QSTASH_TOKEN=" .env .env.local',
+                 'for k in A B; do if rg -q "^$k=" .env.local; then echo "$k set"; fi; done',
+                 "source .env; echo $?", "source .env; echo $!", "source .env; echo $#", "source .env; echo $$", "source .env; echo $-", "source .env; echo $0 $1 $9",
+                 "source .env; echo $@ $*", 'source .env; echo "$@"', "source .env; echo ${?} ${#} ${1} ${10} ${@}", "source .env; echo $status ${status}",
+                 "source .env; echo ${pipestatus[1]} ${pipestatus} $pipestatus[2] ${PIPESTATUS[0]} $PIPESTATUS ${PIPESTATUS[@]} ${pipestatus[-1]}",
+                 'source .env; echo "exit=$? status=$status"', 'source config/.env.local; printf "%s\\n" "$?"', "source .env; echo done", "source .env; echo",
+                 "cut -d= -f1 .env", "cut -d = -f1 .env", "cut -d '=' -f 1 .env", "cut -d= -f 1 .env", "cut -f1 -d= .env", "cut -f 1 -d '=' .env", "cut -d= -f1 -s .env",
+                 "cut -d= -f1 .env.local .env", "cut -d= -f1 < .env", "cut -d= -f1 config/.env.production | sort",
+                 "rg -c KEY .env", "rg --count KEY .env", "rg -q KEY .env", "rg --quiet KEY .env", "rg -l KEY .env", "rg --files-with-matches KEY .env",
+                 "rg --files-without-match KEY .env", "rg -qn KEY .env", "rg -nc KEY .env", "rg -cn KEY .env.local", "rg -ci KEY .env", "rg -c -o KEY .env",
+                 "rg -c -v KEY .env", "rg -l -v KEY .env", "rg --count-matches KEY .env", "rg -c -e KEY .env", "rg -c -A2 KEY .env", "rg -cA2 KEY .env", "rg -c -g '*.x' KEY .env",
+                 "rg -c KEY .env*", "rg -c KEY .env.local config/.env", "rg -c -- KEY .env", "rg -iqe KEY .env", "rg -qg x KEY .env",
+                 "grep -c KEY .env", "grep -q KEY .env", "grep -l KEY .env", "grep -L KEY .env", "grep --count KEY .env", "grep --quiet KEY .env", "grep --silent KEY .env",
+                 "grep --files-with-matches KEY .env", "grep --files-without-match KEY .env", "grep -cE 'A|B' .env", "grep -Ec 'A|B' .env", "grep -ci KEY .env",
+                 "grep -qE KEY .env", "egrep -c 'A|B' .env", "fgrep -q KEY .env", "grep -c -e KEY .env", "grep -cA2 KEY .env", "grep -c -m1 KEY .env",
+                 "/usr/bin/rg -c KEY .env", "sudo rg -c KEY .env", "cd app && rg -q KEY .env.local", "bash -c 'rg -c KEY .env'", "FOO=1 rg -c KEY .env"],
     },
     "env-dump": {
         "hit": ["printenv", "printenv HOME", "/usr/bin/printenv", "env", "env | sort", "env -0", "env -i", "env -u FOO", "FOO=1 env", "sudo env", "nice env",
-                "bash -c env", "echo x; printenv", "ls\nenv", "cd app && env"],
+                "bash -c env", "echo x; printenv", "ls\nenv", "cd app && env",
+                "env | rg KEY", "env | grep KEY", "env | rg -n KEY", "env | rg -i '^ANTHROPIC'", "env | rg -c KEY --json", "env | rg -L KEY", "env | rg -gc KEY", "env | rg -e -c",
+                "printenv | rg KEY", "printenv NAME", "printenv | sort", "env | sort | rg -c KEY", "env | cat | rg -q KEY", "env | head", "env | tee out | rg -c KEY",
+                "env; rg -c KEY out.txt", "env && rg -c KEY", "env; rg -q KEY", "env | rg -c KEY; env", "env | rg -c KEY && printenv",
+                "env | sed -n p", "env | cut -d= -f2", "env | awk '{print}'", "env | wc -l", "env | xargs echo", "env | (cat)", "echo $(env | rg KEY)", "echo `printenv`",
+                "env | rg -c KEY | env", "bash -c 'env | rg KEY'", "bash -c 'env'; env | rg -c KEY | cat; printenv", "rg -c KEY | env", "env -0 | rg KEY", "env | rg -- -c KEY",
+                "echo $(env)", "bash -c 'echo $(env)'", "env | env"],
         "miss": ["echo env", 'printf "%s\\n" env', "env FOO=1 make test", "env -i FOO=1 bash x.sh", "env -u FOO make test", "sudo env FOO=1 make", "printenvironment",
-                 "echo $HOME", "git status", "ls env", "cat env.md", "rg printenv docs"],
+                 "echo $HOME", "git status", "ls env", "cat env.md", "rg printenv docs",
+                 'env | rg -c "^ANTHROPIC_API_KEY="', 'env | rg -c "^UPSTASH"', "env | rg --count '^X'", "env | rg -q '^X'", "env | rg --quiet '^X'", "env | rg -qi x",
+                 "env | rg -ci x", "env | grep -c '^X'", "env | grep -q '^X'", "env | grep --count X", "env | egrep -c 'A|B'", "env | fgrep -q X", "env | rg -c -e '^X'",
+                 "env | rg -c KEY | head", "env | rg -c KEY | cat", "printenv | rg -c '^X'", "printenv | grep -q '^X'", "printenv NAME | rg -q .", "env | rg -l X", "env | rg --count-matches X",
+                 "env | rg -c -v X", "env | rg -c -o X", "env | /usr/bin/rg -c X", "env | sudo rg -c X", "env | rg -c X && echo ok", "env | rg -c X || echo none", "env | rg -c X; echo done",
+                 "env | rg -c X 2>&1", "env -0 | rg -c X", "FOO=1 env | rg -c X", "sudo env | rg -c X", "env |\n  rg -c X", "cd app && env | rg -q X && echo set", "bash -c 'env | rg -c X'",
+                 "sh -c \"printenv | grep -c '^X'\"", "if env | rg -q '^X'; then echo set; fi", 'test -n "$NAME"', 'test -n "${NAME:-}" && echo set'],
     },
     "pipe-before-commit": {
         "hit": ["go test ./... | tail -5 && git commit -m 'fix: x' -- a.go", "pnpm vitest run 2>&1 | tail -20 && git add web/a.ts && git commit -m x -- web/a.ts",
@@ -167,6 +218,13 @@ class BuiltInRules(unittest.TestCase):
         readme = (ROOT / "docs" / "reference.md").read_text()
         listed = re.findall(r"^\| `([a-z-]+)` \| (deny|ask) \|", readme, re.MULTILINE)
         self.assertEqual(sorted(listed), sorted((rule_id, kind_of(rule_id)) for rule_id in rule_ids()))
+
+    def test_a_denial_names_the_form_that_is_allowed(self):
+        for command, phrases in [("cat .env", ["rg -c", "rg -q", "cut -d= -f1"]), ("env", ['test -n "$NAME"', "env | rg -c"])]:
+            reason = verdict(command)[1]
+            for phrase in phrases:
+                self.assertIn(phrase, reason, command)
+            self.assertLess(len(reason), 300, reason)
 
     def test_disabling_a_rule_allows_its_commands_and_keeps_the_other_rules(self):
         for rule_id, cases in RULE_CASES.items():
