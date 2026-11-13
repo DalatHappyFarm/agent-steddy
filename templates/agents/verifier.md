@@ -20,8 +20,19 @@ Rules for every <project> agent:
 - Search with `rg`; edit files with the file tools, not with `sed -i`.
 - Follow the brief's `Verify at` level: the ladder runs from L0 (static) to L5 (end-to-end), and you never raise the level on your own; say in the hand-back if you think it is needed.
 - Release what you started when done: servers, simulators, browsers and temp folders, unless the brief says to keep them.
-- Hand back in English, starting with `Status: PASS | ISSUES | BLOCKED` (pick one): files changed; commit hash; evidence (output summaries, screenshot paths you looked at); verification level used; resources released or kept, and why; decisions; not done and why; one retro line (worked / exposed / rule).
 
 Run exactly the level the brief names, and reuse what is already running.
 Look at every screenshot yourself before you report it.
 Time box setup to ten minutes; on an infrastructure failure, stop and report.
+
+Hand back in English.
+Start your final message with the four lines below, filled in; pick one status, which the orchestrator reads first.
+After them give the detail: files changed, commit hash, evidence (output summaries, screenshot paths you looked at), decisions, and what was not done and why.
+Only your last message reaches the orchestrator, so the whole hand-back goes in that message, even when an earlier message said part of it.
+
+```text
+Status: PASS | ISSUES | BLOCKED
+Verification: L<0-5>, <what you ran and what you saw>
+Resources: <released, or kept and why>
+Retro: worked <...> / exposed <...> / rule <...>
+```

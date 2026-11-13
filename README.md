@@ -28,7 +28,7 @@ Two halves: hooks that act on their own, and a method the agent follows.
 1. **Session start.** If the branch has a resume note from a paused task, the agent is told to read it first.
 2. **Every prompt.** The seven gates, a line when a rule keeps repeating, and up to three recorded lessons that match the prompt go into the agent's context; a task clock starts.
 3. **Every Bash command.** It is checked before it runs (denied, or sent to you), timed, and stripped of secrets in its output. When the same command fails twice, the agent is told to test its premise instead of trying a third fix.
-4. **Every subagent.** It must be an allowed type on its set model; when your config sets them, it writes only inside its fence and its hand-back must carry a status, a verification level and a retro line.
+4. **Every subagent.** It must be an allowed type on its set model; when your config sets them, it writes only inside its fence and its hand-back must carry a status, a verification level and a retro line, and it must have released the dev ports you list.
 
 **The agent, at each of the seven gates:**
 
@@ -58,7 +58,7 @@ You review and push.
 1. A mistake becomes a rule with a key and a When line, the situation it applies to.
 2. The rule comes back when that situation does, through the prompt hook or `agent-steddy lessons find`.
 3. Seen twice, it moves into a role card or the project's walls with `agent-steddy lessons promote`.
-4. Broken again after that, it needs a check a machine runs: a deny rule shown with `agent-steddy guard "<the bad command>" --expect deny`, or a test, kept as an eval case that `agent-steddy lessons eval` reruns after a plugin or model change.
+4. Broken again after that, it needs a check a machine runs: a deny rule shown with `agent-steddy guard "<the bad command>" --expect deny`, or a test, kept as an eval case that `agent-steddy lessons eval` reruns after a plugin or model change; a deny rule's command lines also go into the guard cases file, which `agent-steddy guard --cases` reruns in the verify command.
 5. A rule that no longer holds is retired with `agent-steddy lessons retire`.
 
 **What you do.**

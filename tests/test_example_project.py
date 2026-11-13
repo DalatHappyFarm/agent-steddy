@@ -10,6 +10,7 @@ import json
 import pathlib
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,9 @@ CONFIG = json.loads((EXAMPLE / ".claude" / "agent-steddy.json").read_text(encodi
 BIN = ROOT / "bin" / "agent-steddy"
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from hook_runner import cli_env, git, make_repo, run_hook  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "scripts"))
+import stop_check  # noqa: E402
 
 
 def bash(command, agent=None):
@@ -118,10 +122,36 @@ COMPLETE = "Status: PASS. Files: web/index.html. Commit abc123. Verification: L1
 
 
 class StopCheck(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        busy = stop_check.busy_ports(CONFIG)
+        if busy:
+            raise unittest.SkipTest(f"something on this machine listens on the example's dev port(s) {busy}")
+
     def test_blocks_a_hand_back_that_misses_every_item_and_names_each_hint(self):
         reason = stop("acme-web", "Done.")
         for item in CONFIG["handback"]["required"]:
             self.assertIn(item["hint"], reason)
+
+    @unittest.skipUnless(shutil.which("lsof"), "the probe needs lsof")
+    def test_blocks_a_complete_hand_back_while_the_dev_server_port_listens_and_names_both_in_one_block(self):
+        port = next(port for port in CONFIG["resources"]["ports"] if isinstance(port, int))
+        with socket.socket() as sock:
+            try:
+                sock.bind(("127.0.0.1", port))
+            except OSError:
+                self.skipTest(f"port {port} is in use on this machine")
+            sock.listen()
+            for agent in ["acme-web", "acme-docs"]:
+                reason = stop(agent, COMPLETE)
+                self.assertIn(f"port(s) {port} ({CONFIG['resources']['hint']})", reason, agent)
+                self.assertNotIn("Your hand-back is missing", reason, agent)
+            reason = stop("acme-web", "Done.")
+            self.assertIn(CONFIG["handback"]["required"][0]["hint"], reason)
+            self.assertIn(f"port(s) {port}", reason)
+            self.assertIsNone(stop("acme-web", COMPLETE, active=True))
+            self.assertIsNone(stop("general-purpose", COMPLETE))
+        self.assertIsNone(stop("acme-web", COMPLETE))  # released
 
     def test_blocks_only_the_items_that_are_missing(self):
         hints = {item["id"]: item["hint"] for item in CONFIG["handback"]["required"]}
@@ -311,6 +341,29 @@ class WholeTask(unittest.TestCase):
                 self.assertFalse((where / "feat__pricing.md").exists())
                 self.assertIsNone(run_hook("session_start.py", start, project))
                 self.assertTrue(agent_steddy("resume", cwd=project).stdout.startswith("no resume note for feat/pricing"))
+
+    def test_the_recorded_guard_cases_of_the_example_hold_in_the_hook_and_in_the_command_and_a_weaker_config_fails_them(self):
+        lines = (EXAMPLE / CONFIG["records"]["guardCases"]).read_text(encoding="utf-8").splitlines()
+        cases = [(number, *line.split(None, 1)) for number, line in enumerate(lines, 1) if line.strip() and not line.startswith("#")]
+        self.assertTrue(any(want == "deny" and rest.startswith(CONFIG["commands"]["deny"][0]["match"]) for _, want, rest in cases), "the project's own deny rule")
+        self.assertTrue(any(want == "deny" and rest == "git stash" for _, want, rest in cases), "a built-in rule")
+        agents = [rest.split()[0][1:] for _, _, rest in cases if rest.startswith("@")]
+        self.assertTrue(agents)
+        for agent in agents:  # an @agent case names an agent of the example
+            self.assertTrue(any(fnmatch.fnmatchcase(agent, pattern) for pattern in CONFIG["agents"]["allowed"]), agent)
+        for _, want, rest in cases:  # the real hook gives the verdict that the file records
+            agent, _, command = rest[1:].partition(" ") if rest.startswith("@") else (None, "", rest)
+            self.assertEqual(bash(command, agent)[0], want, rest)
+        with copy_of_example() as project:
+            self.assertEqual(agent_steddy("guard", "--cases", cwd=project).stdout, f"guard cases: {len(cases)} passed, 0 failed\n")
+            config = json.loads((project / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
+            config["commands"]["deny"] = []
+            (project / ".claude" / "agent-steddy.json").write_text(json.dumps(config), encoding="utf-8")
+            with self.assertRaises(subprocess.CalledProcessError) as failed:
+                agent_steddy("guard", "--cases", cwd=project)
+            number, _, rest = next(case for case in cases if case[2].startswith(CONFIG["commands"]["deny"][0]["match"]))
+            self.assertEqual(failed.exception.returncode, 1)
+            self.assertEqual(failed.exception.stdout, f"FAIL line {number}: want deny, got allow: {rest}\nguard cases: {len(cases) - 1} passed, 1 failed\n")
 
     def test_the_example_itself_is_left_clean(self):
         self.assertFalse((EXAMPLE / "docs" / "agents" / "decisions.md").exists())

@@ -1,7 +1,14 @@
+import contextlib
+import os
 import pathlib
+import shutil
+import socket
+import stat
 import sys
 import tempfile
+import time
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -65,6 +72,145 @@ class DefaultItems(unittest.TestCase):
         self.assertIn(STATUS_HINT, stop("Verified at L1. Retro: x."))  # the default list changed in 0.3.0
         own = {"handback": {"agents": ["acme-*"], "required": [{"id": "retro", "pattern": "(?i:retro)", "hint": RETRO_HINT}]}}
         self.assertIsNone(stop("Verified at L1. Retro: x.", own))
+
+
+@contextlib.contextmanager
+def listening():
+    """A real TCP socket that listens on an ephemeral port of 127.0.0.1; yields the port."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen()
+        yield sock.getsockname()[1]
+
+
+def closed_port():
+    """A port that nothing listens on: an ephemeral one, released right away."""
+    with listening() as port:
+        return port
+
+
+def with_ports(ports, hint=None):
+    return {"handback": {"agents": ["acme-*"]}, "resources": {"ports": ports, **({"hint": hint} if hint else {})}}
+
+
+class ResourceSettings(unittest.TestCase):
+    def test_the_defaults_name_no_port_and_no_hint(self):
+        self.assertEqual(project_config.DEFAULTS["resources"], {"ports": [], "hint": ""})
+        self.assertEqual(project_config.get({"resources": {"ports": "5173", "hint": 7}}, "resources", "ports"), [])
+        self.assertEqual(project_config.get({"resources": {"ports": "5173", "hint": 7}}, "resources", "hint"), "")
+
+    def test_ports_are_ints_and_a_b_ranges_and_anything_else_is_skipped(self):
+        self.assertEqual(stop_check.port_spec([5173, "5174-5179", " 9224 ", "54329-54329"]), ["5173", "5174-5179", "9224", "54329"])
+        self.assertEqual(stop_check.port_spec([True, False, None, 0, -1, 65536, "x", "", "9-3", "1-2-3", "0-5", "1-65536", "9" * 5000, "1-" + "9" * 5000, ["5173"], 51.5]), [])
+        self.assertEqual(stop_check.port_spec([]), [])
+
+
+@unittest.skipUnless(shutil.which("lsof"), "the probe needs lsof")
+class BusyPorts(unittest.TestCase):
+    """A real socket and a real lsof: the check is whatever lsof says about this machine."""
+
+    def test_a_listening_port_blocks_a_complete_hand_back_and_the_reason_names_the_port_and_the_hint(self):
+        with listening() as port:
+            reason = stop(FULL, with_ports([port], "stop the dev server and headless Chrome"))
+            self.assertIn(f"port(s) {port} (stop the dev server and headless Chrome). Release them, or say in your hand-back why they are kept.", reason)
+            self.assertIn("end it with your full hand-back again, not just the resource note", reason)
+            self.assertNotIn("Your hand-back is missing", reason)
+            self.assertIn(f"port(s) {port}. Release them", stop(FULL, with_ports([port])))  # no hint, no parentheses
+        self.assertIsNone(stop(FULL, with_ports([port], "stop the dev server")))  # released
+
+    def test_one_block_lists_the_missing_items_and_the_busy_ports(self):
+        with listening() as port:
+            reason = stop("Done.", with_ports([port]))
+        self.assertIn(STATUS_HINT, reason)
+        self.assertIn(LEVEL_HINT, reason)
+        self.assertIn(f"port(s) {port}", reason)
+        self.assertEqual(reason.count("this check blocks only once"), 1)
+
+    def test_only_the_ports_that_listen_are_named_and_in_order(self):
+        with listening() as first, listening() as second:
+            low, high = sorted([first, second])
+            gone = closed_port()
+            reason = stop(FULL, with_ports([high, gone, low]))
+            self.assertIn(f"port(s) {low}, {high}. Release", reason)
+            self.assertNotIn(str(gone), reason)
+
+    def test_a_range_and_a_port_written_as_a_string_are_probed_too(self):
+        with listening() as port:
+            self.assertIn(str(port), stop(FULL, with_ports([f"{port}-{port + 1}"])))
+            self.assertIn(str(port), stop(FULL, with_ports([str(port)])))
+            self.assertIn(str(port), stop(FULL, with_ports([f"{port - 1}-{port}"])))
+            self.assertIsNone(stop(FULL, with_ports([True, "x", 70000, "9-3"])))  # invalid entries probe nothing
+            self.assertIn(f"port(s) {port}", stop(FULL, with_ports([None, "x", port, 70000])))  # and do not hide a good one
+
+    def test_it_blocks_once_and_only_for_the_agents_that_are_checked(self):
+        with listening() as port:
+            config = with_ports([port])
+            self.assertIsNotNone(stop(FULL, config))
+            self.assertIsNone(stop(FULL, config, active=True))
+            self.assertIsNone(stop("", config, active=True))
+            self.assertIsNone(stop(FULL, config, agent="Explore"))
+            self.assertIsNone(stop(FULL, {**config, "handback": {"agents": []}}))
+            self.assertIsNotNone(stop(FULL, config, agent="acme-docs"))
+
+    def test_through_the_hook_as_claude_code_runs_it(self):
+        with listening() as port, tempfile.TemporaryDirectory() as tmp:
+            write_config(tmp, with_ports([port], "stop the dev server"))
+            first = {"hook_event_name": "SubagentStop", "agent_type": "acme-web", "stop_hook_active": False, "last_assistant_message": FULL}
+            out = run_hook("stop_check.py", first, tmp)
+            self.assertEqual(set(out), {"decision", "reason"})
+            self.assertEqual(out["decision"], "block")
+            self.assertIn(f"port(s) {port} (stop the dev server)", out["reason"])
+            self.assertIsNone(run_hook("stop_check.py", {**first, "stop_hook_active": True}, tmp))
+
+    def test_without_lsof_the_resource_part_is_skipped_and_the_hand_back_part_still_blocks(self):
+        with listening() as port, tempfile.TemporaryDirectory() as nowhere:
+            config = with_ports([port])
+            self.assertIsNotNone(stop(FULL, config))  # lsof is found here
+            with mock.patch.dict(os.environ, {"PATH": nowhere}):
+                self.assertIsNone(stop(FULL, config))
+                reason = stop("Done.", config)
+                self.assertIn(STATUS_HINT, reason)
+                self.assertNotIn("Resources still running", reason)
+            write_config(nowhere, config)
+            first = {"agent_type": "acme-web", "stop_hook_active": False, "last_assistant_message": FULL}
+            self.assertEqual(run_hook("stop_check.py", first, nowhere)["decision"], "block")
+            self.assertIsNone(run_hook("stop_check.py", first, nowhere, env={"PATH": nowhere}))
+
+
+class FakeLsof(unittest.TestCase):
+    """The ways lsof can answer or fail, with a stand-in first on the PATH."""
+
+    @contextlib.contextmanager
+    def lsof(self, script):
+        with tempfile.TemporaryDirectory() as folder:
+            path = pathlib.Path(folder) / "lsof"
+            path.write_text("#!/bin/sh\n" + script + "\n")
+            path.chmod(path.stat().st_mode | stat.S_IXUSR)
+            with mock.patch.dict(os.environ, {"PATH": folder + os.pathsep + os.environ["PATH"]}):
+                yield path
+
+    def test_it_asks_lsof_for_the_configured_ports_and_reads_ipv4_and_ipv6_listeners_only(self):
+        output = ("COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\n"
+                  "node 11 me 23u IPv4 0x1 0t0 TCP *:5173 (LISTEN)\n"
+                  "node 11 me 24u IPv6 0x2 0t0 TCP [::1]:5174 (LISTEN)\n"
+                  "Chrome 12 me 25u IPv4 0x3 0t0 TCP 127.0.0.1:9224 (LISTEN)\n"
+                  "node 11 me 26u IPv4 0x4 0t0 TCP 127.0.0.1:5173->127.0.0.1:50000 (ESTABLISHED)")
+        with self.lsof(f"echo \"$@\" > \"$0.args\"\ncat <<'EOF'\n{output}\nEOF") as path:
+            ports = [5173, "5174-5179", "9224-9230"]
+            self.assertEqual(stop_check.busy_ports(with_ports(ports)), [5173, 5174, 9224])
+            self.assertIn("port(s) 5173, 5174, 9224 (stop the servers)", stop(FULL, with_ports(ports, "stop the servers")))
+            self.assertEqual(pathlib.Path(f"{path}.args").read_text().split(), ["-nP", "-iTCP:5173,5174-5179,9224-9230", "-sTCP:LISTEN"])
+            self.assertEqual(stop_check.busy_ports(with_ports([])), [])  # no port, no probe
+
+    def test_a_probe_that_hangs_or_fails_is_skipped_within_the_time_limit(self):
+        with self.lsof("echo 'node 1 me 3u IPv4 0x1 0t0 TCP *:5555 (LISTEN)'"):
+            self.assertIn("port(s) 5555", stop(FULL, with_ports([5555])))  # the stand-in works when it behaves
+        for broken in ["exec sleep 5", "echo 'lsof: no memory' >&2; exit 2", "exit 127", "echo garbage; exit 0", "kill -9 $$"]:
+            with self.lsof(broken), mock.patch.object(stop_check, "PROBE_SECONDS", 0.3):
+                started = time.monotonic()
+                self.assertIsNone(stop(FULL, with_ports([5555])), broken)
+                self.assertIn(STATUS_HINT, stop("Done.", with_ports([5555])), broken)
+                self.assertLess(time.monotonic() - started, 3, broken)
 
 
 class WhoIsChecked(unittest.TestCase):
@@ -149,7 +295,10 @@ class ExampleConfig(unittest.TestCase):
             config = project_config.load(tmp)
         self.assertEqual(config["handback"]["agents"], ["acme-*"])
         self.assertEqual([item["id"] for item in config["handback"]["required"]][:3], ["status", "verification", "retro"])
-        self.assertIsNone(stop(FULL + " Resources released: nothing started.", config))
+        ports, hint = config["resources"]["ports"], config["resources"]["hint"]
+        self.assertTrue(ports and hint)
+        self.assertEqual(len(stop_check.port_spec(ports)), len(ports))  # every entry of the example is a valid port or range
+        self.assertIsNone(stop(FULL + " Resources released: nothing started.", {**config, "resources": {"ports": [], "hint": hint}}))  # no probe: the result must not depend on this machine's ports
         reason = stop("Done.", config)
         for hint in [item["hint"] for item in config["handback"]["required"]]:
             self.assertIn(hint, reason)

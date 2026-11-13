@@ -28,6 +28,8 @@ Unknown keys are kept and are not an error.
 | `guards.disable` | `[]` | `scripts/guard_bash.py` |
 | `handback.agents` | `[]` | `scripts/stop_check.py` |
 | `handback.required` | a status, a verification level and a retro line | `scripts/stop_check.py` |
+| `resources.ports` | `[]` | `scripts/stop_check.py` |
+| `resources.hint` | `""` | `scripts/stop_check.py` |
 | `commands.deny` | `[]` | `scripts/guard_bash.py` |
 | `commands.askFromSubagent` | `[]` | `scripts/guard_bash.py` |
 | `commands.alwaysAsk` | `[]` | `scripts/guard_bash.py` |
@@ -42,6 +44,7 @@ Unknown keys are kept and are not an error.
 | `records.roles` | `"docs/agents/roles"` | `scripts/lessons.py` |
 | `records.walls` | `"docs/agents/walls.md"` | `scripts/lessons.py`, `scripts/evals.py` |
 | `records.evals` | `"docs/agents/evals"` | `scripts/evals.py`, `scripts/cli.py`, `scripts/gate_reminder.py` |
+| `records.guardCases` | `"docs/agents/guard-cases.txt"` | `scripts/guard_cases.py`, `scripts/cli.py` |
 
 - `workingBranch` is the branch agents work on and merge into; `record finish` fast-forwards it.
 - `verifyCommand` is the command that proves a change, or `null` when the project has none.
@@ -59,9 +62,15 @@ Unknown keys are kept and are not an error.
   The default `[]` checks no agent, so a project opts in.
 - `handback.required` is a list of `{"id": "<name>", "pattern": "<regular expression>", "hint": "<text>"}` objects: what the final message of a checked agent must contain.
   The default asks for a status (one of the words `PASS`, `ISSUES` and `BLOCKED`, whole and in capitals), a verification level (the text `verif` in any case, or `L0` to `L5`) and a retro line (the text `retro` in any case).
-  The templates have the agents start their hand-back with `Status: PASS | ISSUES | BLOCKED`, and the orchestrator reads that word first.
+  The templates end each agent file, and the brief, with a four line block (`Status`, `Verification`, `Resources` and `Retro`) that the agent copies to the top of its final message and fills in, and the orchestrator reads the status word first.
+  The words of those lines satisfy the default items, so a hand-back that fills the block in passes on the first try; a project that sets its own list keeps the block in step with it.
   This default changed in 0.3.0: a project that opted in with `handback.agents` and left `handback.required` out now also needs the status word, and a project that sets its own `handback.required` list is not affected.
   A list in the config replaces the default list.
+- `resources.ports` is a list of the TCP ports that must not be listening when a checked subagent stops: an integer such as `5173`, or a string `"a-b"` for a range such as `"5173-5179"`.
+  The default `[]` checks nothing.
+  It applies to the agent types of `handback.agents`; an entry that is neither a port nor a range is skipped.
+- `resources.hint` is what to stop, in a few words, for the message that names the busy ports, for example `"stop the dev server and headless Chrome"`.
+  The default `""` adds nothing.
 - `commands.deny` is a list of `{"match": "<words>", "reason": "<text>"}` objects; a matching command is always blocked and the agent sees the reason.
   A rule without a `reason` still blocks and says which rule matched.
 - `commands.askFromSubagent` is a list of `"<words>"` patterns; a subagent that runs a matching command makes the owner confirm it.
@@ -75,11 +84,12 @@ Unknown keys are kept and are not an error.
   An empty text adds nothing.
 - `nudges.premise` turns the [premise nudge](#premise-nudge) off when it is `false`; the command is still logged.
 - `recall.prompt` turns off the lessons that the [gate reminder](#gate-reminder) adds for the prompt when it is `false`; `agent-steddy lessons find` still works.
-- `records.*` are paths relative to the project root: the lessons file, the metrics file, the decisions file, the folder of the role cards, the walls file and the folder of the eval cases.
+- `records.*` are paths relative to the project root: the lessons file, the metrics file, the decisions file, the folder of the role cards, the walls file, the folder of the eval cases and the guard cases file.
   The command creates the file and its folder when it first writes to it; the role cards are never created, since `lessons promote` writes into a card that exists (copy `templates/roles/role-card.md` from the plugin).
 - `records.roles` is the folder of the role cards, one `<role>.md` for each role; `lessons promote --to <role>` writes into the card of that name, and `lessons check` reads every card of the folder.
 - `records.walls` is the project's walls file, the rules that every role reads at gate 2; `lessons promote --to walls` appends to it and creates it when it is missing.
 - `records.evals` is the folder of the [lesson evals](#lesson-evals), one Markdown file per case; nothing creates it, a person or an agent writes the cases.
+- `records.guardCases` is the text file of [guard cases](#guard-cases), the command lines with the verdict the Bash guard must give each; `agent-steddy guard --cases` reads it, and nothing creates it.
 
 ## Decisions
 
@@ -158,6 +168,17 @@ A `hint` falls back to the `id`, then to the `pattern`.
   An empty text lacks every item, so it is blocked.
 - An item that is not an object with a string `pattern`, or whose pattern is not a valid regular expression, is skipped.
   A value of the wrong type is read as the default, and any error inside the hook lets the agent stop.
+
+### Ports left listening
+
+The same hook can check that the agent left no dev server behind.
+When `resources.ports` lists ports and the agent type matches `handback.agents`, the hook runs `lsof -nP -iTCP:<ports> -sTCP:LISTEN` with a one second limit (the hook limit is 5 seconds).
+When something listens, the block names the ports and the `resources.hint`, and asks the agent to release them or to say in its hand-back why they are kept.
+One block lists the missing hand-back items and the busy ports together, and it blocks once like the rest, so the agent pays one extra turn at most.
+
+- The block ends with `Only your last message reaches the orchestrator, so end it with your full hand-back again, not just the resource note.`, because an agent that answers a resource block with one line about the port loses its hand-back.
+- The probe sees the machine, not the agent's own processes, so a port held by the orchestrator or by another agent counts too; the agent says in its hand-back that the port is not its own.
+- Without `lsof`, or when it fails or takes longer than the limit, the probe is skipped and the hand-back check runs alone.
 
 ## Secret output scan
 
@@ -340,6 +361,27 @@ The refusals that ask for another key, When, target or task name (a rule with no
 It exits 0, and with `--expect` it exits 1 unless the verdict is the expected one, so a lesson eval's Check can show that a deny rule stops the recorded failure.
 The line is one quoted argument, so the guard of the session that runs `agent-steddy guard` does not read it as a command.
 `pause` and `resume` exit 2 as well when there is no branch or repo to work with: a detached HEAD, a repo with no commit, a project that is not a git repo, a `resume.folder` outside the project.
+
+### Guard cases
+
+`agent-steddy guard --cases [<file>]` runs a list of recorded command lines through the same guard, and checks each against the verdict written beside it.
+A project keeps the lines that its deny and ask rules were written for, and runs the command in its verify command, so a config edit or a plugin update that changes a verdict fails the verify.
+The file is `<file>`, a path relative to the working directory, else `records.guardCases` (`docs/agents/guard-cases.txt` by default), relative to the project root.
+
+```text
+# the project's own deny rule
+deny acme-cli config push --yes
+# a deploy: the main session runs it, a subagent asks
+allow make deploy
+ask @acme-web make deploy
+```
+
+- A case is one line, `<deny|ask|allow> [@<agent-type>] <command line>`: the verdict the guard must give, an optional agent type that judges the line as a subagent of that type (the main session without it), and the command line, as `agent-steddy guard` takes it.
+  A blank line and a line that starts with `#` are skipped; a `#` later in a line belongs to the command line.
+- It prints one line for each case whose verdict differs, `FAIL line <n>: want deny, got allow: <the case after its verdict>`, then `guard cases: <passed> passed, <failed> failed`, and exits 1 when any failed and 0 when none did.
+- It refuses with exit 2, before it runs any case, when the file is missing or unreadable, or when a line is malformed: it starts with another word than the three verdicts, has a `@` with no agent type, or has no command line.
+  The reason names the file and the line number.
+- A file with no case passes with `guard cases: 0 passed, 0 failed`, so a project that wants to be sure the file is read checks that its summary has a number above zero.
 
 ## Metrics
 

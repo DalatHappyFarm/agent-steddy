@@ -178,6 +178,106 @@ class Guard(unittest.TestCase):
                 self.assertEqual(agent_steddy(["guard", line, "--expect", expect], root).returncode, code, (line, expect))
 
 
+GUARD_CONFIG = {"commands": {"deny": [{"match": "acme-cli config push", "reason": "No config push."}], "askFromSubagent": ["make deploy"]}}
+CASES = """# recorded lines and their verdicts
+
+deny git stash
+deny acme-cli config push --yes
+\tdeny   git add -A
+ask @acme-web make deploy
+allow make deploy
+allow git status --short
+allow @acme-web rg TODO web/
+"""
+
+
+class GuardCases(unittest.TestCase):
+    def cases(self, root, text, name="docs/agents/guard-cases.txt"):
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        return path
+
+    def test_it_runs_every_case_of_the_default_file_and_prints_one_summary_line(self):
+        with project(GUARD_CONFIG) as root:
+            self.cases(root, CASES)
+            done = agent_steddy(["guard", "--cases"], root)
+            self.assertEqual((done.returncode, done.stdout, done.stderr), (0, "guard cases: 7 passed, 0 failed\n", ""))
+            (root / "app").mkdir()
+            self.assertEqual(agent_steddy(["guard", "--cases"], root / "app").stdout, "guard cases: 7 passed, 0 failed\n")  # the project is found from a subfolder
+
+    def test_the_default_file_comes_from_the_project_config_and_a_file_argument_replaces_it(self):
+        with project({**GUARD_CONFIG, "records": {"guardCases": "notes/cases.txt"}}) as root:
+            self.cases(root, "deny git stash\n", "notes/cases.txt")
+            self.cases(root, "allow git stash\nallow git status\n", "other.txt")
+            self.assertEqual(agent_steddy(["guard", "--cases"], root).stdout, "guard cases: 1 passed, 0 failed\n")
+            done = agent_steddy(["guard", "--cases", "other.txt"], root)
+            self.assertEqual((done.returncode, done.stdout), (1, "FAIL line 1: want allow, got deny: git stash\nguard cases: 1 passed, 1 failed\n"))
+
+    def test_a_failure_prints_its_line_number_and_both_verdicts_and_exits_1(self):
+        with project(GUARD_CONFIG) as root:
+            text = CASES.replace("deny acme-cli config push --yes", "deny acme-cli config show").replace("allow @acme-web rg TODO web/", "ask @acme-web rg TODO web/")
+            self.cases(root, text)
+            done = agent_steddy(["guard", "--cases"], root)
+            self.assertEqual(done.returncode, 1)
+            self.assertEqual(done.stdout.splitlines(), ["FAIL line 4: want deny, got allow: acme-cli config show",
+                                                        "FAIL line 9: want ask, got allow: @acme-web rg TODO web/",
+                                                        "guard cases: 5 passed, 2 failed"])
+
+    def test_a_config_edit_that_changes_a_verdict_fails_the_same_cases(self):
+        with project(GUARD_CONFIG) as root:
+            self.cases(root, CASES)
+            self.assertEqual(agent_steddy(["guard", "--cases"], root).returncode, 0)
+            write_config(root, {"commands": {"deny": [], "askFromSubagent": []}})
+            done = agent_steddy(["guard", "--cases"], root)
+            self.assertEqual(done.returncode, 1)
+            self.assertEqual(done.stdout.splitlines(), ["FAIL line 4: want deny, got allow: acme-cli config push --yes",
+                                                        "FAIL line 6: want ask, got allow: @acme-web make deploy",
+                                                        "guard cases: 5 passed, 2 failed"])
+
+    def test_an_agent_case_is_judged_as_a_subagent_and_one_without_is_the_main_session(self):
+        with project(GUARD_CONFIG) as root:
+            self.cases(root, "allow make deploy\nask @acme-web make deploy\nask @other-agent make deploy\n")
+            self.assertEqual(agent_steddy(["guard", "--cases"], root).stdout, "guard cases: 3 passed, 0 failed\n")
+            self.cases(root, "ask make deploy\nallow @acme-web make deploy\n")
+            self.assertEqual(agent_steddy(["guard", "--cases"], root).stdout.splitlines()[:2],
+                             ["FAIL line 1: want ask, got allow: make deploy", "FAIL line 2: want allow, got ask: @acme-web make deploy"])
+
+    def test_a_malformed_line_refuses_with_exit_2_naming_its_number_and_runs_nothing(self):
+        for text, number, why in [("deny git stash\n\n# note\nblock git stash\n", 4, "a case starts with deny, ask or allow, not 'block'"),
+                                  ("deny git stash\nallow @ git status\n", 2, "'@' needs an agent type"),
+                                  ("deny git stash\nallow\n", 2, "no command line after the verdict"),
+                                  ("deny\n", 1, "no command line after the verdict"),
+                                  ("allow @acme-web\n", 1, "no command line after the verdict"),
+                                  ("git stash\n", 1, "a case starts with deny, ask or allow, not 'git'")]:
+            with project() as root:
+                self.cases(root, text)
+                done = agent_steddy(["guard", "--cases"], root)
+                self.assertEqual((done.returncode, done.stdout), (2, ""), text)
+                self.assertRegex(done.stderr, rf"^agent-steddy: refused: .*guard-cases\.txt line {number}: {why}", text)
+
+    def test_a_missing_file_refuses_with_exit_2_and_a_file_that_is_a_folder_too(self):
+        with project() as root:
+            done = agent_steddy(["guard", "--cases"], root)
+            self.assertEqual((done.returncode, done.stdout), (2, ""))
+            self.assertRegex(done.stderr, r"^agent-steddy: refused: cannot read the guard cases file .*docs/agents/guard-cases\.txt: No such file or directory")
+            self.assertEqual(agent_steddy(["guard", "--cases", "nope.txt"], root).returncode, 2)
+            (root / "docs").mkdir()
+            self.assertEqual(agent_steddy(["guard", "--cases", "docs"], root).returncode, 2)
+
+    def test_an_empty_file_has_no_failure_and_the_flag_does_not_mix_with_a_line(self):
+        with project() as root:
+            self.cases(root, "# nothing recorded yet\n\n")
+            self.assertEqual(agent_steddy(["guard", "--cases"], root).stdout, "guard cases: 0 passed, 0 failed\n")
+            for args in (["guard", "git stash", "--cases"], ["guard", "--cases", "--agent", "acme-web"], ["guard", "--cases", "--expect", "deny"]):
+                done = agent_steddy(args, root)
+                self.assertEqual((done.returncode, done.stdout), (2, ""), args)
+                self.assertIn("agent-steddy: refused: --cases takes no command line", done.stderr)
+            done = agent_steddy(["guard"], root)
+            self.assertEqual((done.returncode, done.stdout), (2, ""))
+            self.assertIn("agent-steddy: refused: give a command line, or --cases", done.stderr)
+
+
 class Records(unittest.TestCase):
     def test_decision_and_lesson_go_to_the_files_named_in_the_config(self):
         with project({"records": {"decisions": "notes/decisions.md", "lessons": "notes/lessons.md"}}) as root:

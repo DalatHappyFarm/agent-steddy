@@ -22,6 +22,17 @@ Rules for every <project> agent:
 - End each unit of work in a state you can check, and check it before the next one; put the failing test first and the fix on top (gates skill, Rules inside the gates).
 - When two fixes that rest on one premise fail the same check, stop: write the premise as one sentence and test it before a third fix (gates skill, Rules inside the gates).
 - Release what you started when done: servers, simulators, browsers and temp folders, unless the brief says to keep them.
-- Hand back in English, starting with `Status: PASS | ISSUES | BLOCKED` (pick one): files changed; commit hash; evidence (output summaries, screenshot paths you looked at); verification level used; resources released or kept, and why; decisions; not done and why; one retro line (worked / exposed / rule).
 
 Run the checks the brief names, then the project's verify command, before you commit.
+
+Hand back in English.
+Start your final message with the four lines below, filled in; pick one status, which the orchestrator reads first.
+After them give the detail: files changed, commit hash, evidence (output summaries, screenshot paths you looked at), decisions, and what was not done and why.
+Only your last message reaches the orchestrator, so the whole hand-back goes in that message, even when an earlier message said part of it.
+
+```text
+Status: PASS | ISSUES | BLOCKED
+Verification: L<0-5>, <what you ran and what you saw>
+Resources: <released, or kept and why>
+Retro: worked <...> / exposed <...> / rule <...>
+```

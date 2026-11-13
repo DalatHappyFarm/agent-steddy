@@ -19,6 +19,7 @@
   agent-steddy resume [--branch B] [--clear]        print the resume note and what changed since it; --clear deletes it
   agent-steddy guard "<command line>" [--agent T] [--expect deny|ask|allow]
                                                     the Bash guard's verdict on a line, built-in and project rules; with --expect, exit 1 unless it is that one
+  agent-steddy guard --cases [<file>]               every recorded case of the file (default records.guardCases), one `<deny|ask|allow> [@<agent-type>] <command line>` a line; exit 1 when a verdict differs
 
   agent-steddy lessons check [--quiet]              rules due, rules broken after promotion, rules with no When or no key, role cards to prune
   agent-steddy lessons find "<query>" [--top 5]     the recorded rules that fit a task, best first (BM25 over keys, rules and When lines)
@@ -31,7 +32,7 @@
 Inside a Claude Code session, every command but `guard` and `metrics selftest` first warns on stderr when this plugin's hooks did not run in the session, or run another copy than this command (session_marker.py); the exit code and stdout stay as they are.
 `metrics selftest` prints the result as its second line.
 The project is `CLAUDE_PROJECT_DIR` when set, else the nearest folder from the cwd up that has `.claude/agent-steddy.json` or `.git`.
-Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused or an eval case fails, and 2 when the learning loop wants another key, When or target, `metrics log` has only an auto task name or a clock that was left open, or `pause` and `resume` have no branch or repo to work with, with the reason on stderr.
+Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused, an eval case fails or a guard case gets another verdict, and 2 when the learning loop wants another key, When or target, `metrics log` has only an auto task name or a clock that was left open, `pause` and `resume` have no branch or repo to work with, or `guard --cases` has no file or a malformed line, with the reason on stderr.
 """
 import argparse
 import json
@@ -45,6 +46,7 @@ import local_state  # noqa: E402
 import metrics  # noqa: E402
 import evals  # noqa: E402
 import guard_bash  # noqa: E402
+import guard_cases  # noqa: E402
 import project_config  # noqa: E402
 import record  # noqa: E402
 import resume  # noqa: E402
@@ -102,9 +104,10 @@ def build_parser():
     pick_up.add_argument("--branch", help="the branch; default is the checked out one")
     pick_up.add_argument("--clear", action="store_true", help="delete the note instead of printing it")
     verdict = groups.add_parser("guard", help="the Bash guard's verdict on a command line, as the hook gives it; a check that a deny rule holds")
-    verdict.add_argument("line", help="the command line, quoted as one argument")
+    verdict.add_argument("line", nargs="?", help="the command line, quoted as one argument")
     verdict.add_argument("--agent", help="the agent type, for the rules that apply to a subagent; default the main session")
     verdict.add_argument("--expect", choices=["deny", "ask", "allow"], help="exit 0 when the verdict is this one and 1 otherwise, for an eval case's Check")
+    verdict.add_argument("--cases", nargs="?", const="", metavar="FILE", help="instead of a line: run every recorded case of FILE (default records.guardCases), `<deny|ask|allow> [@<agent-type>] <command line>` a line; exit 1 when a verdict differs, 2 for a missing file or a malformed line")
     loop = groups.add_parser("lessons", help="the learning loop: rules that repeat, and moving them up").add_subparsers(dest="command", required=True)
     check = loop.add_parser("check", help="rules due, rules broken after promotion, rules with no When or no key, role cards to prune")
     check.add_argument("--quiet", action="store_true", help="print one summary line, and nothing when no rule is due")
@@ -183,7 +186,15 @@ def main(argv=None):
             lines = resume.pause(project, config, args.intent, args.done, args.next_step, args.open_decisions, args.pitfalls, args.files)
         elif args.group == "resume":
             lines = (resume.clear if args.clear else resume.show)(project, config, args.branch)
+        elif args.group == "guard" and args.cases is not None:
+            if args.line or args.agent or args.expect:
+                raise Refuse("--cases takes no command line, --agent or --expect: a case holds its own @agent and verdict", 2)
+            lines, passed = guard_cases.run(project, config, args.cases)
+            print("\n".join(lines))
+            return 0 if passed else 1
         elif args.group == "guard":
+            if not args.line:
+                raise Refuse("give a command line, or --cases", 2)
             kind, why = guard_bash.judge(args.line, args.agent, config) or ("allow", "")
             print(f"{kind}: {why}" if why else kind)
             return 0 if args.expect in (None, kind) else 1

@@ -25,6 +25,10 @@
       { "id": "resources", "pattern": "(?i:resource|released|kept)", "hint": "a resources line (released or kept, and why)" }
     ]
   },
+  "resources": {
+    "ports": [4310, "9330-9339"],
+    "hint": "stop the Acme dev server and the headless browser"
+  },
   "commands": {
     "deny": [
       { "match": "acme-cli config push", "reason": "A config push overwrites the settings of the live project. Ask the owner to run it." }
@@ -51,6 +55,7 @@
     "decisions": "docs/agents/decisions.md",
     "roles": "docs/agents/roles",
     "walls": "docs/agents/walls.md",
-    "evals": "docs/agents/evals"
+    "evals": "docs/agents/evals",
+    "guardCases": "docs/agents/guard-cases.txt"
   }
 }
