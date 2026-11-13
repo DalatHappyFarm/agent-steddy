@@ -88,7 +88,7 @@ The data and the notes are local state in the git common dir (`.git/agent-steddy
 
 | Hook | Runs | What it does |
 | --- | --- | --- |
-| `tool_timing.py` | before and after every Bash command | Logs how long the command took, the session, the agent and whether it failed, with the command normalized (no `cd` prefix, relative paths, no heredoc body, secrets redacted). After a failure that is the second or later in a row for the same command in the session, it adds the premise nudge: stop, write the premise of the fixes as one sentence and test it (`nudges.premise` turns it off). |
+| `tool_timing.py` | before and after every Bash command | Logs how long the command took, the session, the agent and whether it failed, with the command normalized (no `cd` prefix, relative paths, no heredoc body, secrets redacted). After a failure that is the second or later in a row for the same command in the session, it adds the premise nudge: stop, write the premise of the fixes as one sentence and test it (`nudges.premise` turns it off). Before each command it also writes the marker of the session, which lets the `agent-steddy` command warn when the hooks do not run in its session ([hooks live check](config.md#hooks-live-check)). |
 | `secret_output_scan.py` | after every Bash command | Replaces a secret in the output the agent reads with `[REDACTED:<pattern>]` and tells the agent to report it. After a failed command it can only warn. It never prints the value. |
 | `session_start.py` | when a session starts, resumes, is cleared, is compacted or is forked (`SessionStart`) | When the checked out branch has a resume note, adds the line `Resume note for <branch> from <date>: run agent-steddy resume before you start.` to the context, and nothing otherwise. |
 | `gate_reminder.py` | when a prompt is submitted | Adds the seven gates (or `reminder.text`) to the prompt context, with one more line while a rule is seen twice and not promoted or broke after its promotion, then up to three recorded rules that match the prompt (`recall.prompt`), and starts the task clock when no task is pending (not on a background task's notification). |
@@ -112,6 +112,7 @@ The data and the notes are local state in the git common dir (`.git/agent-steddy
 | `agent-steddy lessons eval [--key K] [--judge] [--model M] [--bare]` | Runs the eval cases in `records.evals`: each Check command, and with `--judge` the cases that `claude -p` answers and judges against their criteria (`--bare` answers without the walls and the lessons, to see whether a case needs them); a summary by kind (seen, new), exit 1 when one fails. |
 
 Claude Code puts the plugin's `bin/` folder on the Bash tool's `PATH` while the plugin is enabled; Claude.ai and Cowork do not install a plugin that has one.
+Hooks load only when a session starts, so inside a session the command warns on stderr when this plugin's hooks did not run there (the plugin was installed, enabled or updated after the session started), or run another copy than the one that was called; `agent-steddy metrics selftest` states the result in one line.
 See [docs/config.md](config.md) for the clocks, the file formats, `finish`, the resume notes, the learning loop and the keys.
 
 ## Method

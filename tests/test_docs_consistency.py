@@ -1,6 +1,6 @@
 """The docs that teach the method (the skills, the templates, the README and the reference) must agree with the code they name.
 
-Thirteen checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
+Fourteen checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
 every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the reference and the config reference;
 every key of the config defaults has a row in the config reference;
 the README status line names the manifest's version;
@@ -9,6 +9,7 @@ the method rules that must stand in more than one place (the two questions befor
 the rules inside the gates are grouped by gate and each names its pstack principle, and the three that an implementer meets most stand in the implementer template and its example too;
 the premise nudge's text, threshold and switch in the config reference and the reference are the code's, and the text points at a rule the gates skill has;
 the pstack companion (the reference section with its install command, gate 2 loading principle skills, a `Principles:` line in every role card with names that pstack has);
+the hooks live check (the config reference quotes the warnings, the selftest lines and the age of the markers of the code, the README prompt keeps its scope line, its new-session proof and its 80 columns, and the state files and the hooks table name the markers);
 named metrics rows (the refusal the config reference quotes is the code's, the finish skill and the reference say it, no doc logs a row without `--task`, and the old after-the-fact note is gone);
 every backticked built-in rule id is listed in the reference's table;
 every relative link resolves, and its #anchor exists when the target is a Markdown file.
@@ -28,6 +29,7 @@ import cli  # noqa: E402
 import local_state  # noqa: E402
 import metrics  # noqa: E402
 import project_config  # noqa: E402
+import session_marker  # noqa: E402
 import tool_timing  # noqa: E402
 
 README = ROOT / "README.md"
@@ -355,6 +357,46 @@ class NamedRows(unittest.TestCase):
         for path in sources:
             self.assertNotIn("the task name is still the auto name", path.read_text(encoding="utf-8"), path.name)
             self.assertNotIn("a row still named", path.read_text(encoding="utf-8"), path.name)
+
+
+class HooksLiveCheck(unittest.TestCase):
+    PLACEHOLDERS = {"mine": "<version>", "here": "<path>", "theirs": "<version>", "there": "<path>"}
+
+    def prompt(self):
+        """The setup prompt of the README: the text block under `Set it up with your agent`."""
+        section = README.read_text(encoding="utf-8").split("## Set it up with your agent\n", 1)[1]
+        return section.split("```text\n", 1)[1].split("```", 1)[0]
+
+    def test_the_config_reference_quotes_the_warnings_the_selftest_lines_and_the_marker_age_of_the_code(self):
+        config = squash((ROOT / "docs" / "config.md").read_text(encoding="utf-8"))
+        texts = [session_marker.NO_MARKER, session_marker.OTHER_ROOT.format(**self.PLACEHOLDERS), session_marker.NOT_LIVE, session_marker.NOT_CHECKED,
+                 session_marker.LIVE.format(theirs="<version>"), session_marker.OTHER_COPY.format(**self.PLACEHOLDERS)]
+        for text in texts:
+            self.assertIn(squash(text), config)
+        self.assertIn(f"`MARKER_DAYS` = {session_marker.MARKER_DAYS} days", config)
+        source = (ROOT / "scripts" / "session_marker.py").read_text(encoding="utf-8")
+        for name in ("MARKER_DAYS", "NO_MARKER", "OTHER_ROOT", "NOT_CHECKED", "LIVE", "NOT_LIVE", "OTHER_COPY"):  # each number and text is defined once and used by name
+            self.assertEqual(len(re.findall(rf"^{name} = ", source, re.M)), 1, name)
+
+    def test_the_readme_prompt_limits_the_scope_proves_the_setup_in_a_new_session_and_fits_80_columns(self):
+        prompt = self.prompt()
+        self.assertLess(max(len(line) for line in prompt.splitlines()), 80)
+        text = squash(prompt)
+        self.assertIn("Change only .claude/, docs/agents/, CLAUDE.md and .gitignore, and ask me before you touch anything else.", text)
+        proof = text.split("5. ", 1)[1]
+        self.assertIn("start a new Claude Code session", proof)
+        self.assertIn("`agent-steddy metrics selftest` must say the hooks are live", proof)
+        self.assertIn("`git stash` must come back denied by the hook", proof)
+        self.assertLess(text.index("4. Commit"), text.index("5. "))  # the proof comes after the commit, in the new session
+        self.assertIn("Hooks load only when a session starts", squash(README.read_text(encoding="utf-8").split("## Install", 1)[1].split("## Set it up", 1)[0]))
+
+    def test_the_state_files_the_hooks_table_and_the_template_readme_name_the_markers(self):
+        config = (ROOT / "docs" / "config.md").read_text(encoding="utf-8")
+        self.assertIn("- `sessions/` holds one marker per Claude Code session whose hooks run", config)
+        self.assertIn("session markers", README.read_text(encoding="utf-8"))
+        row = next(line for line in squash(REFERENCE.read_text(encoding="utf-8")).split(" | ") if line.startswith("Logs how long the command took"))
+        self.assertIn("writes the marker of the session", row)
+        self.assertIn("hooks load only when a session starts", squash((ROOT / "templates" / "README.md").read_text(encoding="utf-8")))
 
 
 class RuleIds(unittest.TestCase):

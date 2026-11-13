@@ -32,7 +32,8 @@ The [example project](../examples/acme/README.md) shows the agents, the role car
    - `agents.writeFences`, the paths each fenced agent may write, such as `"<project>-auditor": ["docs/reviews/"]`;
    - `handback.agents`, the same patterns as `agents.allowed`, so that every hand-back is checked;
    - `commands.askFromSubagent`, the deploy and publish commands that a subagent must ask the owner about.
-6. Run `agent-steddy metrics selftest` in the project; it prints `selftest ok` when the installed scripts work.
+6. Run `agent-steddy metrics selftest` in the project; it prints `selftest ok` when the installed scripts work, and a line on whether the hooks run in this session.
+   Start a new Claude Code session after you commit: hooks load only when a session starts.
 
 ## Fold or keep
 
