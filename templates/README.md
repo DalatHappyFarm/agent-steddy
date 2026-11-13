@@ -31,6 +31,7 @@ The [example project](../examples/acme/README.md) shows the agents, the role car
    - `agents.models`, the model each agent type must run on, such as `"<project>-docs": "haiku"`;
    - `agents.writeFences`, the paths each fenced agent may write, such as `"<project>-auditor": ["docs/reviews/"]`;
    - `handback.agents`, the same patterns as `agents.allowed`, so that every hand-back is checked;
+   - `resources.ports` and `resources.hint`, the dev ports that an agent must have released when it stops (for example `[5173, "9220-9229"]`) and what to stop, so that a dev server is not left running;
    - `commands.askFromSubagent`, the deploy and publish commands that a subagent must ask the owner about.
 6. Run `agent-steddy metrics selftest` in the project; it prints `selftest ok` when the installed scripts work.
 

@@ -31,7 +31,7 @@ The table is the kit's own walls; a project adds its own in the walls file (`rec
 | 9 | Owner decisions that are hard to reverse are asked, or logged as assumptions, never made silently. | Not enforced; `agent-steddy record decision` writes them down. |
 | 10 | A subagent starts only with an agent type the project allows, and a model it is started with must match the one the project sets for that type. | `guard_agent` with `agents.allowed` and `agents.models`. |
 | 11 | A fenced subagent writes only inside its write fence. | `guard_write` with `agents.writeFences`; a write through the Bash tool is not fenced. |
-| 12 | A subagent's hand-back carries the items the project requires. | `stop_check` with `handback.agents` and `handback.required`; it blocks once. |
+| 12 | A subagent's hand-back carries the items the project requires. | `stop_check` with `handback.agents` and `handback.required`; with `resources.ports` it also blocks a dev port left listening. It blocks once. |
 
 A rule matches the usual forms of a command, not every way around it; [the limits](../../docs/config.md#command-matching) are in the config reference.
 

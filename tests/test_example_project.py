@@ -11,6 +11,7 @@ import os
 import pathlib
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -123,6 +124,26 @@ class StopCheck(unittest.TestCase):
         reason = stop("acme-web", "Done.")
         for item in CONFIG["handback"]["required"]:
             self.assertIn(item["hint"], reason)
+
+    @unittest.skipUnless(shutil.which("lsof"), "the probe needs lsof")
+    def test_blocks_a_complete_hand_back_while_the_dev_server_port_listens_and_names_both_in_one_block(self):
+        port = next(port for port in CONFIG["resources"]["ports"] if isinstance(port, int))
+        with socket.socket() as sock:
+            try:
+                sock.bind(("127.0.0.1", port))
+            except OSError:
+                self.skipTest(f"port {port} is in use on this machine")
+            sock.listen()
+            for agent in ["acme-web", "acme-docs"]:
+                reason = stop(agent, COMPLETE)
+                self.assertIn(f"port(s) {port} ({CONFIG['resources']['hint']})", reason, agent)
+                self.assertNotIn("Your hand-back is missing", reason, agent)
+            reason = stop("acme-web", "Done.")
+            self.assertIn(CONFIG["handback"]["required"][0]["hint"], reason)
+            self.assertIn(f"port(s) {port}", reason)
+            self.assertIsNone(stop("acme-web", COMPLETE, active=True))
+            self.assertIsNone(stop("general-purpose", COMPLETE))
+        self.assertIsNone(stop("acme-web", COMPLETE))  # released
 
     def test_blocks_only_the_items_that_are_missing(self):
         hints = {item["id"]: item["hint"] for item in CONFIG["handback"]["required"]}

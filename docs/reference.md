@@ -17,7 +17,7 @@ Hooks fire on events, not on gates:
 
 - The session start hook (`session_start.py`) runs when a session starts, resumes or is compacted: when the branch has a resume note it points at it.
 - The gate reminder (`gate_reminder.py`) runs on every prompt: it adds the gates to the prompt and starts the task clock.
-- When the work is delegated, `guard_agent.py` checks a subagent when it starts, `guard_write.py` keeps a fenced agent inside its paths, and `stop_check.py` blocks an incomplete hand-back once.
+- When the work is delegated, `guard_agent.py` checks a subagent when it starts, `guard_write.py` keeps a fenced agent inside its paths, and `stop_check.py` blocks an incomplete hand-back, or a dev port left listening, once.
 - The Bash hooks run on every command, in the main session and in a subagent: `guard_bash.py` checks it, `tool_timing.py` times it (and tells the agent to test its premise when a command has failed twice in a row) and `secret_output_scan.py` hides a secret in its output.
 - Gates 6 and 7 are commands, not hooks: the [finish skill](../skills/finish/SKILL.md) records the decisions, the retro and the metrics line, commits the record files by path, and runs `agent-steddy record finish`, which verifies the branch, fast-forwards the working branch onto it and never pushes.
 
@@ -75,7 +75,7 @@ Each one reads its keys from the project config and does nothing until they are 
 | --- | --- | --- |
 | `guard_agent.py` | before the tool that starts a subagent (`Agent`, and `Task`, its older name) | An agent type that matches no pattern of `agents.allowed`, and a passed `model` that lacks the model name `agents.models` gives that type. |
 | `guard_write.py` | before `Write`, `Edit`, `MultiEdit` and `NotebookEdit` | A write outside the path prefixes of `agents.writeFences`, for an agent type that has a fence. The main session and unfenced agents are not fenced. |
-| `stop_check.py` | when a subagent is about to stop | A hand-back that lacks a `handback.required` item (by default a status, a verification level and a retro line), for an agent type in `handback.agents`. It blocks once. |
+| `stop_check.py` | when a subagent is about to stop | A hand-back that lacks a `handback.required` item (by default a status, a verification level and a retro line), or a dev port of `resources.ports` that is still listening, for an agent type in `handback.agents`. It blocks once. |
 
 The write fence guards the file-writing tools only; a write through the Bash tool is not fenced.
 See [docs/config.md](config.md) for the keys and the matching rules.

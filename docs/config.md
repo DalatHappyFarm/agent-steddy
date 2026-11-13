@@ -28,6 +28,8 @@ Unknown keys are kept and are not an error.
 | `guards.disable` | `[]` | `scripts/guard_bash.py` |
 | `handback.agents` | `[]` | `scripts/stop_check.py` |
 | `handback.required` | a status, a verification level and a retro line | `scripts/stop_check.py` |
+| `resources.ports` | `[]` | `scripts/stop_check.py` |
+| `resources.hint` | `""` | `scripts/stop_check.py` |
 | `commands.deny` | `[]` | `scripts/guard_bash.py` |
 | `commands.askFromSubagent` | `[]` | `scripts/guard_bash.py` |
 | `commands.alwaysAsk` | `[]` | `scripts/guard_bash.py` |
@@ -61,6 +63,11 @@ Unknown keys are kept and are not an error.
   The templates have the agents start their hand-back with `Status: PASS | ISSUES | BLOCKED`, and the orchestrator reads that word first.
   This default changed in 0.3.0: a project that opted in with `handback.agents` and left `handback.required` out now also needs the status word, and a project that sets its own `handback.required` list is not affected.
   A list in the config replaces the default list.
+- `resources.ports` is a list of the TCP ports that must not be listening when a checked subagent stops: an integer such as `5173`, or a string `"a-b"` for a range such as `"5173-5179"`.
+  The default `[]` checks nothing.
+  It applies to the agent types of `handback.agents`; an entry that is neither a port nor a range is skipped.
+- `resources.hint` is what to stop, in a few words, for the message that names the busy ports, for example `"stop the dev server and headless Chrome"`.
+  The default `""` adds nothing.
 - `commands.deny` is a list of `{"match": "<words>", "reason": "<text>"}` objects; a matching command is always blocked and the agent sees the reason.
   A rule without a `reason` still blocks and says which rule matched.
 - `commands.askFromSubagent` is a list of `"<words>"` patterns; a subagent that runs a matching command makes the owner confirm it.
@@ -150,6 +157,17 @@ A `hint` falls back to the `id`, then to the `pattern`.
   An empty text lacks every item, so it is blocked.
 - An item that is not an object with a string `pattern`, or whose pattern is not a valid regular expression, is skipped.
   A value of the wrong type is read as the default, and any error inside the hook lets the agent stop.
+
+### Ports left listening
+
+The same hook can check that the agent left no dev server behind.
+When `resources.ports` lists ports and the agent type matches `handback.agents`, the hook runs `lsof -nP -iTCP:<ports> -sTCP:LISTEN` with a one second limit (the hook limit is 5 seconds).
+When something listens, the block names the ports and the `resources.hint`, and asks the agent to release them or to say in its hand-back why they are kept.
+One block lists the missing hand-back items and the busy ports together, and it blocks once like the rest, so the agent pays one extra turn at most.
+
+- The block ends with `Only your last message reaches the orchestrator, so end it with your full hand-back again, not just the resource note.`, because an agent that answers a resource block with one line about the port loses its hand-back.
+- The probe sees the machine, not the agent's own processes, so a port held by the orchestrator or by another agent counts too; the agent says in its hand-back that the port is not its own.
+- Without `lsof`, or when it fails or takes longer than the limit, the probe is skipped and the hand-back check runs alone.
 
 ## Secret output scan
 

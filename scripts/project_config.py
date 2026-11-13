@@ -31,6 +31,7 @@ DEFAULTS = {
             {"id": "retro", "pattern": r"(?i:retro)", "hint": "a one line retro (worked / exposed / rule)"},
         ],
     },
+    "resources": {"ports": [], "hint": ""},  # TCP ports a checked subagent must have released when it stops: ints, or "a-b" strings for ranges
     "commands": {"deny": [], "askFromSubagent": [], "alwaysAsk": []},
     "resume": {"folder": None},  # None keeps the resume notes in the local state; a project-relative folder keeps them in the repo
     "reminder": {"enabled": True, "text": DEFAULT_REMINDER},

@@ -16,6 +16,7 @@ The config sets these rules:
 - Only agent types that match `acme-*` start, and each runs on the model its file names: `sonnet`, except `acme-docs` on `haiku`.
 - `acme-auditor` writes only under `docs/reviews/`.
 - Every `acme-*` hand-back must name a status (`PASS`, `ISSUES` or `BLOCKED`), a verification level, a retro line and a resources line, or it is blocked once.
+- An `acme-*` agent that stops while something listens on port 4310 (the dev server) or on 9330 to 9339 (the headless browser) is blocked once too, in the same block as a missing hand-back item; `resources.hint` tells it what to stop.
 - `git push`, `make deploy` and `make deploy-web` need the owner's confirmation when a subagent runs them, `npm publish` and `pnpm publish` always do, and `acme-cli config push` is denied.
 - The resume notes of `agent-steddy pause` stay in the local state, since `resume.folder` is `null`; set it to a folder such as `docs/agents/resume` to keep them in the repo.
 - The premise nudge stays on: `nudges.premise` is `true`, which is the default, so a command that fails twice in a row in a session gets the line that says to test the premise.
