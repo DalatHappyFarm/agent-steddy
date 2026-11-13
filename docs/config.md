@@ -269,7 +269,7 @@ The Bash tool does not give `CLAUDE_PROJECT_DIR` to the commands it runs.
 So the command finds the project itself: `CLAUDE_PROJECT_DIR` when it is set, else the nearest folder from the working directory up that has `.claude/agent-steddy.json` or `.git`.
 It reads the project config from there, and every path it writes comes from that config.
 A command that is refused prints the reason on stderr after `agent-steddy: refused:` and exits 1.
-The refusals that ask for another key, When, target or task name (a rule with no key or no When, a bad key, a retired key, a new key whose closest rule is promoted, a promotion or a retirement that is not allowed, and a `metrics log` of a task that still has its auto name) exit 2, the code of a usage error, so a caller can tell them from a failed record.
+The refusals that ask for another key, When, target or task name (a rule with no key or no When, a bad key, a retired key, a new key that looks like a recorded rule or whose closest rule is promoted, a promotion or a retirement that is not allowed, and a `metrics log` of a task that still has its auto name) exit 2, the code of a usage error, so a caller can tell them from a failed record.
 `lessons eval` exits 1 when a case fails or a case file is broken, so it can run in a verify command or in CI.
 `agent-steddy guard "<command line>" [--agent <type>] [--expect deny|ask|allow]` prints the verdict the Bash guard would give that line, `deny: <reason>`, `ask: <reason>` or `allow`, from the built-in rules and the project config; `--agent` judges it as a subagent of that type.
 It exits 0, and with `--expect` it exits 1 unless the verdict is the expected one, so a lesson eval's Check can show that a deny rule stops the recorded failure.
@@ -486,8 +486,17 @@ A rule of `none` stands alone.
 Two more refusals keep a repeat from hiding under a new name, both exit 2 and write nothing:
 
 - A retired key: `<key> is retired by <other>; record the rule under <other>`.
-- A new key whose closest recorded rule (by the ranking above, retired rules left out) is promoted: the refusal names that rule and its target, and says to re-run with `--key <promoted key>` when it is the same failure, a break after its promotion, or with `--new` when it is a different rule.
-  It asks only when the closest rule is promoted, since a promoted rule that breaks again is the repeat that most needs to be seen.
+- A new key, one that is not in the file yet, unless `--new` is given.
+  The rule and its When line are compared with every recorded key that is not retired, and the key scores as its best entry, a rule text with its When line.
+  This ranking is not the one above: both texts become sets of search terms, the words of `lessons find` with function words dropped and a crude stem, and the score is their cosine, the terms they share over the square root of the product of the two set sizes, from 0 to 1.
+  A rule that shares no term is not close, so it is never listed.
+  The key is refused when the closest rule scores `NEAR` or more, 0.38, a constant in `scripts/lessons.py` and not a config key, or when the closest rule is promoted, whatever its score.
+  It was calibrated on five real lessons files: six pairs of one rule recorded under two keys scored 0.39 to 0.59, only six of the other 19,700 pairs of keys scored 0.38 or more, and replayed in date order, 2 of 199 new keys would have been refused.
+  The refusal lists the three closest rules, each as `<key> (seen <n> times, promoted -> <path>): <newest rule text>` with the promoted part only for a promoted rule, then says to re-run with `--key <existing>` when it is the same rule, or with `--new` when it is a different one.
+  When the closest rule is promoted the refusal says so and names its target, and the way on for the same failure is `--key <promoted key>`, a break after its promotion.
+  It asks for any score when the closest rule is promoted, since a promoted rule that breaks again is the repeat that most needs to be seen.
+  Two rules that share only a sentence frame ("about to run X, before Y") score low, and two that share their situation and most of their words score high.
+  The measure is lexical, so a rule that says the same thing in other words, in another situation, still passes under a new key.
 
 After writing with a key, the command counts the entries that carry it.
 At two or more, and when the key is not promoted, it prints `<key> is now seen <n> times`, the command `agent-steddy lessons promote <key> --to <role>` with the role that the headings of those entries name most often, the roles with their counts, and a line that a rule about safety, data or money goes `--to walls` instead.

@@ -23,6 +23,7 @@ THRESHOLD = 2  # "seen a second time" in the gates skill
 MAX_KEY = 40
 MAX_PITFALLS = 12  # a card with more bullets than this is due for pruning
 ALIKE = 0.45  # similarity from which two texts look alike: on sample pairs paraphrases of one rule scored 0.43 to 0.9, unrelated rules 0.15 to 0.25 and different rules in one sentence frame up to 0.8; a crude measure, so the report only proposes
+NEAR = 0.38  # score from which a new key is refused as a possible repeat of a recorded rule: on five real lessons files, six pairs of one rule under two keys scored 0.39 to 0.59 and only six of the other 19,700 pairs of keys scored 0.38 or more; replayed in date order, 2 of 199 new keys were refused; a crude measure, since a repeat in other words and another situation passes
 SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 STOP_WORDS = {"a", "an", "the", "to", "of", "and", "or", "is", "are", "be", "it", "in", "on", "for", "with", "that", "this", "you", "your", "when", "do", "does"}
 # find drops more function words than suggest_key does, since a prompt is longer and looser than a rule
@@ -205,11 +206,12 @@ def missing_key(entries, rule):
     return "\n".join(lines)
 
 
-def key_refusal(entries, rule, key, new=False):
-    """Why `rule` cannot be recorded under `key`, or None when it can.
+def key_refusal(entries, rule, key, new=False, when=None):
+    """Why `rule` (with its `when`) cannot be recorded under `key`, or None when it can.
 
     A retired key takes no new lines.
-    A new key whose closest recorded rule is promoted is refused unless `new`: the same failure under a new key would hide that a promoted rule broke again.
+    A new key is refused unless `new` when the closest recorded rule that is not retired is promoted, since the same failure under a new key would hide that a promoted rule broke again,
+    or when that rule scores NEAR or more, since a repeat under a new key is never counted.
     """
     known = groups(entries)
     if key in known:
@@ -219,14 +221,15 @@ def key_refusal(entries, rule, key, new=False):
         return f"{key} is retired{' by ' + after if after else ''}; record the rule under {after or 'a new key'}; nothing was written"
     if new:
         return None
-    ranked = [item for item in closest(entries, rule) if successor(item[2]) is None][:1]
-    if not ranked or not is_promoted(ranked[0][2]):
+    ranked = [item for item in nearest(entries, rule, when) if item[0]]  # a rule that shares no term with the new one is not close
+    if not ranked or (ranked[0][0] < NEAR and not is_promoted(ranked[0][2])):
         return None
     _, near, group = ranked[0]
+    promoted = is_promoted(group)
     return "\n".join([
-        f"{key} is a new key, and the closest recorded rule is promoted to {promoted_to(group)}:",
-        f"  {near}: {group[0].rule}",
-        f"if this is the same failure, the rule broke after its promotion: re-run with --key {near}",
+        f"{key} is a new key, and the closest recorded rule is promoted to {promoted_to(group)}:" if promoted else f"{key} is a new key, and it looks like a rule that is already recorded:",
+        *(f"  {name} (seen {plural(len(rules))}{', promoted -> ' + promoted_to(rules) if is_promoted(rules) else ''}): {rules[0].rule}" for _, name, rules in ranked),
+        f"if this is the same failure, the rule broke after its promotion: re-run with --key {near}" if promoted else "if it is the same rule, re-run with --key <existing>",
         "if it is a different rule, re-run with --new; nothing was written",
     ])
 
@@ -294,6 +297,26 @@ def stem(word):
 def terms(text):
     """The search terms of a text: its words in any script, lower case, function words dropped, stemmed."""
     return [stem(word) for word in re.findall(r"\w+", text.lower()) if word not in FIND_STOP]
+
+
+def near_terms(rule, when=None):
+    return set(terms(f"{rule} {when or ''}"))
+
+
+def nearest(entries, rule, when=None, limit=3):
+    """The recorded keys that are not retired and look most like `rule` with its `when`: (score, key, entries), best first, ties by key.
+
+    A key scores as its best entry, and an entry is its rule text with its When line, so the situation counts as much as the wording.
+    The score is the cosine of the two sets of search terms: the terms they share over the square root of the product of their sizes, from 0 to 1.
+    """
+    wanted = near_terms(rule, when)
+
+    def score(entry):
+        have = near_terms(entry.rule, entry.when)
+        return len(wanted & have) / math.sqrt(len(wanted) * len(have)) if wanted and have else 0.0
+
+    ranked = [(round(max(score(entry) for entry in group), 3), key, group) for key, group in groups(entries).items() if not is_retired(group)]
+    return sorted(ranked, key=lambda item: (-item[0], item[1]))[:limit]
 
 
 def find(entries, query, top=5):

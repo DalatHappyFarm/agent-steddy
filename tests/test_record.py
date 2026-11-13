@@ -119,11 +119,11 @@ class Lesson(unittest.TestCase):
     def test_a_rule_without_a_key_writes_nothing_and_exits_2_with_the_closest_rules_first(self):
         with folder() as root:
             path = root / "lessons.md"
-            for task, rule, key, today in [("a", "commit by path and never stage everything", "commit-by-path", "2026-10-01"),
-                                           ("b", "commit by path and never stage everything", "commit-by-path", "2026-10-02"),
-                                           ("c", "clear the cache in CI before a build", "clear-the-cache", "2026-10-03"),
-                                           ("d", "read the role card first", "role-card-first", "2026-10-04")]:
-                record.lesson(path, **self.entry(task=task, rule=rule, key=key, today=today))
+            for task, rule, key, when, today in [("a", "commit by path and never stage everything", "commit-by-path", "about to run git add", "2026-10-01"),
+                                                 ("b", "commit by path and never stage everything", "commit-by-path", "about to run git add", "2026-10-02"),
+                                                 ("c", "clear the cache in CI before a build", "clear-the-cache", "a CI build fails after a dependency changed", "2026-10-03"),
+                                                 ("d", "read the role card first", "role-card-first", "starting work as a role", "2026-10-04")]:
+                record.lesson(path, **self.entry(task=task, rule=rule, key=key, when=when, today=today))
             before = path.read_text()
             with self.assertRaises(Refuse) as caught:
                 record.lesson(path, **self.entry(rule="always commit by path, never git add all", key=None))
@@ -140,7 +140,7 @@ class Lesson(unittest.TestCase):
         with folder() as root:
             path = root / "lessons.md"
             for key in ["zz", "bb", "aa", "dd", "cc", "ee", "ff"]:
-                record.lesson(path, **self.entry(rule="same words every time", key=key))
+                record.lesson(path, **self.entry(rule="same words every time", key=key, new=True))
             with self.assertRaises(Refuse) as caught:
                 record.lesson(path, **self.entry(rule="something else", key=None))
             self.assertEqual([line.split()[0] for line in str(caught.exception).splitlines()[2:-1]], ["aa", "bb", "cc", "dd", "ee"])
@@ -178,7 +178,7 @@ class Lesson(unittest.TestCase):
                 self.assertEqual(caught.exception.code, 2, key)
             self.assertFalse(path.exists())
             for key in ["a", "commit-by-path", "x1-2y", "a" * 40]:
-                record.lesson(path, **self.entry(key=key))
+                record.lesson(path, **self.entry(key=key, new=True))  # the same rule again: only the form of the key is under test
 
     def test_a_rule_that_carries_a_marker_is_refused(self):
         with folder() as root:
@@ -250,6 +250,93 @@ class Lesson(unittest.TestCase):
                             "- Rule [clear-cache]: clear the cache\n")
             record.lesson(path, **self.entry(rule="read the exit status of every run before committing", key="exit-status-first"))
             self.assertEqual(lessons.read(path)[0].key, "exit-status-first")
+
+    SEEDS = (
+        "## 2026-01-04 - d - roles: web\n- Rule [rerun-before-flaky]: run the build twice before calling a test flaky\n  - When: a test fails once in CI\n\n"
+        "## 2026-01-03 - c - roles: web\n- Rule [versions-in-lockfile]: record the version of every tool in the lockfile [promoted -> docs/agents/walls.md]\n  - When: installing a tool on a new machine\n\n"
+        "## 2026-01-02 - b - roles: web\n- Rule [pin-toolchain]: pin the toolchain version in CI so every machine builds the same result\n  - When: a build passes on one machine and fails on another\n\n"
+        "## 2026-01-01 - a - roles: web\n- Rule [pin-toolchain]: pin the toolchain in CI\n  - When: a CI build is not the same as a local build\n"
+        "- Rule [commit-by-path]: commit by path, never stage everything\n  - When: about to run git add before a commit\n"
+    )
+    PIN = {"rule": "pin the compiler version in CI, so builds do not differ between machines", "key": "pin-compiler", "when": "a build differs between two machines"}
+
+    def test_a_new_key_that_looks_like_a_recorded_rule_is_refused_with_the_closest_three_unless_new(self):
+        with folder() as root:
+            path = root / "l.md"
+            path.write_text(self.SEEDS)
+            before = path.read_text()
+            self.assertEqual([(score, key) for score, key, _ in lessons.nearest(lessons.read(path), self.PIN["rule"], self.PIN["when"], limit=10)],
+                             [(0.481, "pin-toolchain"), (0.252, "versions-in-lockfile"), (0.211, "rerun-before-flaky"), (0.0, "commit-by-path")])  # scores computed by the code
+            self.assertGreaterEqual(0.481, lessons.NEAR)
+            with self.assertRaises(Refuse) as caught:
+                record.lesson(path, **self.entry(**self.PIN))
+            self.assertEqual(caught.exception.code, 2)
+            self.assertEqual(str(caught.exception).splitlines(), [
+                "pin-compiler is a new key, and it looks like a rule that is already recorded:",
+                "  pin-toolchain (seen 2 times): pin the toolchain version in CI so every machine builds the same result",  # the newest rule text of the key
+                "  versions-in-lockfile (seen 1 time, promoted -> docs/agents/walls.md): record the version of every tool in the lockfile",
+                "  rerun-before-flaky (seen 1 time): run the build twice before calling a test flaky",  # three at most
+                "if it is the same rule, re-run with --key <existing>",
+                "if it is a different rule, re-run with --new; nothing was written",
+            ])
+            self.assertEqual(path.read_text(), before)
+            record.lesson(path, **self.entry(**self.PIN, new=True))
+            record.lesson(path, **self.entry(**{**self.PIN, "key": "pin-toolchain"}))  # the same rule under its key: a repeat, not refused
+            self.assertEqual([entry.key for entry in lessons.read(path)][:2], ["pin-toolchain", "pin-compiler"])
+
+    def test_the_closest_rule_being_promoted_changes_the_message_not_the_way_on(self):
+        with folder() as root:
+            path = root / "l.md"
+            path.write_text(self.SEEDS.replace("pin the toolchain version in CI so every machine builds the same result", "pin the toolchain version in CI so every machine builds the same result [promoted -> docs/agents/walls.md]"))
+            with self.assertRaises(Refuse) as caught:
+                record.lesson(path, **self.entry(**self.PIN))
+            lines = str(caught.exception).splitlines()
+            self.assertEqual(lines[0], "pin-compiler is a new key, and the closest recorded rule is promoted to docs/agents/walls.md:")
+            self.assertEqual(lines[1], "  pin-toolchain (seen 2 times, promoted -> docs/agents/walls.md): pin the toolchain version in CI so every machine builds the same result")
+            self.assertEqual(lines[-2:], ["if this is the same failure, the rule broke after its promotion: re-run with --key pin-toolchain", "if it is a different rule, re-run with --new; nothing was written"])
+
+    def test_a_new_key_is_not_refused_when_no_recorded_rule_is_close_or_the_close_one_is_retired(self):
+        with folder() as root:
+            path = root / "l.md"
+            path.write_text(self.SEEDS)
+            other = {"rule": "run the new script on a copy of the data before the real run", "key": "copy-before-real-run", "when": "about to run an import script"}
+            self.assertEqual(lessons.nearest(lessons.read(path), other["rule"], other["when"], limit=1)[0][:2], (0.316, "commit-by-path"))  # a frame in common is not a repeat
+            self.assertLess(0.316, lessons.NEAR)
+            record.lesson(path, **self.entry(**other))
+            unpromoted = self.SEEDS.replace(" [promoted -> docs/agents/walls.md]", "")
+            path.write_text(unpromoted.replace("pin the toolchain in CI\n", "pin the toolchain in CI [retired]\n").replace("builds the same result\n", "builds the same result [retired]\n"))
+            self.assertNotIn("pin-toolchain", [key for _, key, _ in lessons.nearest(lessons.read(path), self.PIN["rule"], self.PIN["when"])])
+            record.lesson(path, **self.entry(**self.PIN))
+            self.assertEqual(lessons.read(path)[0].key, "pin-compiler")
+
+    def test_the_when_line_counts_toward_how_close_a_rule_is(self):
+        with folder() as root:
+            path = root / "l.md"
+            path.write_text("## 2026-01-02 - b - roles: web\n- Rule [clear-the-cache]: clear the cache in CI before a build\n  - When: a CI build fails after a dependency changed\n\n"
+                            "## 2026-01-01 - a - roles: web\n- Rule [key-out-of-repo]: store the checkout key in the secret manager only\n  - When: about to commit a file that holds the staging API key for the checkout service\n")
+            rule = "keep the staging key out of the repo"
+            situation = "about to commit a file that holds the staging API key for the checkout service"
+            scores = [lessons.nearest(lessons.read(path), rule, when)[0][0] for when in (situation, "about to share a log", None)]
+            self.assertEqual(scores, [0.721, 0.294, 0.248])  # computed by the code
+            self.assertGreaterEqual(scores[0], lessons.NEAR)
+            self.assertLess(scores[1], lessons.NEAR)
+            record.lesson(path, **self.entry(rule=rule, key="staging-key-out", when="about to share a log"))
+            with self.assertRaises(Refuse) as caught:
+                record.lesson(path, **self.entry(rule=rule, key="staging-key-kept-out", when=situation))
+            lines = str(caught.exception).splitlines()
+            self.assertEqual(lines[0], "staging-key-kept-out is a new key, and it looks like a rule that is already recorded:")
+            self.assertEqual([line.split()[0] for line in lines[1:-2]], ["key-out-of-repo", "staging-key-out"])  # the rule that shares no term with the new one is not listed
+
+    def test_one_rule_of_several_that_looks_like_a_recorded_one_refuses_the_whole_entry(self):
+        with folder() as root:
+            path = root / "l.md"
+            path.write_text(self.SEEDS)
+            before = path.read_text()
+            with self.assertRaises(Refuse) as caught:
+                record.lesson(path, **self.entry(rule=["run the new script on a copy of the data before the real run", self.PIN["rule"]],
+                                                 key=["copy-before-real-run", self.PIN["key"]], when=["about to run an import script", self.PIN["when"]]))
+            self.assertTrue(str(caught.exception).startswith("pin-compiler is a new key"), str(caught.exception))
+            self.assertEqual(path.read_text(), before)
 
     def test_missing_or_multi_line_fields_are_refused_and_nothing_is_written(self):
         with folder() as root:

@@ -80,7 +80,7 @@ def lesson(path, task, roles, worked, exposed, rule, today=None, key=None, when=
     A rule other than `none` needs a `key` (without one nothing is written and the refusal lists the closest recorded rules) and a `when`, the situation it applies to.
     A rule of `none` stands alone and takes no key or When; a key or When passed with it is ignored.
     `source` is self, owner or review: who found what the rules are about; anything but self is written as a From line under each rule.
-    A retired key takes no new line, and a new key whose closest recorded rule is promoted is refused unless `new` (lessons.key_refusal).
+    A retired key takes no new line, and a new key whose closest recorded rule is promoted or looks like the new rule is refused unless `new` (lessons.key_refusal).
     """
     task, worked, exposed = (one_line(name, value) for name, value in (("task", task), ("worked", worked), ("exposed", exposed)))
     rules = [one_line("rule", value) for value in as_list(rule)]
@@ -111,8 +111,8 @@ def lesson(path, task, roles, worked, exposed, rule, today=None, key=None, when=
         if len(whens) != len(rules):
             raise Refuse(f"{plural(len(rules), 'rule')} and {plural(len(whens), 'When')}: give each --rule a --when, the situation it applies to in the words an agent would use when it comes up "
                          "(such as: about to report that a test run passed from a command whose output went through a pipe); nothing was written", 2)
-        for text, name in zip(rules, keys):
-            refusal = lessons.key_refusal(entries, text, name, new)
+        for text, name, situation in zip(rules, keys, whens):
+            refusal = lessons.key_refusal(entries, text, name, new, situation)
             if refusal:
                 raise Refuse(refusal, 2)
         items = [(f"Rule [{name}]", text, situation) for text, name, situation in zip(rules, keys, whens)]

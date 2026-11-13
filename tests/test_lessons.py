@@ -205,6 +205,48 @@ class Slugs(unittest.TestCase):
         self.assertLess(far, lessons.ALIKE)
 
 
+class Nearest(unittest.TestCase):
+    """The ranking behind the refusal of a new key that looks like a recorded rule; every score below was computed by the code."""
+
+    def entries(self):
+        return lessons.parse(lessons_text(
+            ("2026-01-03", "c", "web", "- Rule [pin-toolchain]: pin the toolchain version in CI\n  - When: a build differs between two machines"),
+            ("2026-01-02", "b", "web", "- Rule [pin-toolchain]: pin the toolchain in CI so every machine builds the same result\n  - When: a build passes on one machine and fails on another"),
+            ("2026-01-02", "b2", "web", "- Rule [zz-pin-compiler]: pin the compiler version in CI\n  - When: a build differs between two machines\n- Rule [aa-pin-compiler]: pin the compiler version in CI\n  - When: a build differs between two machines"),
+            ("2026-01-01", "a", "web", "- Rule [old-pin]: pin the compiler version in CI [retired -> pin-toolchain]\n  - When: a build differs between two machines"),
+            ("2026-01-01", "a0", "web", "- Rule [no-when]: pin the compiler version in CI"),
+            ("2026-01-01", "a1", "web", "- Rule [unrelated]: commit by path\n  - When: about to run git add"),
+        ))
+
+    RULE, WHEN = "pin the compiler version in CI", "a build differs between two machines"
+
+    def test_a_key_scores_as_its_best_entry_from_the_rule_text_and_the_when_line(self):
+        got = [(score, key) for score, key, _ in lessons.nearest(self.entries(), self.RULE, self.WHEN, limit=10)]
+        self.assertEqual(got, [(1.0, "aa-pin-compiler"), (1.0, "zz-pin-compiler"), (0.889, "pin-toolchain"), (0.667, "no-when"), (0.0, "unrelated")])  # ties by key; a rule with no When counts by its text
+        rule_only = [(score, key) for score, key, _ in lessons.nearest(self.entries(), self.RULE, None, limit=10)]
+        self.assertEqual(rule_only, [(1.0, "no-when"), (0.667, "aa-pin-compiler"), (0.667, "zz-pin-compiler"), (0.5, "pin-toolchain"), (0.0, "unrelated")])
+
+    def test_a_retired_key_is_left_out_and_three_keys_come_back_by_default(self):
+        entries = self.entries()
+        self.assertNotIn("old-pin", [key for _, key, _ in lessons.nearest(entries, self.RULE, self.WHEN, limit=10)])
+        self.assertEqual([key for _, key, _ in lessons.nearest(entries, self.RULE, self.WHEN)], ["aa-pin-compiler", "zz-pin-compiler", "pin-toolchain"])
+        self.assertEqual([len(group) for _, _, group in lessons.nearest(entries, self.RULE, self.WHEN)], [1, 1, 2])  # the entries of the key come with its score
+
+    def test_nothing_recorded_or_nothing_to_compare_scores_nothing(self):
+        self.assertEqual(lessons.nearest([], self.RULE, self.WHEN), [])
+        self.assertEqual(lessons.nearest(self.entries(), "the of and", None, limit=1)[0][:2], (0.0, "aa-pin-compiler"))  # only function words: no term, no score
+
+    def test_the_same_terms_in_another_order_or_form_score_one(self):
+        self.assertEqual(lessons.nearest(self.entries(), "pin the toolchain version in CI", "two machines: a build differs between them", limit=1)[0][:2], (1.0, "pin-toolchain"))
+
+    def test_the_line_sits_below_a_paraphrase_of_one_rule_and_above_a_shared_frame(self):
+        entries = lessons.parse(lessons_text(("2026-01-01", "a", "web", "- Rule [commit-by-path]: commit by path, never stage everything\n  - When: about to run git add before a commit")))
+        paraphrase = lessons.nearest(entries, "never stage everything, commit by path", "about to run git add before a commit")[0][0]
+        frame = lessons.nearest(entries, "run the new script on a copy of the data before the real run", "about to run an import script")[0][0]
+        self.assertEqual((paraphrase, frame), (1.0, 0.316))
+        self.assertTrue(frame < lessons.NEAR <= paraphrase)
+
+
 class Check(unittest.TestCase):
     def run_check(self, root):
         return lessons.check(root, CONFIG)

@@ -82,7 +82,7 @@ def build_parser():
     lesson.add_argument("--key", action="append", help="one per --rule, in the same order: a slug that names the rule, such as commit-by-path; the same rule takes the same key; not needed when the rule is none")
     lesson.add_argument("--when", action="append", help="one per --rule, in the same order: the situation the rule applies to, in the words an agent would use when it comes up; lessons find matches it")
     lesson.add_argument("--from", dest="source", choices=[source for source in lessons.SOURCES if source != "self"], default="self", help="owner or review when they found what the rules are about; left out when the agent did")
-    lesson.add_argument("--new", action="store_true", help="record a new key even though the closest recorded rule is promoted")
+    lesson.add_argument("--new", action="store_true", help="record a new key even though a recorded rule looks like this one or the closest recorded rule is promoted")
     finish = records.add_parser("finish", help="verify a branch, fast-forward the working branch onto it and delete it; never pushes")
     finish.add_argument("branch")
     finish.add_argument("--full", action="store_true", help="append --full to verifyCommand")

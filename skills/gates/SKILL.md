@@ -206,6 +206,7 @@ The kit counts the repeats and writes the promotion; a person or an agent keeps 
    Record it with `agent-steddy record lesson ... --rule R --key K --when W`, and add `--from owner` when the owner had to point it out.
    A rule other than `none` takes a key, a lowercase slug such as `commit-by-path`, and the same rule recorded again takes the same key.
    Without a key the command writes nothing, exits 2 and lists the closest recorded rules, so the key is chosen by comparing and not from memory.
+   A new key that looks like a recorded rule, by its words and its When, is refused the same way with the three closest listed: re-run with `--key <existing>` when it is the same rule, so that the repeat is counted, or with `--new` when it is a different one.
    The When is the situation the rule applies to, in the words an agent would use at that moment ("about to report that a test run passed from a command whose output went through a pipe"), because it is what `lessons find` and the prompt hook match; a label such as "exit codes" finds nothing.
 2. A rule seen a second time moves into the Pitfalls of the matching role card.
    After the write the command prints `<key> is now seen <n> times` and the `agent-steddy lessons promote <key> --to <role>` command, with the roles of those entries, most common first.
@@ -227,7 +228,7 @@ The kit counts the repeats and writes the promotion; a person or an agent keeps 
 
 | Step | The command does | You decide |
 | --- | --- | --- |
-| Record the rule | `record lesson --key` refuses a rule with no key or no When, lists the closest recorded rules, and refuses a new key whose closest rule is promoted unless `--new`. | Whether the rule is the same as one listed, the key of a new one, and the When. |
+| Record the rule | `record lesson --key` refuses a rule with no key or no When, lists the closest recorded rules, and refuses a new key that looks like a recorded rule, or whose closest rule is promoted, unless `--new`. | Whether the rule is the same as one listed, the key of a new one, and the When. |
 | Recall | `lessons find` ranks the rules by key, text and When; the prompt hook adds up to three. | The query: the goal, the plan or the step, in plain words. |
 | Notice the repeat | `record lesson` prints the repeat notice; the reminder line and `lessons check` list the rules due. | Nothing to decide; read the notice. |
 | Promote | `lessons promote` writes the bullet, with the dates, and marks every Rule line of the key as promoted. | The target: a role card, the walls file, or a check as well; and the final wording (`--text`). |
