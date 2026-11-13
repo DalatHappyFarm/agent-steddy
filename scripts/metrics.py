@@ -8,7 +8,8 @@ Two clocks, both local time:
   prompt_minutes  from the owner's prompt that began the work (the auto start, kept as `prompt_start` when `start` runs after it) to `log`.
                   It includes the discussion before `start`.
                   It is null when no auto start existed (a second task of one prompt, since `log` deletes the clock) or when it is older than 12 hours (a prompt that never reached `log`).
-The report averages `prompt_minutes` over the rows that have it.
+A clock that ran longer than a working day (OPEN_CLOCK_MINUTES) was left open over a break: `log` refuses it without `--minutes`.
+The weekly table shows the median of `minutes` for each size and of `prompt_minutes` over the rows that have it, and the report lists the rows over that line as a clock left open.
 
 The report ends with verdicts for the last two weeks that have tasks (see `verdicts`); the two constants below are the whole rule.
 """
@@ -33,6 +34,8 @@ from local_state import Refuse  # noqa: E402
 # otherwise a gap between the two weeks' medians under IQR_SHARE of the larger week's interquartile range is no measurable difference.
 MIN_TASKS = 5  # at least 2, since an interquartile range needs two values
 IQR_SHARE = 0.5
+# A task clock that ran longer than this many minutes (a working day) was left open over a break: `log` refuses it without --minutes, and the report lists the rows above it.
+OPEN_CLOCK_MINUTES = 480
 
 
 def _when(value):
@@ -45,6 +48,10 @@ def _when(value):
 
 def _minutes(since, now):
     return round((now - since).total_seconds() / 60) if since else None
+
+
+def _is_minutes(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _need_state(state):
@@ -72,6 +79,7 @@ def log(state, log_file, size, task_type, verify_first_pass, task=None, roles=""
     """Append one line for a finished task to `log_file` and close the clock. Returns the line as a dict.
 
     A row is named for what was done: while the pending task still has its auto name (`auto <time>`, from the prompt hook) and `task` is not given, nothing is written, the clock is kept and the refusal has code 2.
+    The same refusal, with code 2, comes when `minutes` is not given and the clock has run more than OPEN_CLOCK_MINUTES: the caller still knows how long it worked, and a clock left open over a break does not.
     """
     now = now or dt.datetime.now()
     pending = local_state.read_pending(state) if state else {}
@@ -84,6 +92,10 @@ def log(state, log_file, size, task_type, verify_first_pass, task=None, roles=""
     # a fresh auto start (renamed by --task or not) is itself the prompt time and the start of the work; a stale one is neither
     auto = local_state.auto_start(pending, now)
     began = auto if is_auto else _when(pending.get("start"))
+    worked = _minutes(began, now)
+    if minutes is None and worked is not None and worked > OPEN_CLOCK_MINUTES:
+        raise Refuse(f"the clock has run {worked} minutes, more than a working day ({OPEN_CLOCK_MINUTES}): it was probably left open over a break. "
+                     "Pass --minutes <active minutes>, your honest estimate of the time spent working on it; nothing was written and the clock is kept", code=2)
     prompt_began = auto or _when(pending.get("prompt_start"))
     row = {
         "date": now.date().isoformat(),
@@ -92,7 +104,7 @@ def log(state, log_file, size, task_type, verify_first_pass, task=None, roles=""
         "size": size,
         "roles": [role.strip() for role in roles.split(",") if role.strip()],
         "agents": agents,
-        "minutes": minutes if minutes is not None else _minutes(began, now),
+        "minutes": minutes if minutes is not None else worked,
         "prompt_minutes": _minutes(prompt_began, now),
         "exposed": exposed,
         "verify_first_pass": verify_first_pass == "yes",
@@ -123,25 +135,40 @@ def read_rows(log_file):
     return rows
 
 
+def size_minutes(rows, size):
+    """The minutes of the rows of one size that have a number of them."""
+    return [r["minutes"] for r in rows if r.get("size") == size and _is_minutes(r.get("minutes"))]
+
+
 def task_table(rows, weeks):
+    """A line per week: the medians (one clock left open would decide a mean) of the minutes by size and of the prompt minutes, then the mean defects per task and the first-pass share."""
     by_week = defaultdict(list)
     for row in rows:
         by_week[week_of(row["date"])].append(row)
-    out = ["week      tasks  new  feedback  avg_min(S/M/L)      prompt_min  exposed/task  verify_1st_pass"]
+    out = ["week      tasks  new  feedback  med_min(S/M/L)  med_prompt_min  exposed/task  verify_1st_pass"]
+
+    def median(values):
+        return f"{statistics.median(values):.0f}" if values else "-"
+
     for week in sorted(by_week)[-weeks:]:
         rs = by_week[week]
-
-        def average(size, rs=rs):
-            minutes = [r["minutes"] for r in rs if r.get("size") == size and r.get("minutes") is not None]
-            return f"{sum(minutes) / len(minutes):.0f}" if minutes else "-"
-
-        prompt = [r["prompt_minutes"] for r in rs if r.get("prompt_minutes") is not None]
-        prompt_average = f"{sum(prompt) / len(prompt):.0f}" if prompt else "-"
+        prompt = [r["prompt_minutes"] for r in rs if _is_minutes(r.get("prompt_minutes"))]
         exposed = sum(r.get("exposed", 0) for r in rs) / len(rs)
         first_pass = sum(1 for r in rs if r.get("verify_first_pass")) / len(rs)
         new = sum(1 for r in rs if r.get("type") == "new")
-        out.append(f"{week}  {len(rs):5d}  {new:3d}  {len(rs) - new:8d}  {average('S'):>4}/{average('M'):>4}/{average('L'):>4}      {prompt_average:>10}  {exposed:12.2f}  {first_pass:15.0%}")
+        sizes = "/".join(f"{median(size_minutes(rs, size)):>4}" for size in "SML")
+        out.append(f"{week}  {len(rs):5d}  {new:3d}  {len(rs) - new:8d}  {sizes}  {median(prompt):>14}  {exposed:12.2f}  {first_pass:15.0%}")
     return out
+
+
+def open_clock_lines(rows, weeks):
+    """Below the table: the rows of the weeks it shows whose minutes are over OPEN_CLOCK_MINUTES, so a clock left open is seen and the number can be fixed by hand. [] when there is none."""
+    shown = sorted({week_of(row["date"]) for row in rows})[-weeks:]
+    over = [row for row in rows if week_of(row["date"]) in shown and _is_minutes(row.get("minutes")) and row["minutes"] > OPEN_CLOCK_MINUTES]
+    if not over:
+        return []
+    return ["", f"Clock left open? Rows with more than {OPEN_CLOCK_MINUTES} minutes (if so, correct the number in the metrics file):",
+            *(f"  {row['date']}  {row['minutes']:>6}  {row.get('task', '')}" for row in over)]
 
 
 def git_rows(root, weeks, today=None):
@@ -200,7 +227,7 @@ def verdicts(rows, weeks):
         out.append(f"  {name:<18}{cells[0]:<20}{cells[1]:<20}{verdict(old_values, new_values, center, lower_is_better, words)}")
 
     for size in ("S", "M", "L"):
-        minutes = [[r["minutes"] for r in week if r.get("size") == size and isinstance(r.get("minutes"), (int, float)) and not isinstance(r.get("minutes"), bool)] for week in (old, new)]
+        minutes = [size_minutes(week, size) for week in (old, new)]
         line(f"minutes {size}", *minutes, statistics.median, lambda value: f"median {value:g}", True, ("faster", "slower"))
     passed = [[1 if r.get("verify_first_pass") else 0 for r in week] for week in (old, new)]
     line("first-pass share", *passed, statistics.mean, lambda value: f"{value:.0%}", False, ("better", "worse"))
@@ -209,10 +236,10 @@ def verdicts(rows, weeks):
 
 
 def report(log_file, label, root, weeks):
-    """The weekly task table, the weekly git rework table and the verdicts on the last two weeks, as lines."""
+    """The weekly task table with the rows that look like a clock left open, the weekly git rework table and the verdicts on the last two weeks, as lines."""
     rows = read_rows(log_file)
     pairs = git_rows(root, weeks)
-    return [f"Tasks ({label})", *(task_table(rows, weeks) if rows else ["  no rows yet"]),
+    return [f"Tasks ({label})", *(task_table(rows, weeks) if rows else ["  no rows yet"]), *open_clock_lines(rows, weeks),
             "", "Git rework (conventional commit prefixes)", *(git_table(pairs, weeks) if pairs else ["  no commits in this range"]),
             "", *verdicts(rows, weeks)]
 

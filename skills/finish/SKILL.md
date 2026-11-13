@@ -73,6 +73,8 @@ agent-steddy metrics log --task "<task>" --size S|M|L --type new|feedback --veri
 - `--verify-first-pass yes` only when the first verification run was green.
 - `--exposed` counts the defects the owner found in work that was already delivered.
 - The minutes come from the task clock, and `--minutes` replaces it; with no clock and no `--minutes` the row has no minutes.
+- When the clock has run more than 480 minutes, a working day, the command refuses without `--minutes`: it exits 2, writes nothing and keeps the clock, because the clock was left open over a break.
+  Run it again with `--minutes <active minutes>`, your honest estimate of the time you spent working on this task; it is not the clock and not a number picked to fit.
 - Pass the real name in `--task`, what was done, unless you named the task earlier with `agent-steddy metrics start`.
   While the task still has its auto name (`auto <time>`, which the prompt hook gave it) the command refuses without `--task`: it exits 2, writes nothing and keeps the clock, so run it again with `--task`.
 

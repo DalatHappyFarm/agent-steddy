@@ -2,8 +2,9 @@
 
   agent-steddy metrics start "<task>" [--force]     name the task and start its clock
   agent-steddy metrics log --size S|M|L --type new|feedback --verify-first-pass yes|no [--task T] [--roles a,b] [--agents N] [--minutes N] [--exposed N]
-                                                    append one line to the metrics file and close the clock; --task is required while the task has its auto name
-  agent-steddy metrics report [--weeks 8]           weekly tables: tasks, and git rework by commit prefix
+                                                    append one line to the metrics file and close the clock; --task is required while the task has its auto name,
+                                                    and --minutes when the clock ran more than a working day (it was left open)
+  agent-steddy metrics report [--weeks 8]           weekly tables: tasks (medians), and git rework by commit prefix
   agent-steddy metrics slow [--days 7] [--top 10]   Bash commands by total time and count
   agent-steddy metrics selftest                     a quick check of the installed scripts
 
@@ -28,7 +29,7 @@
                                                     run the eval cases of the rules; exit 1 when one fails
 
 The project is `CLAUDE_PROJECT_DIR` when set, else the nearest folder from the cwd up that has `.claude/agent-steddy.json` or `.git`.
-Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused or an eval case fails, and 2 when the learning loop wants another key, When or target, `metrics log` has only an auto task name, or `pause` and `resume` have no branch or repo to work with, with the reason on stderr.
+Every path comes from the project config (docs/config.md); the exit code is 1 when a command is refused or an eval case fails, and 2 when the learning loop wants another key, When or target, `metrics log` has only an auto task name or a clock that was left open, or `pause` and `resume` have no branch or repo to work with, with the reason on stderr.
 """
 import argparse
 import json
@@ -61,7 +62,7 @@ def build_parser():
     log.add_argument("--type", dest="task_type", choices=["new", "feedback"], required=True, help="new for a fresh request, feedback for an owner round on earlier work")
     log.add_argument("--roles", default="", help="comma separated")
     log.add_argument("--agents", type=int, default=0)
-    log.add_argument("--minutes", type=int, help="the work in minutes; default is the clock")
+    log.add_argument("--minutes", type=int, help=f"the active working minutes; default is the clock, which is refused when it ran more than {metrics.OPEN_CLOCK_MINUTES}")
     log.add_argument("--exposed", type=int, default=0, help="defects the owner found in work that was already delivered")
     log.add_argument("--verify-first-pass", choices=["yes", "no"], required=True)
     report = commands.add_parser("report", help="weekly tables of tasks and git rework")

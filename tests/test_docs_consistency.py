@@ -1,6 +1,6 @@
 """The docs that teach the method (the skills, the templates, the README and the reference) must agree with the code they name.
 
-Thirteen checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
+Fourteen checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
 every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the reference and the config reference;
 every key of the config defaults has a row in the config reference;
 the README status line names the manifest's version;
@@ -10,11 +10,13 @@ the rules inside the gates are grouped by gate and each names its pstack princip
 the premise nudge's text, threshold and switch in the config reference and the reference are the code's, and the text points at a rule the gates skill has;
 the pstack companion (the reference section with its install command, gate 2 loading principle skills, a `Principles:` line in every role card with names that pstack has);
 named metrics rows (the refusal the config reference quotes is the code's, the finish skill and the reference say it, no doc logs a row without `--task`, and the old after-the-fact note is gone);
+open clocks (the config reference states the working-day constant of scripts/metrics.py, quotes its refusal and the list of rows over it, and names the median columns; the skills and the reference say it);
 every backticked built-in rule id is listed in the reference's table;
 every relative link resolves, and its #anchor exists when the target is a Markdown file.
 """
 
 import argparse
+import datetime as dt
 import json
 import pathlib
 import re
@@ -355,6 +357,47 @@ class NamedRows(unittest.TestCase):
         for path in sources:
             self.assertNotIn("the task name is still the auto name", path.read_text(encoding="utf-8"), path.name)
             self.assertNotIn("a row still named", path.read_text(encoding="utf-8"), path.name)
+
+
+class OpenClock(unittest.TestCase):
+    def refusal(self):
+        """The message `metrics log` refuses with for a named task whose clock ran 600 minutes, with that number written `<n>`."""
+        now = dt.datetime(2026, 10, 29, 12, 0, 0)
+        with tempfile.TemporaryDirectory() as folder:
+            state = pathlib.Path(folder)
+            (state / local_state.PENDING).write_text(json.dumps({"task": "t", "start": (now - dt.timedelta(minutes=600)).isoformat()}))
+            with self.assertRaises(local_state.Refuse) as raised:
+                metrics.log(state, state / "m.jsonl", "S", "new", "yes", now=now)
+            self.assertEqual(raised.exception.code, 2)
+            return str(raised.exception).replace("600", "<n>")
+
+    def test_the_config_reference_states_the_line_quotes_the_refusal_and_the_list_and_names_the_median_columns(self):
+        text = (ROOT / "docs" / "config.md").read_text(encoding="utf-8")
+        config = squash(text)
+        self.assertIn(f"`OPEN_CLOCK_MINUTES` = {metrics.OPEN_CLOCK_MINUTES} minutes", config)
+        self.assertEqual(len(re.findall(r"^OPEN_CLOCK_MINUTES = ", (ROOT / "scripts" / "metrics.py").read_text(encoding="utf-8"), re.M)), 1)  # defined once, used by name
+        self.assertIn(f"agent-steddy: refused: {squash(self.refusal())}", config)
+        self.assertIn("exits 2", config)
+        listed = metrics.open_clock_lines([{"date": "2026-10-13", "task": "fix the build", "minutes": 6928}], 8)
+        self.assertEqual(len(listed), 3)
+        self.assertIn("\n".join(listed[1:]), text)  # the heading and the line the section shows
+        for header in ("med_min(S/M/L)", "med_prompt_min"):
+            self.assertIn(header, metrics.task_table([], 8)[0])
+            self.assertIn(f"`{header}`", config)
+        self.assertNotIn("avg_min", config)
+
+    def test_the_skills_and_the_reference_say_that_a_clock_over_the_line_needs_minutes(self):
+        line = metrics.OPEN_CLOCK_MINUTES
+        for relative, phrases in [
+            ("skills/finish/SKILL.md", [f"When the clock has run more than {line} minutes", "refuses without `--minutes`: it exits 2, writes nothing and keeps the clock", "`--minutes <active minutes>`, your honest estimate"]),
+            ("skills/gates/SKILL.md", [f"a clock that ran more than {line} minutes was left open over a break, so the command refuses it the same way", "`--minutes <active minutes>`",
+                                       f"with the rows over {line} minutes listed below it as a clock left open", "median minutes by size"]),
+            ("docs/reference.md", [f"a clock that ran more than {line} minutes, a working day: `--minutes <active minutes>` is then required", f"with the rows over {line} minutes listed below as a clock left open"]),
+            ("docs/config.md", ["a `metrics log` without `--minutes` of a clock that ran more than a working day) exit 2"]),
+        ]:
+            text = squash((ROOT / relative).read_text(encoding="utf-8"))
+            for phrase in phrases:
+                self.assertIn(phrase, text, relative)
 
 
 class RuleIds(unittest.TestCase):

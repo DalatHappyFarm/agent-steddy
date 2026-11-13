@@ -3,6 +3,7 @@ import datetime as dt
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -106,6 +107,25 @@ class Refusals(unittest.TestCase):
             self.assertTrue(done.stdout.startswith('logged: {"date"'), done.stdout)
             self.assertNotIn("note:", done.stdout)
             self.assertEqual(json.loads((root / "docs/agents/metrics.jsonl").read_text())["task"], "the pricing page")
+            self.assertFalse(clock.exists())
+
+    def test_a_clock_left_open_is_refused_with_exit_2_and_logs_with_the_active_minutes(self):
+        with project() as root:
+            state = root / ".git" / "agent-steddy"
+            state.mkdir()
+            started = (dt.datetime.now() - dt.timedelta(days=2)).isoformat(timespec="seconds")
+            clock = state / "pending-task.json"
+            clock.write_text(json.dumps({"task": "the pricing page", "start": started, "prompt_start": started}))
+            done = agent_steddy(LOG, root)
+            self.assertEqual((done.returncode, done.stdout), (2, ""))
+            self.assertRegex(done.stderr, r"^agent-steddy: refused: the clock has run \d+ minutes, more than a working day \(480\)")
+            self.assertGreaterEqual(int(re.search(r"has run (\d+) minutes", done.stderr).group(1)), 2 * 24 * 60)
+            self.assertIn("Pass --minutes <active minutes>", done.stderr)
+            self.assertFalse((root / "docs").exists())  # nothing was written
+            self.assertEqual(json.loads(clock.read_text())["start"], started)  # and the clock is kept
+            done = agent_steddy([*LOG, "--minutes", "90"], root)
+            self.assertEqual((done.returncode, done.stderr), (0, ""))
+            self.assertEqual(json.loads((root / "docs/agents/metrics.jsonl").read_text())["minutes"], 90)
             self.assertFalse(clock.exists())
 
     def test_naming_the_task_earlier_with_start_logs_without_task(self):
