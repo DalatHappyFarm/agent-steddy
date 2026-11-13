@@ -22,11 +22,19 @@ Done means:
 - <criterion 2>
 Verify at: <L0 to L5> (<why this level>).
 Screens or pages to check: <list, or none>.
+
+Hand back in English, starting with these four lines, filled in (pick one status), then the detail; only your last message reaches the orchestrator, so the whole hand-back goes in it:
+Status: PASS | ISSUES | BLOCKED
+Verification: L<0-5>, <what you ran and what you saw>
+Resources: <released, or kept and why>
+Retro: worked <...> / exposed <...> / rule <...>
 ```
 
-The hand-back, in English, starts with `Status: PASS | ISSUES | BLOCKED` (pick one) and then carries: files changed; commit hash; evidence; the verification level used; resources released or kept, and why; decisions; what was not done and why; one retro line (worked / exposed / rule).
+The hand-back block is the last thing in the brief, and each agent file ends with the same four lines; leave it as it is, since the agent fills it in.
+The hand-back starts with the filled block and then carries: files changed; commit hash; evidence; decisions; what was not done and why.
 The status is `PASS` when every Done item is met and verified, `ISSUES` when the work is delivered but something is red, unverified or left out, and `BLOCKED` when the agent could not finish; the orchestrator reads that word first.
 For the agent types listed in `handback.agents`, the kit's `stop_check` hook checks the items in `handback.required`; by default those are a status (`PASS`, `ISSUES` or `BLOCKED`), a verification level and a retro line.
+The lines of the block carry the words that the default items, and the `resources` item of the example config, look for, so a hand-back that fills the block in passes the check on the first try; a blocked hand-back costs the agent an extra turn.
 
 Notes for the orchestrator:
 

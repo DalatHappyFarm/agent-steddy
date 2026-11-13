@@ -1,11 +1,12 @@
 """The docs that teach the method (the skills, the templates, the README and the reference) must agree with the code they name.
 
-Thirteen checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
+Fourteen checks: every skill has a name that matches its folder and a description, and every agent template has a name, a description and a model;
 every `agent-steddy <group> <sub>` names a subcommand of scripts/cli.py, and every command that has no subcommand is in the reference and the config reference;
 every key of the config defaults has a row in the config reference;
 the README status line names the manifest's version;
 the metric verdict rule in the config reference states the two constants of scripts/metrics.py;
-the method rules that must stand in more than one place (the two questions before a Rule line, a check that counts as enforced only after it failed, the brief budget, the auditor's re-run commands, the hand-back status) do;
+the method rules that must stand in more than one place (the two questions before a Rule line, a check that counts as enforced only after it failed, the brief budget, the auditor's re-run commands) do;
+the hand-back block (the same four lines last in every agent template, example agent and the brief, each line carrying the words of its stop-check item, and the block passing `stop_check` as it is and filled in);
 the rules inside the gates are grouped by gate and each names its pstack principle, and the three that an implementer meets most stand in the implementer template and its example too;
 the premise nudge's text, threshold and switch in the config reference and the reference are the code's, and the text points at a rule the gates skill has;
 the pstack companion (the reference section with its install command, gate 2 loading principle skills, a `Principles:` line in every role card with names that pstack has);
@@ -28,6 +29,7 @@ import cli  # noqa: E402
 import local_state  # noqa: E402
 import metrics  # noqa: E402
 import project_config  # noqa: E402
+import stop_check  # noqa: E402
 import tool_timing  # noqa: E402
 
 README = ROOT / "README.md"
@@ -182,18 +184,83 @@ class MethodRules(unittest.TestCase):
             self.assertIn("The report ends with a Dropped section: how many candidate findings you dropped, and why.", text, relative)
 
 
-    def test_every_agent_template_example_agent_and_the_brief_start_the_hand_back_with_the_status(self):
-        files = [*sorted(ROOT.glob("templates/agents/*.md")), *sorted(ROOT.glob("examples/acme/.claude/agents/*.md")), ROOT / "templates" / "brief.md"]
-        self.assertEqual(len(files), 9)
-        for path in files:
-            self.assertIn("starts with `Status: PASS | ISSUES | BLOCKED`" if path.name == "brief.md" else "starting with `Status: PASS | ISSUES | BLOCKED`",
-                          squash(path.read_text(encoding="utf-8")), path.name)
-
     def test_the_example_config_asks_for_the_default_status_item_first(self):
         example = json.loads((ROOT / "examples" / "acme" / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
         default = project_config.DEFAULTS["handback"]["required"]
         self.assertEqual(default[0], {"id": "status", "pattern": r"\b(?:PASS|ISSUES|BLOCKED)\b", "hint": "a status: PASS, ISSUES or BLOCKED"})
         self.assertEqual(example["handback"]["required"][:len(default)], default)
+
+
+class HandBackBlock(unittest.TestCase):
+    """The fill-in block that ends each agent file and the brief, so that a hand-back passes the stop check on the first try."""
+    LINES = ["Status: PASS | ISSUES | BLOCKED",
+             "Verification: L<0-5>, <what you ran and what you saw>",
+             "Resources: <released, or kept and why>",
+             "Retro: worked <...> / exposed <...> / rule <...>"]
+    ITEMS = ["status", "verification", "resources", "retro"]  # the item of handback.required that each line stands for
+    FILLED = "Status: ISSUES\nVerification: L2, ran make verify and saw 3 failures\nResources: kept the dev server on port 4310, the owner asked\nRetro: worked the brief / exposed a stale test / rule none"
+    AGENTS = [*sorted(ROOT.glob("templates/agents/*.md")), *sorted(ROOT.glob("examples/acme/.claude/agents/*.md"))]
+    BRIEF = ROOT / "templates" / "brief.md"
+
+    def fences(self, path):
+        return re.findall(r"```text\n(.*?)\n```", path.read_text(encoding="utf-8"), re.S)
+
+    def configs(self):
+        """The default items, for any agent, and the example config's items, for an acme agent: (config, agent type, {item id: hint})."""
+        example = json.loads((ROOT / "examples" / "acme" / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
+        example.pop("resources", None)  # the ports are probed for real, and this check is about the words of the block
+        return [({"handback": {"agents": ["*"]}}, "any-agent", {item["id"]: item["hint"] for item in project_config.DEFAULTS["handback"]["required"]}),
+                (example, "acme-web", {item["id"]: item["hint"] for item in example["handback"]["required"]})]
+
+    def test_every_agent_template_example_agent_and_the_brief_end_with_the_same_four_lines(self):
+        self.assertEqual(len(self.AGENTS), 8)
+        for path in self.AGENTS:
+            text = path.read_text(encoding="utf-8")
+            self.assertEqual(self.fences(path)[-1].splitlines(), self.LINES, path.name)
+            self.assertTrue(text.rstrip().endswith("```"), f"{path.name}: the block is the last thing in the file")
+            lead_in = squash(text.rsplit("```text", 1)[0].rsplit("Hand back in English.", 1)[1])
+            self.assertIn("Start your final message with the four lines below, filled in; pick one status", lead_in, path.name)
+            self.assertIn("Only your last message reaches the orchestrator, so the whole hand-back goes in that message", lead_in, path.name)
+            self.assertNotIn("- Hand back in English", text, path.name)  # the walls no longer carry the old bullet
+        self.assertEqual(self.fences(self.BRIEF)[-1].splitlines()[-4:], self.LINES)
+        self.assertIn("Hand back in English, starting with these four lines, filled in (pick one status)", self.fences(self.BRIEF)[-1])
+        self.assertIn("only your last message reaches the orchestrator", self.fences(self.BRIEF)[-1])
+
+    def blocks(self):
+        """(file name, the block of that file as text) for every file that ends with one."""
+        found = []
+        for path in [*self.AGENTS, self.BRIEF]:
+            fences = self.fences(path)
+            self.assertTrue(fences, f"{path.name} has no block")
+            found.append((path.name, "\n".join(fences[-1].splitlines()[-4:])))
+        self.assertEqual(len(found), 9)
+        return found
+
+    def filled(self, block, status):
+        """The block as an agent fills it in: one status, a level, and text for every placeholder."""
+        return block.replace("PASS | ISSUES | BLOCKED", status).replace("L<0-5>", "L2").replace("<...>", "none").replace("<released, or kept and why>", "released the dev server") \
+                    .replace("<what you ran and what you saw>", "ran make verify and saw it pass")
+
+    def test_each_block_passes_the_stop_check_as_it_is_and_filled_in_for_the_default_items_and_the_example_config(self):
+        for config, agent, items in self.configs():
+            self.assertEqual(list(items)[:3], ["status", "verification", "retro"])
+            self.assertIsNotNone(stop_check.judge({"agent_type": agent, "last_assistant_message": "Done."}, config))  # the check is on
+            for name, block in self.blocks():
+                self.assertNotIn("<", self.filled(block, "PASS"), name)  # every placeholder is one that the test fills
+                for message in [block, self.FILLED, *[self.filled(block, status) for status in ("PASS", "ISSUES", "BLOCKED")], self.filled(block, "PASS") + "\n\nFiles changed: a.ts. Commit abc123."]:
+                    self.assertIsNone(stop_check.judge({"agent_type": agent, "last_assistant_message": message}, config), (agent, name, message))
+
+    def test_each_line_of_each_block_carries_the_words_of_its_own_item(self):
+        for config, agent, items in self.configs():
+            for name, block in self.blocks():
+                lines = block.splitlines()
+                for line, item in zip(lines, self.ITEMS):
+                    if item not in items:
+                        continue  # the default items have no resources line
+                    reason = stop_check.judge({"agent_type": agent, "last_assistant_message": "\n".join(other for other in lines if other != line)}, config)
+                    self.assertIn(items[item], reason or "", f"{agent}, {name}: without the {item} line")
+                    for other in set(items) - {item}:
+                        self.assertNotIn(items[other], reason, f"{agent}, {name}: without the {item} line")
 
 
 class RulesInsideTheGates(unittest.TestCase):

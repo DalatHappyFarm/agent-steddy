@@ -14,7 +14,7 @@ The copied files hold no links, because a copy in a project would not resolve th
 | `agents/docs-writer.md` | `.claude/agents/` | A documentation agent that runs on a small model; the first agent to consider folding into the main session, see [Fold or keep](#fold-or-keep). |
 | `roles/role-card.md` | `docs/agents/roles/` | The empty shape of a role card, with a `Principles:` line for the engineering principles the role applies. |
 | `roles/orchestrator.md` | `docs/agents/roles/` | A filled orchestrator card: how the main session splits, briefs and checks the work. |
-| `brief.md` | `docs/agents/` | The brief that every subagent prompt starts from. |
+| `brief.md` | `docs/agents/` | The brief that every subagent prompt starts from; it ends with the hand-back block. |
 
 ## Adopt them
 
@@ -42,10 +42,16 @@ The docs writer is the first one to consider folding, because most documentation
 The trade-off is cost: the docs writer runs on a small model, and folding it moves its reads onto the main session's model, which can cost more tokens than it saves.
 Measure the tokens and the minutes of a few real docs tasks with and without the subagent before folding it; a role that reads a lot and hands back a little keeps its agent.
 
+## The hand-back block
+
+Each agent file and the brief end with the same four lines, `Status`, `Verification`, `Resources` and `Retro`, that the agent copies to the top of its final message and fills in.
+A hand-back that the stop check blocks costs the agent an extra turn, so the block is written to pass it on the first try: each line carries the words of the item it stands for, in the default `handback.required` and in the example config, which adds a `resources` item.
+When your `handback.required` asks for something else, add a line for it to the block in every agent file and in the brief, with the words its pattern looks for.
+
 ## Keep the copies in step
 
 Each agent file repeats the walls, because a subagent does not see the main conversation.
-When a wall changes, change it in the gates skill and in every agent file.
+When a wall changes, change it in the gates skill and in every agent file; the hand-back block is the same in all of them and in the brief.
 
 ## Limits
 

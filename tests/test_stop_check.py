@@ -295,10 +295,10 @@ class ExampleConfig(unittest.TestCase):
             config = project_config.load(tmp)
         self.assertEqual(config["handback"]["agents"], ["acme-*"])
         self.assertEqual([item["id"] for item in config["handback"]["required"]][:3], ["status", "verification", "retro"])
-        self.assertIsNone(stop(FULL + " Resources released: nothing started.", config))
         ports, hint = config["resources"]["ports"], config["resources"]["hint"]
         self.assertTrue(ports and hint)
         self.assertEqual(len(stop_check.port_spec(ports)), len(ports))  # every entry of the example is a valid port or range
+        self.assertIsNone(stop(FULL + " Resources released: nothing started.", {**config, "resources": {"ports": [], "hint": hint}}))  # no probe: the result must not depend on this machine's ports
         reason = stop("Done.", config)
         for hint in [item["hint"] for item in config["handback"]["required"]]:
             self.assertIn(hint, reason)

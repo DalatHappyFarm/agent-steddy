@@ -24,6 +24,9 @@ BIN = ROOT / "bin" / "agent-steddy"
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from hook_runner import git, make_repo, run_hook  # noqa: E402
 
+sys.path.insert(0, str(ROOT / "scripts"))
+import stop_check  # noqa: E402
+
 
 def bash(command, agent=None):
     """The Bash guard's verdict for a command: (decision, reason); ('allow', None) when it prints nothing."""
@@ -120,6 +123,12 @@ COMPLETE = "Status: PASS. Files: web/index.html. Commit abc123. Verification: L1
 
 
 class StopCheck(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        busy = stop_check.busy_ports(CONFIG)
+        if busy:
+            raise unittest.SkipTest(f"something on this machine listens on the example's dev port(s) {busy}")
+
     def test_blocks_a_hand_back_that_misses_every_item_and_names_each_hint(self):
         reason = stop("acme-web", "Done.")
         for item in CONFIG["handback"]["required"]:

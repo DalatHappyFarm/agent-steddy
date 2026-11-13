@@ -61,7 +61,8 @@ Unknown keys are kept and are not an error.
   The default `[]` checks no agent, so a project opts in.
 - `handback.required` is a list of `{"id": "<name>", "pattern": "<regular expression>", "hint": "<text>"}` objects: what the final message of a checked agent must contain.
   The default asks for a status (one of the words `PASS`, `ISSUES` and `BLOCKED`, whole and in capitals), a verification level (the text `verif` in any case, or `L0` to `L5`) and a retro line (the text `retro` in any case).
-  The templates have the agents start their hand-back with `Status: PASS | ISSUES | BLOCKED`, and the orchestrator reads that word first.
+  The templates end each agent file, and the brief, with a four line block (`Status`, `Verification`, `Resources` and `Retro`) that the agent copies to the top of its final message and fills in, and the orchestrator reads the status word first.
+  The words of those lines satisfy the default items, so a hand-back that fills the block in passes on the first try; a project that sets its own list keeps the block in step with it.
   This default changed in 0.3.0: a project that opted in with `handback.agents` and left `handback.required` out now also needs the status word, and a project that sets its own `handback.required` list is not affected.
   A list in the config replaces the default list.
 - `resources.ports` is a list of the TCP ports that must not be listening when a checked subagent stops: an integer such as `5173`, or a string `"a-b"` for a range such as `"5173-5179"`.
