@@ -52,6 +52,7 @@ Unknown keys are kept and are not an error.
   The model name is matched as a substring of the model the call passes, ignoring case, so `haiku` accepts `claude-haiku-4-5`.
 - `agents.writeFences` maps an agent type pattern to the list of path prefixes that agent may write, for example `"acme-auditor": ["docs/reviews/"]`.
   An agent type that matches no pattern is not fenced, and an empty list fences an agent out of every write.
+  A prefix is relative to the worktree that holds the file, so one entry covers the main checkout and every linked worktree of the repo (see [Write fence](#write-fence)).
 - `guards.disable` is a list of built-in rule ids (see [Built-in rules](#built-in-rules)) that this project turns off.
   An id that no rule has is ignored, so a typo leaves the rule on.
 - `handback.agents` is a list of agent type patterns whose final message is checked when they stop.
@@ -123,8 +124,15 @@ It reads `agent_type` from the hook input and looks for the first pattern of `ag
 A match fences the agent: the file it writes (`file_path`, or `notebook_path` for a notebook) must be one of that pattern's prefixes or sit below one.
 Anything else is denied, and the reason lists the allowed prefixes and the refused path.
 
-- A prefix is relative to the project root and matches whole path parts, so `docs/reviews` allows `docs/reviews/a.md` and not `docs/reviews-old/a.md`.
+- A prefix matches whole path parts, so `docs/reviews` allows `docs/reviews/a.md` and not `docs/reviews-old/a.md`.
   A trailing slash makes no difference, and a prefix can also be one file.
+- A prefix is relative to the git worktree that holds the file, so one entry such as `cmd/` covers the main checkout and every linked worktree of the repo.
+  A worktree can sit inside the project (`.claude/worktrees/<name>/`, where `isolation: worktree` puts it) or beside it (`../acme-worktrees/<name>/`).
+  The hook finds the worktree by walking up from the target to the first folder that has a `.git` entry, a folder that may not exist yet when the write creates it, and reads the `.git` files to check that it belongs to the same repository as the project (the same git common dir).
+  It runs no git command.
+  When the project root is below the repo root, it keeps its place: with the project at `<repo>/app`, the prefix `docs` means `<worktree>/app/docs` in every worktree.
+  A prefix is also still read from the project root, so an entry that spells out a worktree, such as `.claude/worktrees/x/cmd/`, keeps working, and a write is allowed when either reading matches.
+  A target in another repository, or in none, is judged from the project root only, and the reason names the worktree when the target is in one other than the project root.
 - The target is resolved before the check: `..` is applied and symlinks are followed, so a link inside a fenced folder cannot lead out of it.
   A relative target is taken from the hook input's `cwd`, as the tool does, and from the project root when there is none.
 - The main session and an agent type that matches no pattern are never fenced.

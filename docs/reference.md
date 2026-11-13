@@ -74,7 +74,7 @@ Each one reads its keys from the project config and does nothing until they are 
 | Hook | Runs | What it blocks |
 | --- | --- | --- |
 | `guard_agent.py` | before the tool that starts a subagent (`Agent`, and `Task`, its older name) | An agent type that matches no pattern of `agents.allowed`, and a passed `model` that lacks the model name `agents.models` gives that type. |
-| `guard_write.py` | before `Write`, `Edit`, `MultiEdit` and `NotebookEdit` | A write outside the path prefixes of `agents.writeFences`, for an agent type that has a fence. The main session and unfenced agents are not fenced. |
+| `guard_write.py` | before `Write`, `Edit`, `MultiEdit` and `NotebookEdit` | A write outside the path prefixes of `agents.writeFences`, for an agent type that has a fence. A prefix is relative to the worktree that holds the file, so one entry covers every worktree of the repo. The main session and unfenced agents are not fenced. |
 | `stop_check.py` | when a subagent is about to stop | A hand-back that lacks a `handback.required` item (by default a status, a verification level and a retro line), for an agent type in `handback.agents`. It blocks once. |
 
 The write fence guards the file-writing tools only; a write through the Bash tool is not fenced.

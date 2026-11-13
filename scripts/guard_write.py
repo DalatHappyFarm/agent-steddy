@@ -9,9 +9,32 @@ import fnmatch
 import json
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I leaves the script directory off the path
+import local_state  # noqa: E402
 import project_config  # noqa: E402
+
+
+def inside(path, base):
+    """Whether `path` is `base` or sits below it, by whole path parts."""
+    return path == base or path.startswith(base.rstrip(os.sep) + os.sep)
+
+
+def other_tree(path, root):
+    """Where the project dir would sit in the working tree that holds `path`, when that tree is a checkout of the project's repo; else None.
+
+    A checkout is the main one or a linked worktree, inside the project or beside it: both name the same git common dir.
+    A project dir below the repo root keeps its place, so a prefix of `docs` means `<tree>/<that place>/docs` in every tree.
+    A `.git` entry that cannot be read counts as no repository, so the project-relative check still decides.
+    """
+    try:
+        mine, theirs = local_state.git_tree(Path(root)), local_state.git_tree(Path(path))
+        if mine and theirs and os.path.realpath(mine[1]) == os.path.realpath(theirs[1]):
+            return os.path.normpath(os.path.join(theirs[0], os.path.relpath(root, mine[0])))
+    except (OSError, ValueError):
+        pass
+    return None
 
 
 def judge(data, config, project_dir):
@@ -19,7 +42,8 @@ def judge(data, config, project_dir):
 
     The fence is the first pattern of `agents.writeFences`, in file order, that matches the hook input's `agent_type`.
     The target (`file_path`, or `notebook_path`) must be one of the fence's prefixes or sit below one, after symlinks and `..` are resolved.
-    A prefix is relative to the project dir and matches whole path parts, so `docs/reviews` does not allow `docs/reviews-old/a.md`.
+    A prefix matches whole path parts, so `docs/reviews` does not allow `docs/reviews-old/a.md`.
+    It is relative to the project dir, and also to the git worktree that holds the target when that worktree is of the project's repo, so one entry covers the main checkout and every linked worktree.
     A relative target is taken from the hook input's `cwd`, as the tool does, else from the project dir.
     """
     agent = data.get("agent_type")
@@ -36,12 +60,14 @@ def judge(data, config, project_dir):
     cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else ""
     path = os.path.realpath(os.path.join(root, cwd, target))  # join drops what comes before an absolute part
     prefixes = [prefix for prefix in prefixes if isinstance(prefix, str)]
+    tree = other_tree(path, root)
     for prefix in prefixes:
-        base = os.path.realpath(os.path.join(root, prefix))
-        if path == base or path.startswith(base.rstrip(os.sep) + os.sep):
-            return None
+        for start in (root, tree):
+            if start and inside(path, os.path.realpath(os.path.join(start, prefix))):
+                return None
     allowed = ", ".join(prefixes) or "nothing"
-    return f"`{agent}` may write only under {allowed} (agents.writeFences in the project config). Refused path: {target}"
+    where = f" (also judged from the worktree {tree})" if tree and tree != root else ""
+    return f"`{agent}` may write only under {allowed} (agents.writeFences in the project config). Refused path: {target}{where}"
 
 
 def main():

@@ -59,19 +59,29 @@ def project_dir():
     return cwd
 
 
-def git_common_dir(start):
-    """The git common dir of the repo that holds `start`, a linked worktree included; None outside a repo."""
+def git_tree(start):
+    """(the root of the working tree that holds `start`, the git common dir of its repo); None outside a repo.
+
+    The root is the first folder from `start` up with a `.git` entry: a folder in a main checkout, a `gitdir:` file in a linked worktree, which names the common dir through the `commondir` file of its own git dir.
+    `start` need not exist yet.
+    """
     for folder in [start, *start.parents]:
         dot = folder / ".git"
         if dot.is_dir():
-            return dot
+            return folder, dot
         if dot.is_file():
             text = dot.read_text(encoding="utf-8")
             if text.startswith("gitdir:"):
                 gitdir = folder / text[len("gitdir:"):].strip()  # a relative path starts at the folder, an absolute one replaces it
                 commondir = gitdir / "commondir"  # a linked worktree names its common dir here, relative to itself
-                return (gitdir / commondir.read_text(encoding="utf-8").strip() if commondir.is_file() else gitdir).resolve()
+                return folder, (gitdir / commondir.read_text(encoding="utf-8").strip() if commondir.is_file() else gitdir).resolve()
     return None
+
+
+def git_common_dir(start):
+    """The git common dir of the repo that holds `start`, a linked worktree included; None outside a repo."""
+    tree = git_tree(start)
+    return tree[1] if tree else None
 
 
 def state_dir(project):
