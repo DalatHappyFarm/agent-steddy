@@ -58,7 +58,7 @@ You review and push.
 1. A mistake becomes a rule with a key and a When line, the situation it applies to.
 2. The rule comes back when that situation does, through the prompt hook or `agent-steddy lessons find`.
 3. Seen twice, it moves into a role card or the project's walls with `agent-steddy lessons promote`.
-4. Broken again after that, it needs a check a machine runs: a deny rule shown with `agent-steddy guard "<the bad command>" --expect deny`, or a test, kept as an eval case that `agent-steddy lessons eval` reruns after a plugin or model change.
+4. Broken again after that, it needs a check a machine runs: a deny rule shown with `agent-steddy guard "<the bad command>" --expect deny`, or a test, kept as an eval case that `agent-steddy lessons eval` reruns after a plugin or model change; a deny rule's command lines also go into the guard cases file, which `agent-steddy guard --cases` reruns in the verify command.
 5. A rule that no longer holds is retired with `agent-steddy lessons retire`.
 
 **What you do.**

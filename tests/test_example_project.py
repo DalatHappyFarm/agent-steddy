@@ -335,6 +335,29 @@ class WholeTask(unittest.TestCase):
                 self.assertIsNone(run_hook("session_start.py", start, project))
                 self.assertTrue(agent_steddy("resume", cwd=project).stdout.startswith("no resume note for feat/pricing"))
 
+    def test_the_recorded_guard_cases_of_the_example_hold_in_the_hook_and_in_the_command_and_a_weaker_config_fails_them(self):
+        lines = (EXAMPLE / CONFIG["records"]["guardCases"]).read_text(encoding="utf-8").splitlines()
+        cases = [(number, *line.split(None, 1)) for number, line in enumerate(lines, 1) if line.strip() and not line.startswith("#")]
+        self.assertTrue(any(want == "deny" and rest.startswith(CONFIG["commands"]["deny"][0]["match"]) for _, want, rest in cases), "the project's own deny rule")
+        self.assertTrue(any(want == "deny" and rest == "git stash" for _, want, rest in cases), "a built-in rule")
+        agents = [rest.split()[0][1:] for _, _, rest in cases if rest.startswith("@")]
+        self.assertTrue(agents)
+        for agent in agents:  # an @agent case names an agent of the example
+            self.assertTrue(any(fnmatch.fnmatchcase(agent, pattern) for pattern in CONFIG["agents"]["allowed"]), agent)
+        for _, want, rest in cases:  # the real hook gives the verdict that the file records
+            agent, _, command = rest[1:].partition(" ") if rest.startswith("@") else (None, "", rest)
+            self.assertEqual(bash(command, agent)[0], want, rest)
+        with copy_of_example() as project:
+            self.assertEqual(agent_steddy("guard", "--cases", cwd=project).stdout, f"guard cases: {len(cases)} passed, 0 failed\n")
+            config = json.loads((project / ".claude" / "agent-steddy.json").read_text(encoding="utf-8"))
+            config["commands"]["deny"] = []
+            (project / ".claude" / "agent-steddy.json").write_text(json.dumps(config), encoding="utf-8")
+            with self.assertRaises(subprocess.CalledProcessError) as failed:
+                agent_steddy("guard", "--cases", cwd=project)
+            number, _, rest = next(case for case in cases if case[2].startswith(CONFIG["commands"]["deny"][0]["match"]))
+            self.assertEqual(failed.exception.returncode, 1)
+            self.assertEqual(failed.exception.stdout, f"FAIL line {number}: want deny, got allow: {rest}\nguard cases: {len(cases) - 1} passed, 1 failed\n")
+
     def test_the_example_itself_is_left_clean(self):
         self.assertFalse((EXAMPLE / "docs" / "agents" / "decisions.md").exists())
         self.assertFalse((EXAMPLE / "docs" / "agents" / "lessons.md").exists())

@@ -44,6 +44,7 @@ DEFAULTS = {
         "roles": "docs/agents/roles",
         "walls": "docs/agents/walls.md",
         "evals": "docs/agents/evals",
+        "guardCases": "docs/agents/guard-cases.txt",
     },
 }
 

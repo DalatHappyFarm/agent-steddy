@@ -1,0 +1,23 @@
+# Recorded command lines and the verdict the Bash guard must give each one.
+# One case per line: <deny|ask|allow> [@<agent-type>] <command line>
+# Run them with `agent-steddy guard --cases`, as a step of the verify command.
+
+# The project's own deny rule (commands.deny).
+deny acme-cli config push --yes
+
+# Built-in rules still hold with this config.
+deny git stash
+deny git add -A
+deny cat .env
+
+# The owner confirms these whoever runs them (commands.alwaysAsk).
+ask npm publish
+ask git push --force origin main
+
+# A deploy: the main session runs it, a subagent asks (commands.askFromSubagent).
+allow make deploy
+ask @acme-web make deploy
+
+# Everyday work is never blocked, in the main session or in a subagent.
+allow git status --short
+allow @acme-web rg TODO web/

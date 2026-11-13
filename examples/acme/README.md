@@ -9,6 +9,7 @@ It has no product code, only the files that the kit reads and writes.
 | `.claude/agent-steddy.json` | The project config, see the [config reference](../../docs/config.md). |
 | `.claude/agents/` | Four agents filled in from the [templates](../../templates/README.md): `acme-web`, `acme-auditor`, `acme-verifier` and `acme-docs`. |
 | `docs/agents/roles/` | One role card for each agent. |
+| `docs/agents/guard-cases.txt` | The [guard cases](../../docs/config.md#guard-cases): command lines with the verdict the Bash guard must give each, including the project's deny rule, a built-in rule and an `@acme-web` case; `agent-steddy guard --cases` runs them. |
 | `docs/agents/evals/` | One [lesson eval](../../docs/config.md#lesson-evals) case: a task the agent has not met, for the rule `commit-by-path`, judged by a model against its criteria. |
 
 The config sets these rules:

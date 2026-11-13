@@ -44,6 +44,7 @@ Unknown keys are kept and are not an error.
 | `records.roles` | `"docs/agents/roles"` | `scripts/lessons.py` |
 | `records.walls` | `"docs/agents/walls.md"` | `scripts/lessons.py`, `scripts/evals.py` |
 | `records.evals` | `"docs/agents/evals"` | `scripts/evals.py`, `scripts/cli.py`, `scripts/gate_reminder.py` |
+| `records.guardCases` | `"docs/agents/guard-cases.txt"` | `scripts/guard_cases.py`, `scripts/cli.py` |
 
 - `workingBranch` is the branch agents work on and merge into; `record finish` fast-forwards it.
 - `verifyCommand` is the command that proves a change, or `null` when the project has none.
@@ -81,11 +82,12 @@ Unknown keys are kept and are not an error.
   An empty text adds nothing.
 - `nudges.premise` turns the [premise nudge](#premise-nudge) off when it is `false`; the command is still logged.
 - `recall.prompt` turns off the lessons that the [gate reminder](#gate-reminder) adds for the prompt when it is `false`; `agent-steddy lessons find` still works.
-- `records.*` are paths relative to the project root: the lessons file, the metrics file, the decisions file, the folder of the role cards, the walls file and the folder of the eval cases.
+- `records.*` are paths relative to the project root: the lessons file, the metrics file, the decisions file, the folder of the role cards, the walls file, the folder of the eval cases and the guard cases file.
   The command creates the file and its folder when it first writes to it; the role cards are never created, since `lessons promote` writes into a card that exists (copy `templates/roles/role-card.md` from the plugin).
 - `records.roles` is the folder of the role cards, one `<role>.md` for each role; `lessons promote --to <role>` writes into the card of that name, and `lessons check` reads every card of the folder.
 - `records.walls` is the project's walls file, the rules that every role reads at gate 2; `lessons promote --to walls` appends to it and creates it when it is missing.
 - `records.evals` is the folder of the [lesson evals](#lesson-evals), one Markdown file per case; nothing creates it, a person or an agent writes the cases.
+- `records.guardCases` is the text file of [guard cases](#guard-cases), the command lines with the verdict the Bash guard must give each; `agent-steddy guard --cases` reads it, and nothing creates it.
 
 ## Decisions
 
@@ -293,6 +295,27 @@ The refusals that ask for another key, When, target or task name (a rule with no
 It exits 0, and with `--expect` it exits 1 unless the verdict is the expected one, so a lesson eval's Check can show that a deny rule stops the recorded failure.
 The line is one quoted argument, so the guard of the session that runs `agent-steddy guard` does not read it as a command.
 `pause` and `resume` exit 2 as well when there is no branch or repo to work with: a detached HEAD, a repo with no commit, a project that is not a git repo, a `resume.folder` outside the project.
+
+### Guard cases
+
+`agent-steddy guard --cases [<file>]` runs a list of recorded command lines through the same guard, and checks each against the verdict written beside it.
+A project keeps the lines that its deny and ask rules were written for, and runs the command in its verify command, so a config edit or a plugin update that changes a verdict fails the verify.
+The file is `<file>`, a path relative to the working directory, else `records.guardCases` (`docs/agents/guard-cases.txt` by default), relative to the project root.
+
+```text
+# the project's own deny rule
+deny acme-cli config push --yes
+# a deploy: the main session runs it, a subagent asks
+allow make deploy
+ask @acme-web make deploy
+```
+
+- A case is one line, `<deny|ask|allow> [@<agent-type>] <command line>`: the verdict the guard must give, an optional agent type that judges the line as a subagent of that type (the main session without it), and the command line, as `agent-steddy guard` takes it.
+  A blank line and a line that starts with `#` are skipped; a `#` later in a line belongs to the command line.
+- It prints one line for each case whose verdict differs, `FAIL line <n>: want deny, got allow: <the case after its verdict>`, then `guard cases: <passed> passed, <failed> failed`, and exits 1 when any failed and 0 when none did.
+- It refuses with exit 2, before it runs any case, when the file is missing or unreadable, or when a line is malformed: it starts with another word than the three verdicts, has a `@` with no agent type, or has no command line.
+  The reason names the file and the line number.
+- A file with no case passes with `guard cases: 0 passed, 0 failed`, so a project that wants to be sure the file is read checks that its summary has a number above zero.
 
 ## Metrics
 

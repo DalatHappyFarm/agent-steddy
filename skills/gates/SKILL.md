@@ -215,6 +215,7 @@ The kit counts the repeats and writes the promotion; a person or an agent keeps 
    When a machine can check it, it also becomes a check: a project config entry such as `commands.deny`, `agents.writeFences` or `handback.required`, a hook, a test, or a new built-in rule in the kit.
    A check counts as enforced only after it was shown to fail on the error the lessons recorded: run it on that case and keep the output in the report.
    For a deny rule, `agent-steddy guard "<the recorded command>" --expect deny` is that run.
+   Keep the line in the guard cases file (`records.guardCases`, a line `deny <the recorded command>`), so that `agent-steddy guard --cases` in the verify command fails when a config edit or a plugin update stops denying it.
    Until then the rule stays prose in the Enforced by sense, written down and not enforced, and the walls table does not name the check.
    Keep that run as a lesson eval case (`records.evals`, `- Key: <key>`, `- Kind: seen`, a `- Check:` command), and add a `new` case that the agent has not met, so a pass shows the rule generalized; a rule broken after its promotion stays on the `lessons check` list and the prompt reminder until it has a case.
    A rule that a script cannot check (judgment, wording, design) gets a case with a `## Prompt` and `## Criteria` instead, which `agent-steddy lessons eval --judge` answers and judges with `claude -p`.
