@@ -1,6 +1,6 @@
 """Where the kit keeps its local state, and which project a process belongs to, plus the small helpers the commands share (`Refuse`, `git`, `one_line`).
 
-The state is the pending task clock, the tool timing log and the resume notes; it is never committed.
+The state is the pending task clock, the tool timing log, the session markers and the resume notes; it is never committed.
 It lives in the git common dir (`<repo>/.git/agent-steddy/`), which every worktree of a repo shares.
 Outside a git repo it falls back to `CLAUDE_PLUGIN_DATA`, which Claude Code gives to hook processes and not to the commands the Bash tool runs.
 """
@@ -15,6 +15,7 @@ NAME = "agent-steddy"
 PENDING = "pending-task.json"  # the task clock: {"task", "start", "prompt_start"}
 TIMES = "tool-times.jsonl"  # one line per Bash command
 MARKS = "tool-marks"  # start times of Bash commands that have not finished
+SESSIONS = "sessions"  # one marker per Claude Code session whose hooks run (session_marker.py)
 STALE_AUTO_HOURS = 12
 
 

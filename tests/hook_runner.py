@@ -35,6 +35,13 @@ def run_hook(script, data, project_dir, raw=None, env=None, args=()):
     return json.loads(out) if out.strip() else None
 
 
+def cli_env(**extra):
+    """The environment to run `bin/agent-steddy` in, as the Bash tool gives it but for the session: no CLAUDE_PROJECT_DIR, no CLAUDE_PLUGIN_DATA and no CLAUDE_CODE_SESSION_ID,
+    so the session check stays off and a test gives the same result inside a Claude Code session as outside. `extra` is added."""
+    unset = ("CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_DATA", "CLAUDE_CODE_SESSION_ID")
+    return {**{key: value for key, value in os.environ.items() if key not in unset}, **extra}
+
+
 def git(folder, *args):
     """The output of git in `folder`, with a throwaway identity and no signing. Fails when git does."""
     return subprocess.run(["git", "-C", str(folder), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", *args],

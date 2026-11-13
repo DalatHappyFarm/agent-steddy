@@ -16,7 +16,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import record  # noqa: E402
 import resume  # noqa: E402
 import secret_patterns  # noqa: E402
-from hook_runner import SCRIPTS, git, make_repo, run_hook, write_config  # noqa: E402
+from hook_runner import SCRIPTS, cli_env, git, make_repo, run_hook, write_config  # noqa: E402
 from local_state import Refuse  # noqa: E402
 
 BIN = ROOT / "bin" / "agent-steddy"
@@ -60,9 +60,8 @@ def note_path(root, config, branch="feat/x"):
 
 
 def agent_steddy(args, cwd):
-    """The finished process of `bin/agent-steddy`, run the way the Bash tool runs it: no CLAUDE_PROJECT_DIR and no CLAUDE_PLUGIN_DATA."""
-    env = {key: value for key, value in os.environ.items() if key not in ("CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_DATA")}
-    return subprocess.run([str(BIN), *args], cwd=cwd, env=env, capture_output=True, text=True)
+    """The finished process of `bin/agent-steddy`, run the way the Bash tool runs it but outside a session (see `cli_env`)."""
+    return subprocess.run([str(BIN), *args], cwd=cwd, env=cli_env(), capture_output=True, text=True)
 
 
 class BranchNames(unittest.TestCase):

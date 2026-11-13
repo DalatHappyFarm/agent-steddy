@@ -6,6 +6,7 @@ import pathlib
 import re
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -49,7 +50,6 @@ class Pairing(unittest.TestCase):
             self.assertEqual(list(marks.iterdir()), [])
 
     def test_the_line_starts_at_the_start_time(self):
-        import time
         with repo() as root:
             tool_timing.handle("pre", call(), root, START)
             row = tool_timing.handle("post", call(), root, START + 90)
@@ -358,6 +358,84 @@ class Normalize(unittest.TestCase):
         straddling = self.logged("echo " + "y" * 372 + " " + token)[0]  # the token starts before character 400 and ends after it
         self.assertNotIn("sbp_", straddling)
         self.assertEqual(len(straddling), tool_timing.CAP)
+
+
+class SessionMarker(unittest.TestCase):
+    """The `pre` hook tells the agent-steddy command that this session's hooks run (session_marker.py)."""
+
+    SID = "5e55105e-0000-4000-8000-000000000001"
+
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop("CLAUDE_PLUGIN_ROOT", None)  # the hook then falls back to the root of its own code
+
+    def marker(self, root, session=SID):
+        return local_state.state_dir(root) / local_state.SESSIONS / session
+
+    def test_pre_writes_the_marker_of_the_session_with_the_plugin_root_and_version(self):
+        with repo() as root:
+            tool_timing.handle("pre", call(session_id=self.SID), root, time.time())
+            self.assertEqual(json.loads(self.marker(root).read_text()), {"root": str(ROOT), "version": json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())["version"]})
+
+    def test_the_root_is_the_one_claude_code_gives_the_hook(self):
+        with repo() as root, tempfile.TemporaryDirectory() as tmp:
+            plugin = pathlib.Path(tmp).resolve() / "plugin"
+            (plugin / ".claude-plugin").mkdir(parents=True)
+            (plugin / ".claude-plugin" / "plugin.json").write_text('{"version": "7.7.7"}')
+            with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_ROOT": str(plugin)}):
+                tool_timing.handle("pre", call(session_id=self.SID), root, time.time())
+            self.assertEqual(json.loads(self.marker(root).read_text()), {"root": str(plugin), "version": "7.7.7"})
+
+    def test_pre_writes_it_again_only_when_it_is_missing_or_differs(self):
+        with repo() as root:
+            tool_timing.handle("pre", call(session_id=self.SID, call_id="a"), root, time.time())
+            os.utime(self.marker(root), (1_000_000_000, 1_000_000_000))
+            tool_timing.handle("pre", call(session_id=self.SID, call_id="b"), root, time.time())
+            self.assertEqual(self.marker(root).stat().st_mtime, 1_000_000_000)  # not written again
+            self.marker(root).unlink()
+            tool_timing.handle("pre", call(session_id=self.SID, call_id="c"), root, time.time())
+            self.assertTrue(self.marker(root).is_file())
+
+    def test_it_prunes_the_markers_older_than_30_days_when_it_writes(self):
+        with repo() as root:
+            sessions = local_state.state_dir(root) / local_state.SESSIONS
+            sessions.mkdir(parents=True)
+            old = sessions / "old"
+            old.write_text("{}")
+            os.utime(old, (time.time() - 31 * 86400,) * 2)
+            tool_timing.handle("pre", call(session_id=self.SID), root, time.time())
+            self.assertEqual([p.name for p in sessions.iterdir()], [self.SID])
+
+    def test_only_pre_of_a_bash_call_with_a_session_writes_it(self):
+        with repo() as root:
+            tool_timing.handle("pre", call(session_id=self.SID), root, time.time())
+            self.marker(root).unlink()
+            tool_timing.handle("post", call(session_id=self.SID, duration_ms=5), root, START)
+            tool_timing.handle("fail", call(session_id=self.SID, duration_ms=5), root, START)
+            tool_timing.handle("pre", call(), root, START)
+            tool_timing.handle("pre", call(tool="Read", session_id=self.SID), root, START)
+            self.assertEqual(list((local_state.state_dir(root) / local_state.SESSIONS).iterdir()), [])
+
+    def test_a_marker_that_cannot_be_written_does_not_lose_the_timing_mark_or_fail_the_hook(self):
+        with repo() as other:
+            tool_timing.handle("pre", call(session_id=self.SID), other, time.time())
+            self.assertTrue(self.marker(other).is_file())  # the same call writes it where it can
+        with repo() as root:
+            state = local_state.state_dir(root)
+            state.mkdir(parents=True)
+            (state / local_state.SESSIONS).write_text("a file where the folder should be")
+            tool_timing.handle("pre", call(session_id=self.SID), root, START)
+            row = tool_timing.handle("post", call(session_id=self.SID), root, START + 1)
+            self.assertEqual(row["ms"], 1000)
+
+    def test_the_hook_process_writes_it_and_prints_nothing(self):
+        with repo() as root:
+            pre = {"hook_event_name": "PreToolUse", **call("agent-steddy metrics selftest", session_id=self.SID)}
+            self.assertIsNone(run_hook("tool_timing.py", pre, root, env={"CLAUDE_PLUGIN_ROOT": str(ROOT)}, args=["pre"]))
+            self.assertEqual(json.loads(self.marker(root).read_text())["root"], str(ROOT))
+            self.assertEqual(len(list((local_state.state_dir(root) / local_state.MARKS).iterdir())), 1)  # the timing mark is there too
 
 
 class Hook(unittest.TestCase):

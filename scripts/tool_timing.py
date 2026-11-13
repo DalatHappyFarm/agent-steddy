@@ -2,7 +2,7 @@
 
   python3 -I tool_timing.py pre|post|fail     (the hook input as JSON on stdin)
 
-`pre` (PreToolUse) stores the start time in a mark named after the tool call id.
+`pre` (PreToolUse) stores the start time in a mark named after the tool call id, and writes the session's marker (session_marker.py) when it is missing or differs, so the `agent-steddy` command can tell whether the hooks run in its session.
 `post` (PostToolUse) and `fail` (PostToolUseFailure) append one line to the tool timing log in the local state folder and delete the mark:
   {"ts": start time, "agent": agent type or "main", "ms": duration, "status": "ok" or "fail", "cmd": the command, normalized, 400 characters at most, "session_id": ..., "agent_id": ...}
 `session_id` is the hook input's, and `agent_id` is its too and is left out in the main session; a line written before they existed has neither and stays readable.
@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python3 -I lea
 import local_state  # noqa: E402
 import project_config  # noqa: E402
 import secret_patterns  # noqa: E402
+import session_marker  # noqa: E402
 
 CAP = 400
 PREMISE_FAILS = 2  # failures of one command in a row that earn the premise nudge; docs/config.md states it
@@ -58,6 +59,7 @@ def handle(mode, data, project, now):
     marks = state / local_state.MARKS
     mark = marks / re.sub(r"\W", "_", str(data.get("tool_use_id") or "none"))
     if mode == "pre":
+        session_marker.mark(state, data.get("session_id"), os.environ.get("CLAUDE_PLUGIN_ROOT"), now)  # never raises, so the timing mark below is not lost to it
         marks.mkdir(parents=True, exist_ok=True)
         mark.write_text(repr(now), encoding="utf-8")
         return None

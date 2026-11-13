@@ -9,8 +9,11 @@ import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from hook_runner import git, make_repo, write_config  # noqa: E402
+import local_state  # noqa: E402
+import session_marker  # noqa: E402
+from hook_runner import cli_env, git, make_repo, run_hook, write_config  # noqa: E402
 
 BIN = ROOT / "bin" / "agent-steddy"
 LOG = ["metrics", "log", "--size", "M", "--type", "new", "--verify-first-pass", "yes"]
@@ -28,9 +31,8 @@ def project(config=None):
 
 
 def agent_steddy(args, cwd, **env):
-    """The finished process of `bin/agent-steddy` run in `cwd`, the way the Bash tool runs it: no CLAUDE_PROJECT_DIR and no CLAUDE_PLUGIN_DATA."""
-    base = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_DATA")}
-    return subprocess.run([str(BIN), *args], cwd=cwd, env={**base, **env}, capture_output=True, text=True)
+    """The finished process of `bin/agent-steddy` run in `cwd`, the way the Bash tool runs it but outside a session (see `cli_env`); `env` is added."""
+    return subprocess.run([str(BIN), *args], cwd=cwd, env=cli_env(**env), capture_output=True, text=True)
 
 
 class Dispatch(unittest.TestCase):
@@ -47,7 +49,7 @@ class Dispatch(unittest.TestCase):
         with project() as root, tempfile.TemporaryDirectory() as planted:
             pathlib.Path(planted, "json.py").write_text("raise SystemExit('a planted module was imported')")
             done = agent_steddy(["metrics", "selftest"], root, PYTHONPATH=planted)
-            self.assertEqual((done.returncode, done.stdout.strip(), done.stderr), (0, "selftest ok", ""))
+            self.assertEqual((done.returncode, done.stdout.splitlines()[0], done.stderr), (0, "selftest ok", ""))
 
     def test_the_project_is_found_from_a_subfolder_of_the_repo(self):
         with project({"records": {"metrics": "notes/metrics.jsonl"}}) as root:
@@ -349,6 +351,122 @@ class LearningLoop(unittest.TestCase):
             self.assertIn("FAIL    test-exit-status (seen)", done.stdout)
             self.assertIn("    the pipe hid it", done.stdout)
             self.assertIn("summary: seen: 0 of 1 passed", done.stdout)
+
+
+SID = "c0ffee00-1111-4222-8333-444455556666"
+VERSION = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+
+
+class HooksLive(unittest.TestCase):
+    """Inside a Claude Code session (CLAUDE_CODE_SESSION_ID) the command says on stderr when this plugin's hooks do not run there."""
+
+    START = ["metrics", "start", "a task"]
+
+    def run_in(self, root, args, session=SID):
+        return agent_steddy(args, root, **({"CLAUDE_CODE_SESSION_ID": session} if session else {}))
+
+    def mark(self, root, plugin_root=None, session=SID):
+        """The marker that the pre hook writes."""
+        session_marker.mark(local_state.state_dir(root), session, plugin_root, 0.0)
+
+    def test_a_session_whose_hooks_never_ran_gets_the_warning_and_nothing_else_changes(self):
+        with project() as root:
+            done = self.run_in(root, self.START)
+            self.assertEqual(done.stderr, session_marker.NO_MARKER + "\n")
+            self.assertTrue(done.stderr.startswith("agent-steddy: this plugin's hooks did not run in this session, so the guards, the gate reminder and the task clock are off."))
+            self.assertIn("start a new Claude Code session in this project.", done.stderr)
+            plain = self.run_in(root, ["metrics", "start", "a task", "--force"], session=None)
+            self.assertEqual((done.returncode, done.stdout), (plain.returncode, plain.stdout))
+            self.assertEqual((done.returncode, done.stdout), (0, "started: a task\n"))
+
+    def test_the_warning_comes_before_a_refusal_and_the_exit_code_stays(self):
+        with project() as root:
+            self.assertEqual(self.run_in(root, self.START).returncode, 0)
+            done = self.run_in(root, ["metrics", "start", "second"])
+            self.assertEqual((done.returncode, done.stdout), (1, ""))
+            lines = done.stderr.splitlines()
+            self.assertEqual(lines[0], session_marker.NO_MARKER)
+            self.assertTrue(lines[1].startswith("agent-steddy: refused: 'a task' has been running"), lines)
+
+    def test_a_session_whose_hooks_run_another_copy_gets_both_versions_and_both_paths(self):
+        with project() as root, tempfile.TemporaryDirectory() as tmp:
+            cache = pathlib.Path(tmp).resolve() / "cache"
+            (cache / ".claude-plugin").mkdir(parents=True)
+            (cache / ".claude-plugin" / "plugin.json").write_text('{"version": "9.9.9"}')
+            self.mark(root, cache)
+            done = self.run_in(root, self.START)
+            self.assertEqual(done.returncode, 0)
+            self.assertEqual(done.stderr, f"agent-steddy: this is version {VERSION} at {ROOT}, but this session's hooks run version 9.9.9 at {cache}; call `agent-steddy` by name, not through a cache path.\n")
+
+    def test_a_session_whose_hooks_run_this_copy_gets_nothing(self):
+        with project() as root:
+            self.assertEqual(self.run_in(root, ["metrics", "report"]).stderr, session_marker.NO_MARKER + "\n")
+            self.mark(root)
+            done = self.run_in(root, self.START)
+            self.assertEqual((done.returncode, done.stdout, done.stderr), (0, "started: a task\n", ""))
+
+    def test_the_marker_is_the_sessions_own(self):
+        with project() as root:
+            self.mark(root, session="another-session")
+            self.assertEqual(self.run_in(root, self.START).stderr, session_marker.NO_MARKER + "\n")
+
+    def test_the_pre_hook_is_what_silences_it(self):
+        with project() as root:
+            self.assertEqual(self.run_in(root, ["metrics", "report"]).stderr, session_marker.NO_MARKER + "\n")
+            hook = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_use_id": "toolu_1", "session_id": SID, "tool_input": {"command": "agent-steddy metrics report"}}
+            self.assertIsNone(run_hook("tool_timing.py", hook, root, env={"CLAUDE_PLUGIN_ROOT": str(ROOT)}, args=["pre"]))
+            self.assertEqual(self.run_in(root, ["metrics", "report"]).stderr, "")
+
+    def test_no_session_id_means_no_check(self):
+        with project() as root:
+            self.assertEqual(self.run_in(root, ["metrics", "report"]).stderr, session_marker.NO_MARKER + "\n")
+            done = self.run_in(root, self.START, session=None)
+            self.assertEqual((done.returncode, done.stderr), (0, ""))
+
+    def test_a_project_that_is_not_a_git_repo_has_no_state_folder_and_no_check(self):
+        find = ["lessons", "find", "anything"]
+        with project() as root, tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(self.run_in(root, find).stderr, session_marker.NO_MARKER + "\n")  # the same command in a repo
+            done = self.run_in(pathlib.Path(tmp).resolve(), find)
+            self.assertEqual((done.returncode, done.stderr), (0, ""))
+
+    def test_a_marker_that_cannot_be_read_is_silent(self):
+        with project() as root:
+            marker = local_state.state_dir(root) / "sessions" / SID
+            marker.parent.mkdir(parents=True)
+            self.assertEqual(self.run_in(root, ["metrics", "report"]).stderr, session_marker.NO_MARKER + "\n")  # no file yet
+            for text in ("garbage", "[]", '{"root": 5}'):
+                marker.write_text(text)
+                self.assertEqual(self.run_in(root, ["metrics", "report"]).stderr, "", text)
+
+    def test_guard_skips_the_check_because_scripts_and_eval_checks_call_it_and_it_does_not_need_the_hooks(self):
+        with project() as root:
+            self.assertEqual(self.run_in(root, ["metrics", "report"]).stderr, session_marker.NO_MARKER + "\n")  # the same session, a command that checks
+            done = self.run_in(root, ["guard", "git stash", "--expect", "deny"])
+            self.assertEqual((done.returncode, done.stderr), (0, ""))
+            self.assertTrue(done.stdout.startswith("deny: [git-stash]"))
+
+    def test_selftest_prints_the_result_as_its_second_line_and_does_not_repeat_it_on_stderr(self):
+        with project() as root:
+            expected = {
+                "no marker": (None, session_marker.NOT_LIVE),
+                "this copy": (True, f"hooks live in this session: yes, version {VERSION}"),
+            }
+            for name, (mark, line) in expected.items():
+                if mark:
+                    self.mark(root)
+                done = self.run_in(root, ["metrics", "selftest"])
+                self.assertEqual((done.returncode, done.stdout.splitlines(), done.stderr), (0, ["selftest ok", line], ""), name)
+            self.assertEqual(self.run_in(root, ["metrics", "selftest"], session=None).stdout.splitlines(), ["selftest ok", session_marker.NOT_CHECKED])
+
+    def test_selftest_names_the_other_copy_when_the_hooks_run_one(self):
+        with project() as root, tempfile.TemporaryDirectory() as tmp:
+            cache = pathlib.Path(tmp).resolve() / "cache"
+            (cache / ".claude-plugin").mkdir(parents=True)
+            (cache / ".claude-plugin" / "plugin.json").write_text('{"version": "9.9.9"}')
+            self.mark(root, cache)
+            line = self.run_in(root, ["metrics", "selftest"]).stdout.splitlines()[1]
+            self.assertTrue(line.startswith(f"hooks live in this session: yes, version 9.9.9, but this command is version {VERSION} at {ROOT}"), line)
 
 
 if __name__ == "__main__":
